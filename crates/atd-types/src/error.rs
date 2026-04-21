@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum AtdError {
     #[error("tool not found: {tool_id}")]
     ToolNotFound {
