@@ -1,6 +1,87 @@
-//! MCP stdio bridge — forwards `tools/list` and `tools/call` to an ATD server.
+//! atd-mcp-bridge: MCP-over-stdio bridge to an ATD server.
+//!
+//! Usage:
+//!   atd-mcp-bridge [--sock PATH]
+//!
+//! Defaults to $HOME/.anos/anos.sock. Speaks MCP (JSON-RPC 2.0) on stdin/stdout,
+//! logs to stderr.
 
-fn main() {
-    eprintln!("atd-mcp-bridge: scaffold — handlers land in Tasks 6-9");
-    std::process::exit(1);
+use atd_client::{AtdClient, Endpoint};
+use atd_mcp_bridge::bridge::Bridge;
+use atd_mcp_bridge::jsonrpc::{read_request, write_response, Response};
+use std::io::{BufReader, BufWriter};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    // Parse argv: look for "--sock <path>".
+    let mut args = std::env::args().skip(1);
+    let mut sock_path: Option<std::path::PathBuf> = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--sock" => {
+                sock_path = args.next().map(std::path::PathBuf::from);
+            }
+            "-h" | "--help" => {
+                eprintln!("usage: atd-mcp-bridge [--sock PATH]");
+                std::process::exit(0);
+            }
+            other => {
+                eprintln!("atd-mcp-bridge: unknown arg: {other}");
+                std::process::exit(2);
+            }
+        }
+    }
+
+    let endpoint = match sock_path {
+        Some(p) => Endpoint::unix(p),
+        None => Endpoint::default_anos(),
+    };
+
+    eprintln!("atd-mcp-bridge: connecting to {endpoint:?}");
+    let client = match AtdClient::connect(endpoint).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("atd-mcp-bridge: connect failed: {e}");
+            std::process::exit(1);
+        }
+    };
+    eprintln!("atd-mcp-bridge: connected; entering stdio loop");
+
+    let bridge = Bridge::new(client);
+
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    let mut reader = BufReader::new(stdin.lock());
+    let mut writer = BufWriter::new(stdout.lock());
+
+    loop {
+        match read_request(&mut reader) {
+            Ok(None) => {
+                eprintln!("atd-mcp-bridge: stdin closed; exiting cleanly");
+                return;
+            }
+            Ok(Some(req)) => {
+                let method = req.method.clone();
+                let id = req.id.clone();
+                let resp = bridge.handle(req).await;
+                if let Some(r) = resp {
+                    if let Err(e) = write_response(&mut writer, &r) {
+                        eprintln!("atd-mcp-bridge: write failed on {method}: {e}");
+                        return;
+                    }
+                } else {
+                    eprintln!("atd-mcp-bridge: notification {method} (no reply)");
+                }
+                let _ = id; // unused; retained for future logging
+            }
+            Err(e) => {
+                eprintln!("atd-mcp-bridge: parse error: {e}");
+                // Per JSON-RPC 2.0, send a parse error if we could recover an id,
+                // but since parsing failed we can't — just log and exit.
+                let err = Response::err(serde_json::Value::Null, -32700, format!("parse error: {e}"));
+                let _ = write_response(&mut writer, &err);
+                return;
+            }
+        }
+    }
 }
