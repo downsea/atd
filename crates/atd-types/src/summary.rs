@@ -6,9 +6,12 @@ use crate::tool::ToolDefinition;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolSummary {
     pub id: String,
+    #[serde(default)]
     pub name: String,
     pub description: String,
+    #[serde(default)]
     pub domain: String,
+    #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub visibility: ToolVisibility,
@@ -102,5 +105,17 @@ mod tests {
         let s: ToolSummary = serde_json::from_str(j).unwrap();
         assert_eq!(s.tier, ToolTier::Warm);
         assert_eq!(s.visibility, ToolVisibility::Read);
+    }
+
+    #[test]
+    fn summary_parses_anos_shape_with_missing_name_domain_tags() {
+        let j = r#"{"id":"anos:fs.read","description":"File Read","tier":"hot","visibility":"read","lifecycle":"Active"}"#;
+        let s: ToolSummary = serde_json::from_str(j).unwrap();
+        assert_eq!(s.id, "anos:fs.read");
+        assert_eq!(s.description, "File Read");
+        assert_eq!(s.name, ""); // defaults to empty; discover() fills in
+        assert_eq!(s.domain, ""); // defaults to empty; discover() fills in
+        assert!(s.tags.is_empty());
+        // lifecycle is not a ToolSummary field — serde ignores unknown keys by default
     }
 }
