@@ -4,6 +4,7 @@
 //! live in the `atd-types` sibling crate.
 
 pub mod endpoint;
+pub mod protocol;
 pub mod wire;
 
 pub use endpoint::Endpoint;
