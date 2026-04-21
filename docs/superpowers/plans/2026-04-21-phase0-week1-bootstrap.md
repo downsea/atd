@@ -113,7 +113,7 @@ Create `/home/nan/proj/atd-mvp/Cargo.toml`:
 ```toml
 [workspace]
 resolver = "2"
-members = ["crates/atd-types", "crates/atd-client"]
+members = ["crates/atd-types"]
 
 [workspace.package]
 version = "0.1.0"
@@ -1096,7 +1096,18 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 ```
 
-- [ ] **Step 8.3: Run the tests**
+- [ ] **Step 8.3: Add atd-client to workspace members**
+
+Edit `/home/nan/proj/atd-mvp/Cargo.toml` and change
+```toml
+members = ["crates/atd-types"]
+```
+to
+```toml
+members = ["crates/atd-types", "crates/atd-client"]
+```
+
+- [ ] **Step 8.4: Run the tests**
 
 ```bash
 cargo test -p atd-client --lib endpoint
@@ -1104,10 +1115,10 @@ cargo test -p atd-client --lib endpoint
 
 Expected: `2 passed; 0 failed`.
 
-- [ ] **Step 8.4: Commit**
+- [ ] **Step 8.5: Commit**
 
 ```bash
-git add crates/atd-client/
+git add crates/atd-client/ Cargo.toml
 git commit -m "feat(atd-client): add crate skeleton and Endpoint type"
 ```
 
