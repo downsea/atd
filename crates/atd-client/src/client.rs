@@ -217,20 +217,14 @@ impl AtdClient {
                 dry_run: _,
             } => {
                 if success {
-                    // Server returned raw data JSON. Wrap in ToolResult::Success
-                    // with synthetic metadata — the ANOS reference server does
-                    // not yet populate atd-shaped metadata (tracked as an
-                    // open gap in docs/issues/).
+                    // Server returned raw data JSON. Metadata carries only the
+                    // tool_id echoed by the server; timestamp/request_id/etc.
+                    // remain None until the server populates them (tracked in
+                    // the ANOS-side issue for run_tool metadata parity). The
+                    // client must not synthesize values it doesn't have.
                     Ok(atd_types::ToolResult::Success {
                         data: result,
-                        metadata: atd_types::ToolResultMetadata {
-                            tool_id: resp_tool_id,
-                            version: "0.0.0".into(),
-                            binding: atd_types::BindingProtocol::Cli,
-                            latency_ms: 0,
-                            timestamp: chrono::Utc::now(),
-                            request_id: ulid::Ulid::new(),
-                        },
+                        metadata: atd_types::ToolResultMetadata::for_tool(resp_tool_id),
                     })
                 } else {
                     let (code, message, retryable) = extract_error(&result);

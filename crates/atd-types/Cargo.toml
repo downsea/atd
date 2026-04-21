@@ -11,6 +11,4 @@ description = "Protocol-level types for the Agent Tool Dispatch (ATD) protocol."
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-chrono = { workspace = true }
-ulid = { workspace = true }
 thiserror = { workspace = true }
