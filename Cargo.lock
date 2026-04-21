@@ -16,12 +16,23 @@ name = "atd-client"
 version = "0.1.0"
 dependencies = [
  "atd-types",
+ "chrono",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
  "ulid",
+]
+
+[[package]]
+name = "atd-examples"
+version = "0.1.0"
+dependencies = [
+ "atd-client",
+ "atd-types",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
