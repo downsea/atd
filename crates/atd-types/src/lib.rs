@@ -15,3 +15,7 @@ pub use tool::{
 pub mod summary;
 
 pub use summary::ToolSummary;
+
+pub mod result;
+
+pub use result::{ToolResult, ToolResultMetadata};
