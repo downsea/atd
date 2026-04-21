@@ -7,9 +7,6 @@ pub enum Request {
     #[serde(rename = "ping")]
     Ping,
 
-    #[serde(rename = "hello")]
-    Hello { version: String },
-
     #[serde(rename = "tool_list")]
     ToolList,
 
@@ -30,12 +27,6 @@ pub enum Request {
 pub enum Response {
     #[serde(rename = "pong")]
     Pong,
-
-    #[serde(rename = "hello")]
-    HelloResponse {
-        version: String,
-        capabilities: Vec<String>,
-    },
 
     #[serde(rename = "tool_list")]
     ToolListResponse { tools: serde_json::Value },

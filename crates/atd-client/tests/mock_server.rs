@@ -25,8 +25,6 @@ enum ServerReq {
         args: serde_json::Value,
         dry_run: bool,
     },
-    #[serde(rename = "hello")]
-    Hello { version: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -106,7 +104,6 @@ async fn spawn_mock_server() -> PathBuf {
                     let req: ServerReq = serde_json::from_slice(&buf).unwrap();
                     let resp = match req {
                         ServerReq::Ping => ServerResp::Pong,
-                        ServerReq::Hello { .. } => continue,
                         ServerReq::ToolList => ServerResp::ToolList {
                             tools: serde_json::json!([sample_tool()]),
                         },

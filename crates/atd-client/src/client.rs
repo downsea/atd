@@ -340,9 +340,8 @@ mod tests {
     #[tokio::test]
     async fn ping_errors_when_server_sends_wrong_response() {
         let (client_end, server_end) = duplex(4096);
-        spin_server(server_end, |_| Response::HelloResponse {
-            version: "x".into(),
-            capabilities: vec![],
+        spin_server(server_end, |_| Response::ToolListResponse {
+            tools: serde_json::json!([]),
         })
         .await;
 
