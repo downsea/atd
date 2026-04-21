@@ -121,7 +121,7 @@ edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/atd-protocol/atd-mvp"
 authors = ["ATD Protocol Contributors"]
-rust-version = "1.80"
+rust-version = "1.85"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
