@@ -150,6 +150,40 @@ impl AtdClient {
 
         Ok(out)
     }
+
+    pub async fn describe(
+        &self,
+        tool_id: &str,
+    ) -> Result<atd_types::ToolDefinition, AtdError> {
+        let resp = self
+            .request(&Request::ToolSchema {
+                tool_id: tool_id.to_string(),
+            })
+            .await?;
+
+        match resp {
+            Response::ToolSchemaResponse { schema } => {
+                serde_json::from_value(schema).map_err(|e| AtdError::ProtocolError {
+                    expected: "ToolDefinition".into(),
+                    got: format!("deserialize error: {e}"),
+                })
+            }
+            Response::Error { message, .. } if message.to_lowercase().contains("not found") => {
+                Err(AtdError::ToolNotFound {
+                    tool_id: tool_id.to_string(),
+                    suggestions: vec![],
+                })
+            }
+            Response::Error { message, .. } => Err(AtdError::ProtocolError {
+                expected: "tool_schema".into(),
+                got: format!("error: {message}"),
+            }),
+            other => Err(AtdError::ProtocolError {
+                expected: "tool_schema".into(),
+                got: format!("{other:?}"),
+            }),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -277,5 +311,62 @@ mod tests {
             .unwrap();
         assert_eq!(only_fs.len(), 1);
         assert!(only_fs[0].id.starts_with("anos:fs"));
+    }
+
+    fn tool_def_json() -> serde_json::Value {
+        serde_json::json!({
+            "id": "anos:fs.read",
+            "name": "Read",
+            "description": "read a file",
+            "version": "0.1.0",
+            "capability": {
+                "domain": "fs", "actions": ["read"], "tags": [], "intent_examples": []
+            },
+            "input_schema": {"type": "object"},
+            "output_schema": {"type": "string"},
+            "bindings": [{"protocol": "Cli", "config": {}}],
+            "safety": {"level": "Read", "dry_run": false, "side_effects": [], "data_sensitivity": null},
+            "resources": {"timeout_ms": 1000, "max_concurrent": 1, "rate_limit_per_min": null, "estimated_tokens": null},
+            "trust": {"publisher": "anos", "trust_level": "L2Tested", "signature": null},
+            "visibility": "read"
+        })
+    }
+
+    #[tokio::test]
+    async fn describe_returns_full_tool_definition() {
+        let (client_end, server_end) = duplex(16_384);
+        spin_server(server_end, |req| match req {
+            Request::ToolSchema { tool_id } => {
+                assert_eq!(tool_id, "anos:fs.read");
+                Response::ToolSchemaResponse {
+                    schema: tool_def_json(),
+                }
+            }
+            _ => unreachable!(),
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let def = client.describe("anos:fs.read").await.unwrap();
+        assert_eq!(def.id, "anos:fs.read");
+        assert_eq!(def.capability.domain, "fs");
+    }
+
+    #[tokio::test]
+    async fn describe_maps_not_found_error_to_tool_not_found() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |_| Response::Error {
+            message: "tool not found: anos:nope".into(),
+            code: None,
+            retryable: None,
+            details: None,
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let err = client.describe("anos:nope").await.unwrap_err();
+        assert!(matches!(err, AtdError::ToolNotFound { .. }));
     }
 }
