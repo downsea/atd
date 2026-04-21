@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/atd-types", "crates/atd-client", "examples"]
+members = ["crates/atd-types", "crates/atd-client", "crates/atd-mcp-bridge", "examples"]
 
 [workspace.package]
 version = "0.1.0"
