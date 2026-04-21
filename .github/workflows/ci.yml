@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Build
+        run: cargo build --workspace --all-targets
+      - name: Test
+        run: cargo test --workspace --all-targets
+      - name: ANOS-free check (no anos-* crate in dependency tree)
+        run: |
+          if cargo tree --workspace --prefix none \
+             | grep -E '^\s*anos-' ; then
+            echo "::error::atd-mvp must not depend on any anos-* crate"
+            exit 1
+          fi
+      - name: Manifest grep for anos-* deps
+        run: |
+          if grep -RInE '^\s*anos-[a-z-]+\s*=' \
+             crates/ examples/ 2>/dev/null ; then
+            echo "::error::found anos-* dependency in a Cargo.toml"
+            exit 1
+          fi
