@@ -1,0 +1,106 @@
+use serde::{Deserialize, Serialize};
+
+use crate::enums::{ToolTier, ToolVisibility};
+use crate::tool::ToolDefinition;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolSummary {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub domain: String,
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub visibility: ToolVisibility,
+    #[serde(default = "default_tier")]
+    pub tier: ToolTier,
+}
+
+fn default_tier() -> ToolTier {
+    ToolTier::Warm
+}
+
+impl From<&ToolDefinition> for ToolSummary {
+    fn from(def: &ToolDefinition) -> Self {
+        Self {
+            id: def.id.clone(),
+            name: def.name.clone(),
+            description: def.description.clone(),
+            domain: def.capability.domain.clone(),
+            tags: def.capability.tags.clone(),
+            visibility: def.visibility,
+            tier: default_tier(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::enums::{BindingProtocol, SafetyLevel, TrustLevel};
+    use crate::tool::{ToolCapability, ToolResources, ToolSafety, ToolTrust};
+
+    fn def() -> ToolDefinition {
+        ToolDefinition {
+            id: "anos:fs.read".into(),
+            name: "Read File".into(),
+            description: "desc".into(),
+            version: "0.1.0".into(),
+            capability: ToolCapability {
+                domain: "fs".into(),
+                actions: vec!["read".into()],
+                tags: vec!["filesystem".into()],
+                intent_examples: vec![],
+            },
+            input_schema: serde_json::json!({}),
+            output_schema: serde_json::json!({}),
+            bindings: vec![crate::tool::ToolBinding {
+                protocol: BindingProtocol::Cli,
+                config: serde_json::json!({}),
+            }],
+            safety: ToolSafety {
+                level: SafetyLevel::Read,
+                dry_run: false,
+                side_effects: vec![],
+                data_sensitivity: None,
+            },
+            resources: ToolResources {
+                timeout_ms: 1000,
+                max_concurrent: 1,
+                rate_limit_per_min: None,
+                estimated_tokens: None,
+            },
+            trust: ToolTrust {
+                publisher: "anos".into(),
+                trust_level: TrustLevel::L2Tested,
+                signature: None,
+            },
+            visibility: ToolVisibility::Read,
+        }
+    }
+
+    #[test]
+    fn summary_is_derivable_from_definition() {
+        let s = ToolSummary::from(&def());
+        assert_eq!(s.id, "anos:fs.read");
+        assert_eq!(s.domain, "fs");
+        assert_eq!(s.tags, vec!["filesystem"]);
+        assert_eq!(s.tier, ToolTier::Warm);
+    }
+
+    #[test]
+    fn summary_roundtrip_json() {
+        let s = ToolSummary::from(&def());
+        let j = serde_json::to_string(&s).unwrap();
+        let back: ToolSummary = serde_json::from_str(&j).unwrap();
+        assert_eq!(back.id, s.id);
+    }
+
+    #[test]
+    fn missing_tier_defaults_to_warm() {
+        let j = r#"{"id":"a","name":"A","description":"d","domain":"x","tags":[]}"#;
+        let s: ToolSummary = serde_json::from_str(j).unwrap();
+        assert_eq!(s.tier, ToolTier::Warm);
+        assert_eq!(s.visibility, ToolVisibility::Read);
+    }
+}
