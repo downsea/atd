@@ -19,3 +19,7 @@ pub use summary::ToolSummary;
 pub mod result;
 
 pub use result::{ToolResult, ToolResultMetadata};
+
+pub mod error;
+
+pub use error::AtdError;
