@@ -30,17 +30,60 @@ atd-mvp/
 └── (code directories TBD per design.md §4)
 ```
 
-## Phase 0 Week 1 (concrete first steps)
+## 15-minute quickstart (Rust, Phase 0)
 
-From `docs/design.md` §11:
+**Prerequisite:** the ANOS daemon is running and its socket is at `~/.anos/anos.sock`. Start it from `/home/nan/proj/anos/` with `cargo run -p anos-daemon` if it isn't already.
 
-1. Initialize Rust workspace `Cargo.toml`, `LICENSE` (Apache-2.0), `.gitignore`
-2. Create `atd-types` crate — port `ToolDefinition` / `ToolSummary` / `CapabilityDescriptor` from `/home/nan/proj/anos/crates/anos-types/src/tool.rs` **without** any `anos-*` dependency
-3. Create `atd-client` crate — minimum `AtdClient::connect` + `call` over Unix socket (wire format from `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs`)
-4. Write `examples/hello_atd.rs` — 10-line minimum working example
-5. Run against local ANOS daemon (no ANOS code changes required)
-6. Write this README's "15-min install story"
-7. Initialize `github.com/atd-protocol/atd-mvp` (pending org creation)
+```bash
+# 1. clone + build
+git clone https://github.com/atd-protocol/atd-mvp
+cd atd-mvp
+cargo build -p atd-examples --bin hello_atd
+
+# 2. run the example
+ANOS_SOCK=$HOME/.anos/anos.sock \
+  cargo run -p atd-examples --bin hello_atd
+```
+
+Expected output:
+
+```
+[atd] connecting to UnixSocket("/home/you/.anos/anos.sock")
+[atd] connected
+[atd] 3 tools discovered
+        - anos:fs.read (Read File)
+        - anos:fs.write (Write File)
+        - anos:shell.exec (Run Shell Command)
+[atd] describe(anos:fs.read) → domain=fs, bindings=1
+[atd] call ok: {...}
+```
+
+**Your first call in 10 lines of Rust:**
+
+```rust
+use atd_client::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = AtdClient::connect(Endpoint::default_anos()).await?;
+    let tools = client.discover(Some("fs"), DiscoverFilter::default()).await?;
+    println!("{} fs tools", tools.len());
+    let r = client.call(&tools[0].id, serde_json::json!({"path":"/tmp"}),
+                        CallOptions::default()).await?;
+    println!("{:?}", r);
+    Ok(())
+}
+```
+
+## Development
+
+```bash
+cargo test --workspace              # unit + integration tests
+cargo clippy --workspace -- -D warnings
+cargo fmt --all -- --check
+```
+
+The ANOS-free integration test lives in `crates/atd-client/tests/mock_server.rs` and runs automatically in CI — it proves the client talks to a server that has zero ANOS crate dependencies.
 
 ## Relationship to ANOS
 
