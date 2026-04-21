@@ -84,6 +84,72 @@ impl AtdClient {
             }
         }
     }
+
+    pub async fn discover(
+        &self,
+        query: Option<&str>,
+        filter: crate::options::DiscoverFilter,
+    ) -> Result<Vec<atd_types::ToolSummary>, AtdError> {
+        let resp = self.request(&Request::ToolList).await?;
+        let raw = match resp {
+            Response::ToolListResponse { tools } => tools,
+            Response::Error { message, .. } => {
+                return Err(AtdError::ProtocolError {
+                    expected: "tool_list".into(),
+                    got: format!("error: {message}"),
+                });
+            }
+            other => {
+                return Err(AtdError::ProtocolError {
+                    expected: "tool_list".into(),
+                    got: format!("{other:?}"),
+                });
+            }
+        };
+
+        let arr = raw.as_array().ok_or_else(|| AtdError::ProtocolError {
+            expected: "array of tool summaries".into(),
+            got: format!("{raw}"),
+        })?;
+
+        let mut out: Vec<atd_types::ToolSummary> = Vec::with_capacity(arr.len());
+        for v in arr {
+            match serde_json::from_value::<atd_types::ToolSummary>(v.clone()) {
+                Ok(s) => out.push(s),
+                Err(_) => {
+                    // Tolerate entries that are full ToolDefinitions by projecting down.
+                    if let Ok(def) =
+                        serde_json::from_value::<atd_types::ToolDefinition>(v.clone())
+                    {
+                        out.push(atd_types::ToolSummary::from(&def));
+                    }
+                }
+            }
+        }
+
+        if let Some(q) = query {
+            let q_lower = q.to_lowercase();
+            out.retain(|s| {
+                s.name.to_lowercase().contains(&q_lower)
+                    || s.description.to_lowercase().contains(&q_lower)
+                    || s.id.to_lowercase().contains(&q_lower)
+            });
+        }
+        if let Some(d) = filter.domain.as_deref() {
+            out.retain(|s| s.domain == d);
+        }
+        if let Some(v) = filter.visibility {
+            out.retain(|s| s.visibility == v);
+        }
+        if let Some(t) = filter.tier {
+            out.retain(|s| s.tier == t);
+        }
+        if let Some(n) = filter.limit {
+            out.truncate(n);
+        }
+
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -140,5 +206,76 @@ mod tests {
         let client = AtdClient::from_duplex(cr, cw);
         let err = client.ping().await.unwrap_err();
         assert!(matches!(err, AtdError::ProtocolError { .. }));
+    }
+
+    #[tokio::test]
+    async fn discover_projects_tool_definitions_to_summaries() {
+        let (client_end, server_end) = duplex(16_384);
+        spin_server(server_end, |req| match req {
+            Request::ToolList => Response::ToolListResponse {
+                tools: serde_json::json!([
+                    {
+                        "id": "anos:fs.read",
+                        "name": "Read",
+                        "description": "read a file",
+                        "version": "0.1.0",
+                        "capability": {
+                            "domain": "fs",
+                            "actions": ["read"],
+                            "tags": ["filesystem"],
+                            "intent_examples": []
+                        },
+                        "input_schema": {},
+                        "output_schema": {},
+                        "bindings": [{"protocol": "Cli", "config": {}}],
+                        "safety": {"level": "Read", "dry_run": false, "side_effects": [], "data_sensitivity": null},
+                        "resources": {"timeout_ms": 1000, "max_concurrent": 1, "rate_limit_per_min": null, "estimated_tokens": null},
+                        "trust": {"publisher": "anos", "trust_level": "L2Tested", "signature": null},
+                        "visibility": "read"
+                    }
+                ]),
+            },
+            _ => unreachable!(),
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let summaries = client
+            .discover(None, crate::options::DiscoverFilter::default())
+            .await
+            .unwrap();
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].id, "anos:fs.read");
+        assert_eq!(summaries[0].domain, "fs");
+    }
+
+    #[tokio::test]
+    async fn discover_applies_query_and_limit_client_side() {
+        let (client_end, server_end) = duplex(16_384);
+        spin_server(server_end, |_| Response::ToolListResponse {
+            tools: serde_json::json!([
+                {"id": "anos:fs.read", "name": "Read", "description": "read a file", "domain": "fs", "tags": []},
+                {"id": "anos:fs.write", "name": "Write", "description": "write a file", "domain": "fs", "tags": []},
+                {"id": "anos:web.fetch", "name": "Fetch", "description": "download a url", "domain": "web", "tags": []}
+            ]),
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+
+        let only_fs = client
+            .discover(
+                Some("fs"),
+                crate::options::DiscoverFilter {
+                    limit: Some(1),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(only_fs.len(), 1);
+        assert!(only_fs[0].id.starts_with("anos:fs"));
     }
 }

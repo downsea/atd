@@ -5,8 +5,10 @@
 
 pub mod client;
 pub mod endpoint;
+pub mod options;
 pub mod protocol;
 pub mod wire;
 
 pub use client::AtdClient;
 pub use endpoint::Endpoint;
+pub use options::{CallOptions, DiscoverFilter};
