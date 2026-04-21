@@ -127,6 +127,16 @@ impl AtdClient {
             }
         }
 
+        // Fill derived defaults for fields the server may omit (notably ANOS).
+        for s in &mut out {
+            if s.name.is_empty() {
+                s.name = derive_name(s);
+            }
+            if s.domain.is_empty() {
+                s.domain = derive_domain(&s.id);
+            }
+        }
+
         if let Some(q) = query {
             let q_lower = q.to_lowercase();
             out.retain(|s| {
@@ -244,6 +254,27 @@ impl AtdClient {
                 got: format!("{other:?}"),
             }),
         }
+    }
+}
+
+/// Derive a display name if the server didn't send one.
+/// Preference order: explicit name > description > id.
+fn derive_name(s: &atd_types::ToolSummary) -> String {
+    if !s.name.is_empty() {
+        s.name.clone()
+    } else if !s.description.is_empty() {
+        s.description.clone()
+    } else {
+        s.id.clone()
+    }
+}
+
+/// Derive domain from a tool id of form `<namespace>:<domain>.<action>[.<variant>]`.
+/// Returns the empty string if parsing fails; callers can substitute a default.
+fn derive_domain(id: &str) -> String {
+    match id.split_once(':') {
+        Some((_ns, rest)) => rest.split('.').next().unwrap_or("").to_string(),
+        None => String::new(),
     }
 }
 
@@ -539,5 +570,38 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn discover_fills_name_and_domain_from_id_when_missing() {
+        let (client_end, server_end) = duplex(16_384);
+        spin_server(server_end, |_| Response::ToolListResponse {
+            tools: serde_json::json!([
+                {"id":"anos:fs.read","description":"File Read","tier":"hot","visibility":"read","lifecycle":"Active"},
+                {"id":"anos:web.search","description":"Web Search","tier":"hot","visibility":"read"},
+                {"id":"host:media.convert","description":"","tier":"warm","visibility":"dangerous"}
+            ]),
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let summaries = client
+            .discover(None, crate::options::DiscoverFilter::default())
+            .await
+            .unwrap();
+        assert_eq!(summaries.len(), 3);
+
+        // name ← description when provided
+        assert_eq!(summaries[0].id, "anos:fs.read");
+        assert_eq!(summaries[0].name, "File Read");
+        assert_eq!(summaries[0].domain, "fs");
+
+        // web.search → domain "web"
+        assert_eq!(summaries[1].domain, "web");
+
+        // host:media.convert → domain "media", and name falls back to id when both name and description empty
+        assert_eq!(summaries[2].domain, "media");
+        assert_eq!(summaries[2].name, "host:media.convert");
     }
 }
