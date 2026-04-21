@@ -23,11 +23,14 @@ This means the ATD `call` API cannot actually invoke tools in Phase 0/1. `discov
 
 ## Root cause (in ANOS)
 
-The `run_tool` arm of the ANOS daemon's IPC handler (see `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs` `ClientMessage::RunTool`) is currently routed to a placeholder that says "use RunTurn". Tools are only invocable through the full LLM turn loop, not via direct dispatch.
+The `dry_run: false` branch of the daemon's `ClientMessage::RunTool` handler at `/home/nan/proj/anos/crates/anos-cli/src/daemon.rs:1566-1614` is hard-coded to emit the error above. `dry_run: true`, `tool_list`, and `tool_schema` all work correctly.
 
-## Proposed fix (ANOS-side)
+The `anos-tool-dispatch` crate already exposes `Registry::dispatch(agent_did, tool_id, args, ...)` at `/home/nan/proj/anos/crates/anos-tool-dispatch/src/registry.rs:419` — the fix is to route the `else` branch there instead of the stub.
 
-Wire `ClientMessage::RunTool` to the existing `anos-tool-dispatch` crate's `dispatch_tool()` entry point, bypassing the turn loop. Return the resulting `ToolResult` as `DaemonMessage::ToolResultResponse`. Scope: ~30 lines in the daemon's message handler. This is ANOS-project work and should be tracked in ANOS's own issue list once atd-mvp's governance transfer (see atd-mvp CLAUDE.md open question #5) stabilizes.
+## Tracked in ANOS
+
+Full fix proposal, design decisions, and verification steps live in the ANOS repo:
+**`/home/nan/proj/anos/docs/issues/2026-04-21-run-tool-ipc-stubbed.md`**
 
 ## Workaround for Phase 0.5
 
