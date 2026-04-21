@@ -234,10 +234,16 @@ impl AtdClient {
                     })
                 } else {
                     let (code, message, retryable) = extract_error(&result);
+                    // Preserve the raw server payload so callers can inspect
+                    // fields not covered by the canonical (code, message,
+                    // retryable) extraction. Compact form keeps `reason`
+                    // small when the payload already matches the canonical
+                    // shape.
+                    let reason = serde_json::to_string(&result).ok();
                     Ok(atd_types::ToolResult::Error {
                         code,
                         message,
-                        reason: None,
+                        reason,
                         retryable,
                     })
                 }
@@ -535,6 +541,42 @@ mod tests {
             .unwrap();
         match r {
             atd_types::ToolResult::Error { code, .. } => assert_eq!(code, "EPERM"),
+            _ => panic!("expected error variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn call_failure_preserves_raw_payload_in_reason() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |_| Response::ToolResultResponse {
+            tool_id: "anos:fs.read".into(),
+            // Payload has NO `code`/`message`/`retryable`; it's an opaque server
+            // shape. Without `reason`, the info would be lost.
+            result: serde_json::json!({"unexpected": {"nested": [1, 2, 3]}, "hint": "quota exceeded"}),
+            success: false,
+            dry_run: false,
+        })
+        .await;
+
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let r = client
+            .call(
+                "anos:fs.read",
+                serde_json::json!({}),
+                crate::options::CallOptions::default(),
+            )
+            .await
+            .unwrap();
+        match r {
+            atd_types::ToolResult::Error { code, message, reason, retryable } => {
+                assert_eq!(code, "UNKNOWN"); // defaults used for structured extraction
+                assert_eq!(message, "tool call failed");
+                assert!(!retryable);
+                let reason = reason.expect("reason must carry the raw payload");
+                assert!(reason.contains("\"quota exceeded\""), "reason should preserve hint, got: {reason}");
+                assert!(reason.contains("\"unexpected\""), "reason should preserve unknown keys, got: {reason}");
+            }
             _ => panic!("expected error variant"),
         }
     }
