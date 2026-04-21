@@ -4,17 +4,24 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum ToolVisibility {
     #[default]
+    #[serde(alias = "Read")]
     Read,
+    #[serde(alias = "Write")]
     Write,
+    #[serde(alias = "Dangerous")]
     Dangerous,
+    #[serde(alias = "System")]
     System,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolTier {
+    #[serde(alias = "Hot")]
     Hot,
+    #[serde(alias = "Warm")]
     Warm,
+    #[serde(alias = "Cold")]
     Cold,
 }
 
