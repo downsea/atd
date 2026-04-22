@@ -7,9 +7,16 @@ use clap::Parser;
 async fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     match cli.command {
-        Command::List(_) => {
-            eprintln!("atd list: not yet implemented (Task 4)");
-            std::process::ExitCode::from(2)
+        Command::List(args) => {
+            let client = match atd_cli::connect::connect(cli.sock).await {
+                Ok(c) => c,
+                Err(e) => return fail(e),
+            };
+            let mut out = std::io::stdout().lock();
+            match atd_cli::list::run(&client, args, &mut out).await {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(e) => fail(e),
+            }
         }
         Command::Schema(_) => {
             eprintln!("atd schema: not yet implemented (Task 5)");
@@ -24,4 +31,12 @@ async fn main() -> std::process::ExitCode {
             std::process::ExitCode::from(2)
         }
     }
+}
+
+fn fail(e: atd_types::AtdError) -> std::process::ExitCode {
+    eprintln!("atd: {e}");
+    if let Some(hint) = e.suggest_fix() {
+        eprintln!("hint: {hint}");
+    }
+    std::process::ExitCode::from(1)
 }
