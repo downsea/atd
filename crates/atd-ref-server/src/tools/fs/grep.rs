@@ -39,7 +39,7 @@ fn definition() -> &'static ToolDefinition {
         input_schema: serde_json::json!({
             "type": "object",
             "properties": {
-                "pattern":          { "type": "string", "minLength": 1 },
+                "pattern":          { "type": "string", "minLength": 1, "maxLength": 10000 },
                 "path":             { "type": "string" },
                 "glob":             { "type": "string" },
                 "case_insensitive": { "type": "boolean" },
@@ -208,6 +208,12 @@ impl<'a> Sink for CollectSink<'a> {
             line,
             text,
         });
+        // Intentional: we set `truncated = true` the moment the match-count cap
+        // is reached, even if there happen to be no further matches. Detecting
+        // "are there more matches beyond the cap" requires searching past the
+        // cap, which defeats the cap. So `truncated: true` means "we hit the
+        // cap" — not strictly "we dropped results." Callers needing an exact
+        // count should raise max_matches.
         if *self.remaining == 0 {
             *self.truncated = true;
             return Ok(false);
@@ -281,6 +287,12 @@ impl Tool for FsGrepTool {
                 return Err(ToolCallError::InvalidArgs(
                     "pattern is empty or whitespace-only".into(),
                 ));
+            }
+            const MAX_PATTERN_BYTES: usize = 10_000;
+            if args.pattern.len() > MAX_PATTERN_BYTES {
+                return Err(ToolCallError::InvalidArgs(format!(
+                    "pattern exceeds {MAX_PATTERN_BYTES} bytes"
+                )));
             }
             let case_insensitive = args.case_insensitive.unwrap_or(false);
             let matcher = RegexMatcherBuilder::new()
