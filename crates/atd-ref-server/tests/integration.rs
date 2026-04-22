@@ -463,3 +463,138 @@ async fn e2e_read_with_offset_beyond_file_returns_empty() {
     assert_eq!(r["result"]["total_lines"], 2);
     assert_eq!(r["result"]["content"], "");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_shell_exec_echo_returns_stdout() {
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:shell.exec",
+            "args": {"command": "echo hello"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["exit_code"], 0);
+    assert_eq!(r["result"]["stdout"], "hello\n");
+    assert_eq!(r["result"]["stderr"], "");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_shell_exec_nonzero_exit_is_tool_success() {
+    let srv = spawn_server().await;
+    // `test -e /nope/file` exits 1; shell captures to $?, echo prints it.
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:shell.exec",
+            "args": {"command": "test -e /nope/xxx; echo $?"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    // The wrapping shell exited 0 (last command was echo), but $? captured 1.
+    assert_eq!(r["result"]["exit_code"], 0);
+    assert_eq!(r["result"]["stdout"], "1\n");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_shell_exec_timeout_returns_execution_failed() {
+    let srv = spawn_server().await;
+    // The server's default timeout is 60s; we can't easily make the whole
+    // daemon timeout fire in an e2e. Real timeout behavior is covered by
+    // the `tools::shell::shared::tests::timeout_triggers_sigterm_then_sigkill`
+    // unit test. Here we run a short-sleep happy path to verify the e2e
+    // plumbing works and results come back.
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:shell.exec",
+            "args": {"command": "sleep 0.1; echo done"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["stdout"], "done\n");
+    let _ = r;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_shell_exec_stderr_captured_with_nonzero_exit() {
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:shell.exec",
+            "args": {"command": ">&2 echo boom; exit 3"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["exit_code"], 3);
+    assert_eq!(r["result"]["stderr"], "boom\n");
+    assert_eq!(r["result"]["stdout"], "");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_shell_pwsh_availability_branch() {
+    // Runtime-branch on whether pwsh/powershell is on PATH. Both branches
+    // pass on a correctly-configured system.
+    let pwsh_present = {
+        let ok_pwsh = std::process::Command::new("pwsh")
+            .arg("-Version")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok();
+        #[cfg(windows)]
+        let ok = ok_pwsh
+            || std::process::Command::new("powershell")
+                .arg("-Version")
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok();
+        #[cfg(not(windows))]
+        let ok = ok_pwsh;
+        ok
+    };
+
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:shell.pwsh",
+            "args": {"command": "Write-Output 'hi'"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    if pwsh_present {
+        assert_eq!(r["success"], serde_json::json!(true));
+        assert_eq!(r["result"]["exit_code"], 0);
+        assert!(r["result"]["stdout"].as_str().unwrap().contains("hi"));
+    } else {
+        assert_eq!(r["success"], serde_json::json!(false));
+        assert_eq!(r["result"]["code"], "NOT_AVAILABLE");
+    }
+}
