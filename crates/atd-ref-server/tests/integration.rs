@@ -106,12 +106,14 @@ async fn e2e_tool_list_returns_echo() {
         .unwrap();
     assert_eq!(r["type"], "tool_list");
     let tools = r["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 4);
+    assert_eq!(tools.len(), 6);
     let ids: Vec<&str> = tools.iter().map(|t| t["id"].as_str().unwrap()).collect();
     assert!(ids.contains(&"ref:echo.say"));
     assert!(ids.contains(&"ref:fs.read"));
     assert!(ids.contains(&"ref:fs.write"));
     assert!(ids.contains(&"ref:fs.edit"));
+    assert!(ids.contains(&"ref:shell.exec"));
+    assert!(ids.contains(&"ref:shell.pwsh"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

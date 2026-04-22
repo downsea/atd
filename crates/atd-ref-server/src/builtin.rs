@@ -2,7 +2,7 @@
 //!
 //! To add a new tool:
 //! 1. Create `src/tools/<name>.rs` implementing `Tool`.
-//! 2. Export it from `tools/mod.rs` (and `tools/fs/mod.rs` for fs tools).
+//! 2. Export it from the appropriate `tools/*/mod.rs`.
 //! 3. Add `reg.register(Arc::new(<Name>Tool::new()))` below.
 
 use std::sync::Arc;
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::registry::Registry;
 use crate::tools::echo::EchoTool;
 use crate::tools::fs::{edit::FsEditTool, read::FsReadTool, write::FsWriteTool};
+use crate::tools::shell::{exec::ShellExecTool, pwsh::ShellPwshTool};
 
 pub fn builtin_registry() -> Registry {
     let mut reg = Registry::new();
@@ -17,6 +18,8 @@ pub fn builtin_registry() -> Registry {
     reg.register(Arc::new(FsReadTool::new()));
     reg.register(Arc::new(FsWriteTool::new()));
     reg.register(Arc::new(FsEditTool::new()));
+    reg.register(Arc::new(ShellExecTool::new()));
+    reg.register(Arc::new(ShellPwshTool::new()));
     reg
 }
 
@@ -27,10 +30,12 @@ mod tests {
     #[test]
     fn builtin_registry_contains_all_tools() {
         let r = builtin_registry();
-        assert_eq!(r.count(), 4);
+        assert_eq!(r.count(), 6);
         assert!(r.get("ref:echo.say").is_some());
         assert!(r.get("ref:fs.read").is_some());
         assert!(r.get("ref:fs.write").is_some());
         assert!(r.get("ref:fs.edit").is_some());
+        assert!(r.get("ref:shell.exec").is_some());
+        assert!(r.get("ref:shell.pwsh").is_some());
     }
 }
