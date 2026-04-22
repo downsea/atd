@@ -5,5 +5,6 @@ pub mod context;
 pub mod error;
 pub mod protocol;
 pub mod registry;
+pub mod server;
 pub mod tools;
 pub mod wire;
