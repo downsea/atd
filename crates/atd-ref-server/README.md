@@ -33,6 +33,20 @@ atd --sock $HOME/.atd-ref/server.sock call ref:shell.pwsh \
 
 Shell tools return `{exit_code, stdout, stdout_truncated, stderr, stderr_truncated, duration_ms}`. A nonzero `exit_code` is a normal business result — not a tool error. Timeouts (SIGTERM → grace → SIGKILL on Unix) and missing shells (`NOT_AVAILABLE`) ARE errors and come back as `success: false` tool_result.
 
+### Search tools
+
+```bash
+# Find all Rust files under src/:
+atd --sock $HOME/.atd-ref/server.sock call ref:fs.glob \
+  --args '{"pattern": "**/*.rs", "path": "crates/atd-ref-server/src"}'
+
+# Regex search with glob filter:
+atd --sock $HOME/.atd-ref/server.sock call ref:fs.grep \
+  --args '{"pattern": "pub fn", "path": "crates", "glob": "*.rs"}'
+```
+
+Both tools honor `.gitignore` / `.ignore` / `.rgignore` and skip hidden files by default. `ref:fs.grep` skips binary files entirely (detected by NUL byte). Results are capped by `max_matches` (default 1000) and `ctx.max_output_bytes` — when either limit hits, `truncated: true` is set.
+
 ## How to add a tool
 
 1. **Create the tool file** at `src/tools/<name>.rs`:
@@ -153,7 +167,7 @@ Lifetime: from connection `accept()` to `close`. Not persisted; not shared acros
 - **SP-1 (shipped):** framework + `ref:echo.say`
 - **SP-2 (shipped):** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + `ReadTracker` per-connection state
 - **SP-3 (shipped):** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell) + shared subprocess handler
-- **SP-4:** `ref:fs.glob` + `ref:fs.grep`
+- **SP-4 (shipped):** `ref:fs.glob` + `ref:fs.grep` — ripgrep-powered search tools
 - **SP-5:** `ref:web.fetch`
 
 See `../../docs/superpowers/specs/2026-04-22-atd-ref-server-sp1-foundation.md` and `sp2-*` for details on shipped sub-projects.
