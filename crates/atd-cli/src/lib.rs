@@ -4,5 +4,6 @@
 pub mod call;
 pub mod cli;
 pub mod connect;
+pub mod doctor;
 pub mod list;
 pub mod schema;

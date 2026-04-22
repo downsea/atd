@@ -40,9 +40,16 @@ async fn main() -> std::process::ExitCode {
                 Err(e) => fail(e),
             }
         }
-        Command::Doctor(_) => {
-            eprintln!("atd doctor: not yet implemented (Task 7)");
-            std::process::ExitCode::from(2)
+        Command::Doctor(args) => {
+            let endpoint = atd_cli::connect::resolve_endpoint(cli.sock);
+            let sock = match &endpoint {
+                atd_client::Endpoint::UnixSocket(p) => p.clone(),
+            };
+            let mut out = std::io::stdout().lock();
+            match atd_cli::doctor::run(sock, args, &mut out).await {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(e) => fail(e),
+            }
         }
     }
 }
