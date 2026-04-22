@@ -1,5 +1,6 @@
 """atd-client — reference Python SDK for the Agent Tool Dispatch protocol."""
 
+from atd_client.client import AtdClient
 from atd_client.errors import (
     AtdError,
     BindingUnavailable,
@@ -34,6 +35,7 @@ from atd_client.types import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "AtdClient",
     "AtdError",
     "BindingProtocol",
     "BindingUnavailable",
