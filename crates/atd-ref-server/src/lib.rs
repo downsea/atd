@@ -7,4 +7,5 @@ pub mod protocol;
 pub mod registry;
 pub mod server;
 pub mod tools;
+pub mod tracker;
 pub mod wire;
