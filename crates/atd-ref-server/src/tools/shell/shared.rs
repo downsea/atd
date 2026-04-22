@@ -94,15 +94,25 @@ pub async fn run(req: RunRequest<'_>) -> Result<RunOutput, RunError> {
 
     let status = match status_result {
         Ok(Ok(s)) => s,
-        Ok(Err(e)) => return Err(RunError::Io(e)),
+        Ok(Err(e)) => {
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            let _ = stdout_task.await;
+            let _ = stderr_task.await;
+            return Err(RunError::Io(e));
+        }
         Err(_elapsed) => {
             // Deadline hit. SIGTERM → grace → SIGKILL.
             #[cfg(unix)]
             {
+                // child.id() returns None only if the child has already been reaped
+                // — not possible here since child.wait() is awaited below. But guard
+                // anyway: if it ever does return None, fall through to start_kill().
                 if let Some(pid) = child.id() {
-                    // Safe: pid is the actual child's PID, we're sending a
-                    // standard termination signal. If the process has already
-                    // exited, kill() returns -1 and we fall through.
+                    // SAFETY: child.wait() has not been called yet, so the kernel still
+                    // holds this PID slot for our child. SIGTERM to a PID we own is safe;
+                    // if the child races to exit before the signal lands, kill(2) returns
+                    // ESRCH and has no effect.
                     unsafe {
                         libc::kill(pid as libc::pid_t, libc::SIGTERM);
                     }
