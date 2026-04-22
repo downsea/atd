@@ -19,6 +19,20 @@ atd --sock $HOME/.atd-ref/server.sock list
 atd --sock $HOME/.atd-ref/server.sock call ref:echo.say --args '{"msg":"hi"}'
 ```
 
+### Shell tools
+
+```bash
+# Run a command:
+atd --sock $HOME/.atd-ref/server.sock call ref:shell.exec \
+  --args '{"command": "uname -a"}'
+
+# PowerShell (if pwsh is installed):
+atd --sock $HOME/.atd-ref/server.sock call ref:shell.pwsh \
+  --args '{"command": "Get-Date"}'
+```
+
+Shell tools return `{exit_code, stdout, stdout_truncated, stderr, stderr_truncated, duration_ms}`. A nonzero `exit_code` is a normal business result — not a tool error. Timeouts (SIGTERM → grace → SIGKILL on Unix) and missing shells (`NOT_AVAILABLE`) ARE errors and come back as `success: false` tool_result.
+
 ## How to add a tool
 
 1. **Create the tool file** at `src/tools/<name>.rs`:
@@ -138,7 +152,7 @@ Lifetime: from connection `accept()` to `close`. Not persisted; not shared acros
 
 - **SP-1 (shipped):** framework + `ref:echo.say`
 - **SP-2 (shipped):** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + `ReadTracker` per-connection state
-- **SP-3:** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell)
+- **SP-3 (shipped):** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell) + shared subprocess handler
 - **SP-4:** `ref:fs.glob` + `ref:fs.grep`
 - **SP-5:** `ref:web.fetch`
 
