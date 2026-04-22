@@ -1,3 +1,4 @@
-//! Built-in tools. SP-1 ships only the echo test-anchor; SP-2+ add real tools.
+//! Built-in tools. SP-1 ships the echo test-anchor; SP-2 adds file I/O.
 
 pub mod echo;
+pub mod fs;
