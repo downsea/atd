@@ -13,6 +13,7 @@ from atd_client.errors import (
     ToolExecutionFailed,
     ToolNotFound,
 )
+from atd_client.sync import AtdClientSync
 from atd_client.types import (
     BindingProtocol,
     SafetyLevel,
@@ -36,6 +37,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AtdClient",
+    "AtdClientSync",
     "AtdError",
     "BindingProtocol",
     "BindingUnavailable",
