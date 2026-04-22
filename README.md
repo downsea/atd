@@ -93,6 +93,22 @@ cargo build --release -p atd-cli --bin atd
 
 Full reference: [`docs/cli.md`](docs/cli.md).
 
+## Python SDK
+
+```python
+import asyncio
+from atd_client import AtdClient
+
+async def main():
+    async with await AtdClient.connect() as client:
+        tools = await client.discover(query="fs", limit=5)
+        print(f"{len(tools)} tool(s)")
+
+asyncio.run(main())
+```
+
+Full reference: [`python/README.md`](python/README.md).
+
 ## Development
 
 ```bash
