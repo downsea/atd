@@ -18,9 +18,16 @@ async fn main() -> std::process::ExitCode {
                 Err(e) => fail(e),
             }
         }
-        Command::Schema(_) => {
-            eprintln!("atd schema: not yet implemented (Task 5)");
-            std::process::ExitCode::from(2)
+        Command::Schema(args) => {
+            let client = match atd_cli::connect::connect(cli.sock).await {
+                Ok(c) => c,
+                Err(e) => return fail(e),
+            };
+            let mut out = std::io::stdout().lock();
+            match atd_cli::schema::run(&client, args, &mut out).await {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(e) => fail(e),
+            }
         }
         Command::Call(_) => {
             eprintln!("atd call: not yet implemented (Task 6)");
