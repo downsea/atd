@@ -25,6 +25,10 @@ thiserror = { workspace = true }
 ulid = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
+ignore = "0.4"
+globset = "0.4"
+grep-searcher = "0.1"
+grep-regex = "0.1"
 
 [dev-dependencies]
 tempfile = { workspace = true }
