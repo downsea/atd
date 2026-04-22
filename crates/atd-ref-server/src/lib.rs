@@ -1,5 +1,6 @@
 //! Library façade for `atd-ref-server`.
 
+pub mod builtin;
 pub mod context;
 pub mod error;
 pub mod protocol;
