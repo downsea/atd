@@ -203,8 +203,10 @@ impl Tool for FsGlobTool {
             let max_bytes = ctx.max_output_bytes;
 
             let start = Instant::now();
-            let (paths, truncated) = tokio::task::spawn_blocking(move || {
-                walk_and_collect(&root, &globs, max_matches, max_bytes)
+            let (paths, truncated, root_str) = tokio::task::spawn_blocking(move || {
+                let root_str = root.to_string_lossy().into_owned();
+                let (paths, truncated) = walk_and_collect(&root, &globs, max_matches, max_bytes);
+                (paths, truncated, root_str)
             })
             .await
             .map_err(|e| ToolCallError::ExecutionFailed {
@@ -213,11 +215,6 @@ impl Tool for FsGlobTool {
                 retryable: true,
             })?;
             let duration_ms = start.elapsed().as_millis() as u64;
-
-            // Recompute the canonical root for the response.
-            let root_str = resolve_root(ctx, args.path.as_deref())?
-                .to_string_lossy()
-                .into_owned();
 
             Ok(serde_json::json!({
                 "paths": paths,
