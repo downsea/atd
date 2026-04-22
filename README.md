@@ -109,6 +109,18 @@ asyncio.run(main())
 
 Full reference: [`python/README.md`](python/README.md).
 
+## Reference server
+
+An optional **neutral ATD server** ships at `crates/atd-ref-server/`. Runs standalone on a Unix socket with a built-in tool catalog. Meant as a fork-friendly template for third-party server implementers. No dependency on any specific client or agent framework.
+
+```bash
+cargo build --release -p atd-ref-server --bin atd-ref-server
+./target/release/atd-ref-server &
+atd --sock $HOME/.atd-ref/server.sock list
+```
+
+Full reference: [`crates/atd-ref-server/README.md`](crates/atd-ref-server/README.md).
+
 ## Development
 
 ```bash
