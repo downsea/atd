@@ -600,3 +600,118 @@ async fn e2e_shell_pwsh_availability_branch() {
         assert_eq!(r["result"]["code"], "NOT_AVAILABLE");
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_fs_glob_returns_paths() {
+    use std::fs;
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("a.rs"), "").unwrap();
+    fs::write(tmp.path().join("b.rs"), "").unwrap();
+    fs::write(tmp.path().join("c.txt"), "").unwrap();
+
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.glob",
+            "args": {
+                "pattern": "*.rs",
+                "path": tmp.path().to_string_lossy(),
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    assert_eq!(r["success"], serde_json::json!(true));
+    let paths: Vec<String> =
+        serde_json::from_value(r["result"]["paths"].clone()).unwrap();
+    assert_eq!(paths, vec!["a.rs".to_string(), "b.rs".to_string()]);
+    assert_eq!(r["result"]["truncated"], false);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_fs_grep_finds_match() {
+    use std::fs;
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("notes.txt"),
+        "line one\nTODO fix this\nline three\n",
+    )
+    .unwrap();
+
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.grep",
+            "args": {
+                "pattern": "TODO",
+                "path": tmp.path().to_string_lossy(),
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    let matches: Vec<serde_json::Value> =
+        serde_json::from_value(r["result"]["matches"].clone()).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0]["path"], "notes.txt");
+    assert_eq!(matches[0]["line"], 2);
+    assert_eq!(matches[0]["text"], "TODO fix this");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_fs_grep_with_glob_filter() {
+    use std::fs;
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("match.rs"), "TODO rs\n").unwrap();
+    fs::write(tmp.path().join("match.py"), "TODO py\n").unwrap();
+
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.grep",
+            "args": {
+                "pattern": "TODO",
+                "glob": "*.rs",
+                "path": tmp.path().to_string_lossy(),
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    let matches: Vec<serde_json::Value> =
+        serde_json::from_value(r["result"]["matches"].clone()).unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0]["path"], "match.rs");
+    assert_eq!(matches[0]["text"], "TODO rs");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_fs_glob_invalid_pattern_returns_error() {
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.glob",
+            "args": {"pattern": "["},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "error");
+    let message = r["message"].as_str().unwrap_or("");
+    assert!(message.contains("invalid glob") || message.contains("["));
+}
