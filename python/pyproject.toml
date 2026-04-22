@@ -55,6 +55,10 @@ target-version = "py310"
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "ASYNC"]
 ignore = ["E501"]  # let the formatter handle line length
 
+[tool.ruff.lint.per-file-ignores]
+# errors.py mirrors Rust AtdError enum variant names exactly; N818 (Error suffix) intentionally skipped
+"src/atd_client/errors.py" = ["N818"]
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
