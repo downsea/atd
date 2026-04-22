@@ -1,0 +1,28 @@
+[package]
+name = "atd-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Reference command-line client for the Agent Tool Dispatch (ATD) protocol."
+
+[lib]
+name = "atd_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "atd"
+path = "src/main.rs"
+
+[dependencies]
+atd-client = { path = "../atd-client", version = "0.1.0" }
+atd-types = { path = "../atd-types", version = "0.1.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
