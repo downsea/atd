@@ -98,6 +98,26 @@ Three state lifetimes:
 | Per-connection | one client session | (SP-2 adds `ReadTracker` here) |
 | Per-call | one `run_tool` | `call_id`, `deadline`, args |
 
+## Per-connection state
+
+Tools can access `ctx.read_tracker` for cross-call state that lives for the duration of a single client connection. Existing use: `ref:fs.edit` enforces "you must Read this file in this session, and it must not have changed since" via `ReadTracker`.
+
+To use it in your own tool:
+
+```rust
+let tracker = ctx.read_tracker.as_ref().ok_or_else(|| {
+    ToolCallError::InternalError("server did not attach a read_tracker".into())
+})?;
+tracker.check(&canonical_path, current_mtime, current_size)
+    .map_err(|e| ToolCallError::ExecutionFailed {
+        code: "NOT_READ".into(),
+        message: e.to_string(),
+        retryable: false,
+    })?;
+```
+
+Lifetime: from connection `accept()` to `close`. Not persisted; not shared across connections. The tracker is dropped when the client disconnects, so NOT_READ errors are natural on new connections — see `examples/rw_cycle.rs` for a complete Write → Read → Edit walk-through on a single connection.
+
 ## Contracts a tool MUST honor
 
 - **No panics.** Return `Err(ToolCallError::InternalError(...))` for unexpected conditions; the framework does not catch unwind.
@@ -114,16 +134,15 @@ Three state lifetimes:
 | Server-side bug | `Err(ToolCallError::InternalError(msg))` | `error` response |
 | Success | `Ok(data)` | `tool_result { success: true, result: data }` |
 
-## What SP-2+ adds
+## What's shipped and what's next
 
-This crate is the framework layer (SP-1). Subsequent sub-projects add real tools:
-
-- **SP-2:** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + a `ReadTracker` per-connection state
+- **SP-1 (shipped):** framework + `ref:echo.say`
+- **SP-2 (shipped):** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + `ReadTracker` per-connection state
 - **SP-3:** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell)
 - **SP-4:** `ref:fs.glob` + `ref:fs.grep`
 - **SP-5:** `ref:web.fetch`
 
-See `../../docs/superpowers/specs/2026-04-22-atd-ref-server-sp1-foundation.md` §10.
+See `../../docs/superpowers/specs/2026-04-22-atd-ref-server-sp1-foundation.md` and `sp2-*` for details on shipped sub-projects.
 
 ## License
 
