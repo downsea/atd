@@ -151,6 +151,7 @@ pub(crate) async fn dispatch(state: &Arc<ServerState>, req: Request) -> Response
                 deadline: Some(
                     Instant::now() + Duration::from_millis(state.config.default_call_timeout_ms),
                 ),
+                read_tracker: None,
             };
             match tool.call(args, &ctx).await {
                 Ok(data) => Response::ToolResult {

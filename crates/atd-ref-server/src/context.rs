@@ -1,7 +1,10 @@
 //! Per-call context passed to every `Tool::call` invocation.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use crate::tracker::ReadTracker;
 
 pub struct CallContext {
     /// Working directory for relative-path tools (Read / Bash / Glob / ...).
@@ -14,6 +17,9 @@ pub struct CallContext {
     /// Absolute deadline. Tools that wrap long operations in tokio::time::timeout
     /// should pass `remaining_time()` as the budget.
     pub deadline: Option<Instant>,
+    /// Shared-per-connection read tracker. `None` in isolated unit tests;
+    /// server always attaches one via `Arc::clone` in per-connection state.
+    pub read_tracker: Option<Arc<ReadTracker>>,
 }
 
 impl CallContext {
@@ -25,14 +31,29 @@ impl CallContext {
 #[cfg(any(test, feature = "testing"))]
 impl CallContext {
     /// Construct a sensible default for unit tests. cwd = current dir,
-    /// 1 MiB output budget, fresh call_id, no deadline.
+    /// 1 MiB output budget, fresh call_id, no deadline, no tracker.
     pub fn for_test() -> Self {
         Self {
             cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             max_output_bytes: 1_048_576,
             call_id: ulid::Ulid::new(),
             deadline: None,
+            read_tracker: None,
         }
+    }
+
+    /// Test-only: build a CallContext with a fresh tracker attached.
+    /// Returns both so tests can also record/check on the same tracker.
+    pub fn for_test_with_tracker() -> (Self, Arc<ReadTracker>) {
+        let tracker = Arc::new(ReadTracker::new());
+        let ctx = Self {
+            cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            max_output_bytes: 1_048_576,
+            call_id: ulid::Ulid::new(),
+            deadline: None,
+            read_tracker: Some(tracker.clone()),
+        };
+        (ctx, tracker)
     }
 }
 
@@ -46,6 +67,15 @@ mod tests {
         assert!(ctx.cwd.exists(), "cwd should be a real directory");
         assert_eq!(ctx.max_output_bytes, 1_048_576);
         assert!(ctx.deadline.is_none());
+        assert!(ctx.read_tracker.is_none());
+    }
+
+    #[test]
+    fn for_test_with_tracker_shares_arc() {
+        let (ctx, tracker) = CallContext::for_test_with_tracker();
+        assert!(ctx.read_tracker.is_some());
+        let ctx_tracker = ctx.read_tracker.as_ref().unwrap();
+        assert!(Arc::ptr_eq(ctx_tracker, &tracker));
     }
 
     #[test]
@@ -61,6 +91,7 @@ mod tests {
             max_output_bytes: 1024,
             call_id: ulid::Ulid::new(),
             deadline: Some(Instant::now() + Duration::from_secs(5)),
+            read_tracker: None,
         };
         let r = ctx.remaining_time().unwrap();
         assert!(r <= Duration::from_secs(5));
@@ -74,6 +105,7 @@ mod tests {
             max_output_bytes: 1024,
             call_id: ulid::Ulid::new(),
             deadline: Some(Instant::now() - Duration::from_secs(10)),
+            read_tracker: None,
         };
         assert_eq!(ctx.remaining_time().unwrap(), Duration::ZERO);
     }

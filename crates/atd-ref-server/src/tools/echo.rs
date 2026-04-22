@@ -137,6 +137,7 @@ mod tests {
             max_output_bytes: 32,
             call_id: ulid::Ulid::new(),
             deadline: None,
+            read_tracker: None,
         };
         let big = "x".repeat(1_000);
         let args = serde_json::json!({"big": big});
