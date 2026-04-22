@@ -88,18 +88,23 @@ impl Server {
 
 async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::io::Result<()> {
     let (mut reader, mut writer) = stream.into_split();
+    let tracker = Arc::new(crate::tracker::ReadTracker::new());  // per-connection
     loop {
         let req: Request = match read_frame(&mut reader).await {
             Ok(r) => r,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(e),
         };
-        let resp = dispatch(&state, req).await;
+        let resp = dispatch(&state, &tracker, req).await;
         write_frame(&mut writer, &resp).await?;
     }
 }
 
-pub(crate) async fn dispatch(state: &Arc<ServerState>, req: Request) -> Response {
+pub(crate) async fn dispatch(
+    state: &Arc<ServerState>,
+    tracker: &Arc<crate::tracker::ReadTracker>,
+    req: Request,
+) -> Response {
     match req {
         Request::Ping => Response::Pong,
         Request::ToolList => {
@@ -151,7 +156,7 @@ pub(crate) async fn dispatch(state: &Arc<ServerState>, req: Request) -> Response
                 deadline: Some(
                     Instant::now() + Duration::from_millis(state.config.default_call_timeout_ms),
                 ),
-                read_tracker: None,
+                read_tracker: Some(tracker.clone()),
             };
             match tool.call(args, &ctx).await {
                 Ok(data) => Response::ToolResult {
@@ -195,6 +200,10 @@ mod tests {
     use crate::builtin::builtin_registry;
     use crate::registry::{CallFuture, Tool};
 
+    fn fresh_tracker() -> Arc<crate::tracker::ReadTracker> {
+        Arc::new(crate::tracker::ReadTracker::new())
+    }
+
     fn test_state() -> Arc<ServerState> {
         Arc::new(ServerState {
             registry: builtin_registry(),
@@ -210,19 +219,23 @@ mod tests {
     #[tokio::test]
     async fn ping_returns_pong() {
         let s = test_state();
-        let r = dispatch(&s, Request::Ping).await;
+        let r = dispatch(&s, &fresh_tracker(), Request::Ping).await;
         assert!(matches!(r, Response::Pong));
     }
 
     #[tokio::test]
     async fn tool_list_returns_registered_summaries() {
         let s = test_state();
-        let r = dispatch(&s, Request::ToolList).await;
+        let r = dispatch(&s, &fresh_tracker(), Request::ToolList).await;
         match r {
             Response::ToolList { tools } => {
                 let arr = tools.as_array().unwrap();
-                assert_eq!(arr.len(), 1);
-                assert_eq!(arr[0]["id"], "ref:echo.say");
+                assert_eq!(arr.len(), 4);
+                let ids: Vec<&str> = arr.iter().map(|t| t["id"].as_str().unwrap()).collect();
+                assert!(ids.contains(&"ref:echo.say"));
+                assert!(ids.contains(&"ref:fs.read"));
+                assert!(ids.contains(&"ref:fs.write"));
+                assert!(ids.contains(&"ref:fs.edit"));
             }
             _ => panic!("wrong variant"),
         }
@@ -233,6 +246,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::ToolSchema { tool_id: "ref:echo.say".into() },
         )
         .await;
@@ -250,6 +264,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::ToolSchema { tool_id: "ref:missing".into() },
         )
         .await;
@@ -266,6 +281,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"k": "v"}),
@@ -288,6 +304,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"x": 1}),
@@ -312,6 +329,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "ref:missing".into(),
                 args: serde_json::json!({}),
@@ -432,6 +450,7 @@ mod tests {
         let s = state_with_failing_tool("test:invalid", FailureMode::InvalidArgs);
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "test:invalid".into(),
                 args: serde_json::json!({}),
@@ -453,6 +472,7 @@ mod tests {
         let s = state_with_failing_tool("test:exec", FailureMode::ExecutionFailed);
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "test:exec".into(),
                 args: serde_json::json!({}),
@@ -478,6 +498,7 @@ mod tests {
         let s = state_with_failing_tool("test:internal", FailureMode::InternalError);
         let r = dispatch(
             &s,
+            &fresh_tracker(),
             Request::RunTool {
                 tool_id: "test:internal".into(),
                 args: serde_json::json!({}),
