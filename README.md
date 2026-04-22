@@ -75,6 +75,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## CLI quickstart
+
+```bash
+# build the binary
+cargo build --release -p atd-cli --bin atd
+
+# peek at what's available
+./target/release/atd list --limit 5
+
+# inspect a specific tool
+./target/release/atd schema anos:fs.read
+
+# connectivity sanity check
+./target/release/atd doctor
+```
+
+Full reference: [`docs/cli.md`](docs/cli.md).
+
 ## Development
 
 ```bash
