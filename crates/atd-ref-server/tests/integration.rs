@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 use std::time::Duration;
+use std::time::Duration as StdDuration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
@@ -34,6 +35,22 @@ async fn send_one_request(
     let mut buf = vec![0u8; n];
     stream.read_exact(&mut buf).await?;
     Ok(serde_json::from_slice(&buf).unwrap())
+}
+
+async fn send_on_stream(
+    stream: &mut UnixStream,
+    req: serde_json::Value,
+) -> serde_json::Value {
+    let body = serde_json::to_vec(&req).unwrap();
+    stream.write_all(&(body.len() as u32).to_be_bytes()).await.unwrap();
+    stream.write_all(&body).await.unwrap();
+    stream.flush().await.unwrap();
+    let mut header = [0u8; 4];
+    stream.read_exact(&mut header).await.unwrap();
+    let n = u32::from_be_bytes(header) as usize;
+    let mut buf = vec![0u8; n];
+    stream.read_exact(&mut buf).await.unwrap();
+    serde_json::from_slice(&buf).unwrap()
 }
 
 #[allow(dead_code)]
@@ -190,4 +207,257 @@ async fn e2e_multiple_requests_on_one_connection() {
     assert_eq!(r1["type"], "pong");
     let r2 = one(&mut stream, serde_json::json!({"type": "tool_list"})).await;
     assert_eq!(r2["type"], "tool_list");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_fs_write_then_read_roundtrip() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("roundtrip.txt");
+
+    // Write
+    let w = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.write",
+            "args": {"path": path.to_string_lossy(), "content": "hello\nworld\n"},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(w["success"], serde_json::json!(true));
+    assert_eq!(w["result"]["bytes_written"], 12);
+
+    // Read (new connection OK; Read doesn't need tracker history)
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy()},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["line_count"], 2);
+    assert!(r["result"]["content"].as_str().unwrap().contains("   1\thello"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_read_then_edit_same_connection_succeeds() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("rw.txt");
+    std::fs::write(&path, "hello world\n").unwrap();
+
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
+
+    // Read first (records in tracker)
+    let r = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy()},
+            "dry_run": false,
+        }),
+    )
+    .await;
+    assert_eq!(r["success"], serde_json::json!(true));
+
+    // Then Edit on the SAME connection
+    let e = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.edit",
+            "args": {
+                "path": path.to_string_lossy(),
+                "old_string": "hello",
+                "new_string": "HI"
+            },
+            "dry_run": false,
+        }),
+    )
+    .await;
+    assert_eq!(e["success"], serde_json::json!(true));
+    assert_eq!(e["result"]["replacements"], 1);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "HI world\n");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_edit_without_prior_read_returns_not_read() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("no-read-edit.txt");
+    std::fs::write(&path, "hello\n").unwrap();
+
+    // Fresh connection — tracker is empty. Edit must reject.
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.edit",
+            "args": {
+                "path": path.to_string_lossy(),
+                "old_string": "hello",
+                "new_string": "hi"
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    assert_eq!(r["success"], serde_json::json!(false));
+    assert_eq!(r["result"]["code"], "NOT_READ");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_edit_after_external_modification_returns_file_modified() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("ext-mod.txt");
+    std::fs::write(&path, "original\n").unwrap();
+
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
+
+    // Read to populate tracker.
+    let _ = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy()},
+            "dry_run": false,
+        }),
+    )
+    .await;
+
+    // External modification + wait for mtime to move forward.
+    tokio::time::sleep(StdDuration::from_millis(1100)).await;
+    std::fs::write(&path, "externally changed\n").unwrap();
+
+    let e = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.edit",
+            "args": {
+                "path": path.to_string_lossy(),
+                "old_string": "externally",
+                "new_string": "xxx"
+            },
+            "dry_run": false,
+        }),
+    )
+    .await;
+    assert_eq!(e["success"], serde_json::json!(false));
+    assert_eq!(e["result"]["code"], "FILE_MODIFIED");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_edit_multi_match_without_replace_all_is_invalid_args() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("multi.txt");
+    std::fs::write(&path, "foo foo foo\n").unwrap();
+
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
+    // Populate tracker via Read.
+    let _ = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy()},
+            "dry_run": false,
+        }),
+    )
+    .await;
+
+    let e = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.edit",
+            "args": {
+                "path": path.to_string_lossy(),
+                "old_string": "foo",
+                "new_string": "bar"
+            },
+            "dry_run": false,
+        }),
+    )
+    .await;
+    // InvalidArgs maps to wire `error` response (not a tool_result).
+    assert_eq!(e["type"], "error");
+    assert!(e["message"].as_str().unwrap().contains("replace_all"));
+    assert!(e["message"].as_str().unwrap().contains("3"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_edit_multi_match_with_replace_all_succeeds() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("multi-ok.txt");
+    std::fs::write(&path, "foo foo foo\n").unwrap();
+
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
+    let _ = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy()},
+            "dry_run": false,
+        }),
+    )
+    .await;
+    let e = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.edit",
+            "args": {
+                "path": path.to_string_lossy(),
+                "old_string": "foo",
+                "new_string": "bar",
+                "replace_all": true
+            },
+            "dry_run": false,
+        }),
+    )
+    .await;
+    assert_eq!(e["success"], serde_json::json!(true));
+    assert_eq!(e["result"]["replacements"], 3);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "bar bar bar\n");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_read_with_offset_beyond_file_returns_empty() {
+    let srv = spawn_server().await;
+    let workdir = tempfile::tempdir().unwrap();
+    let path = workdir.path().join("short.txt");
+    std::fs::write(&path, "only two\nlines\n").unwrap();
+
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:fs.read",
+            "args": {"path": path.to_string_lossy(), "offset": 100},
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["line_count"], 0);
+    assert_eq!(r["result"]["total_lines"], 2);
+    assert_eq!(r["result"]["content"], "");
 }
