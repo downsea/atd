@@ -1,0 +1,29 @@
+[package]
+name = "atd-ref-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Neutral reference server for the Agent Tool Dispatch (ATD) protocol — ships with real tools, zero dependency on any specific agent framework."
+
+[lib]
+name = "atd_ref_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "atd-ref-server"
+path = "src/main.rs"
+
+[dependencies]
+atd-types = { path = "../atd-types", version = "0.1.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+ulid = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
