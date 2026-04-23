@@ -3,7 +3,10 @@
 //! - SP-1: echo test-anchor
 //! - SP-2: fs.{read,write,edit} + ReadTracker
 //! - SP-3: shell.{exec,pwsh} + shared subprocess handler
+//! - SP-4: fs.{glob,grep}
+//! - SP-5: web.fetch
 
 pub mod echo;
 pub mod fs;
 pub mod shell;
+pub mod web;
