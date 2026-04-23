@@ -2,15 +2,16 @@
 //! reference ATD server), connects via `atd-client`, exercises three
 //! representative tools end-to-end.
 //!
-//! This demo has ZERO dependency on ANOS. It proves the ATD protocol is
-//! vendor-neutral: the client speaks the wire format, the ref-server answers.
+//! This demo has ZERO dependency on an external agent orchestration server.
+//! It proves the ATD protocol is vendor-neutral: the client speaks the wire
+//! format, the ref-server answers.
 //!
 //! Run:
 //!   cargo build --release -p atd-ref-server
 //!   cargo run --example hello_atd
 //!
-//! Override the server (e.g., to demo against ANOS):
-//!   ATD_SOCK=~/.anos/anos.sock cargo run --example hello_atd
+//! Override the server (e.g., to use a third-party ATD server):
+//!   ATD_SOCK=/path/to/server.sock cargo run --example hello_atd
 
 use std::path::PathBuf;
 use std::time::Duration;

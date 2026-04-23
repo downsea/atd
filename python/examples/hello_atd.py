@@ -4,15 +4,16 @@ Auto-spawns `atd-ref-server` (the in-repo neutral reference ATD server),
 connects via the Python `atd_client` SDK, exercises three representative
 tools end-to-end.
 
-This demo has ZERO dependency on ANOS. It proves the ATD protocol is
-vendor-neutral: the SDK speaks the wire format, the ref-server answers.
+This demo has ZERO dependency on an external agent orchestration server.
+It proves the ATD protocol is vendor-neutral: the SDK speaks the wire
+format, the ref-server answers.
 
 Run:
     cargo build --release -p atd-ref-server
     uv run python examples/hello_atd.py
 
-Override the server (e.g., to demo against ANOS):
-    ATD_SOCK=~/.anos/anos.sock uv run python examples/hello_atd.py
+Override the server (e.g., to use a third-party ATD server):
+    ATD_SOCK=/path/to/server.sock uv run python examples/hello_atd.py
 """
 
 from __future__ import annotations

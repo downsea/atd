@@ -1,6 +1,6 @@
 # atd-mvp
 
-**Status:** Pre-implementation. Design approved 2026-04-21. No code yet.
+**Status:** SP-6 capstone complete. atd-ref-server ships with 9 tools across 4 domains, 243+ workspace tests, and `hello_atd` demos that auto-spawn the ref-server — zero ANOS dependency in the default path. Tags: `sp1-ref-server-foundation` through `sp6-ref-server-capstone`.
 
 ATD (Agent Tool Dispatch) Client SDK reference implementation — the minimum viable protocol and client SDK that lets any agent framework call any tool on any platform through any binding.
 
@@ -10,7 +10,7 @@ ATD (Agent Tool Dispatch) Client SDK reference implementation — the minimum vi
 
 atd-mvp is intentionally independent from the ANOS project at `/home/nan/proj/anos/`. ATD is positioned as a neutral protocol ("the agent-era POSIX") — it cannot credibly claim neutrality while living inside a single vendor's codebase.
 
-During Phase 0/1, the ANOS daemon serves as the **reference server implementation** (no changes required). atd-client in this repo talks to ANOS via Unix socket. Once atd-mvp has upstream adopters, governance transfers to the APWG (Agent Protocol Working Group) per whitepaper §4.3.
+`crates/atd-ref-server` is atd-mvp's own neutral ATD reference server — no ANOS dependency required. Once atd-mvp has upstream adopters, governance transfers to the APWG (Agent Protocol Working Group) per whitepaper §4.3.
 
 ## Directory layout
 
@@ -32,30 +32,30 @@ atd-mvp/
 
 ## 15-minute quickstart (Rust, Phase 0)
 
-**Prerequisite:** the ANOS daemon is running and its socket is at `~/.anos/anos.sock`. Start it from `/home/nan/proj/anos/` with `cargo run -p anos-daemon` if it isn't already.
-
 ```bash
 # 1. clone + build
 git clone https://github.com/atd-protocol/atd-mvp
 cd atd-mvp
-cargo build -p atd-examples --bin hello_atd
+cargo build --release -p atd-ref-server
+cargo build -p atd-examples --example hello_atd
 
-# 2. run the example
-ANOS_SOCK=$HOME/.anos/anos.sock \
-  cargo run -p atd-examples --bin hello_atd
+# 2. run the example (auto-spawns the ref-server, no external daemon needed)
+cargo run --example hello_atd -p atd-examples
 ```
 
 Expected output:
 
 ```
-[atd] connecting to UnixSocket("/home/you/.anos/anos.sock")
+[atd] spawning ref-server at /tmp/atd-ref-XXXX/server.sock
+[atd] connecting to UnixSocket("/tmp/atd-ref-XXXX/server.sock")
 [atd] connected
-[atd] 3 tools discovered
-        - anos:fs.read (Read File)
-        - anos:fs.write (Write File)
-        - anos:shell.exec (Run Shell Command)
-[atd] describe(anos:fs.read) → domain=fs, bindings=1
+[atd] 9 tools discovered
+        - ref:echo.say (Echo)
+        - ref:fs.glob (Glob)
+        - ref:shell.exec (Run Shell Command)
+        ...
 [atd] call ok: {...}
+[atd] ref-server process cleaned up
 ```
 
 **Your first call in 10 lines of Rust:**
@@ -65,7 +65,7 @@ use atd_client::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = AtdClient::connect(Endpoint::default_anos()).await?;
+    let client = AtdClient::connect(Endpoint::unix_default()).await?;
     let tools = client.discover(Some("fs"), DiscoverFilter::default()).await?;
     println!("{} fs tools", tools.len());
     let r = client.call(&tools[0].id, serde_json::json!({"path":"/tmp"}),
@@ -74,6 +74,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+### Capstone demo — proving independence
+
+`atd-mvp` ships its own reference server (`atd-ref-server`) and uses it
+for the `hello_atd` demos. The example auto-spawns the ref-server as a
+child process, exercises three real tools (`ref:echo.say`,
+`ref:fs.glob`, `ref:shell.exec`), then cleans up. No ANOS daemon needed.
+
+```bash
+cargo build --release -p atd-ref-server
+cargo run --example hello_atd -p atd-examples        # Rust
+uv run --project python python python/examples/hello_atd.py   # Python
+```
+
+Want to demo against a different ATD server (ANOS or otherwise)? Set
+`ATD_SOCK=/path/to/socket` — the demo skips the spawn and connects to
+your chosen socket instead. Same client, same SDK, same output.
+
+For full evidence of independence, see
+[`docs/validation/2026-04-23-sp6-capstone.md`](docs/validation/2026-04-23-sp6-capstone.md).
 
 ## CLI quickstart
 
@@ -136,7 +156,8 @@ The ANOS-free integration test lives in `crates/atd-client/tests/mock_server.rs`
 | Role | Path | Purpose |
 |------|------|---------|
 | **Protocol + Client SDK** | `/home/nan/proj/atd-mvp/` (this repo) | Independent, neutral protocol reference |
-| **Reference server** | `/home/nan/proj/anos/` | ANOS daemon serves as the dispatch server for Phase 0/1 testing |
+| **Reference server** | `crates/atd-ref-server/` (this repo) | atd-mvp's own neutral ATD server; default target for `hello_atd` demos |
+| **Alternative server** | `/home/nan/proj/anos/` | ANOS daemon also speaks ATD wire protocol; set `ATD_SOCK=~/.anos/anos.sock` to use it |
 | **Whitepapers** | Source of truth in ANOS `docs/research/`; copied here as `docs/whitepaper/` | Historical record + theoretical foundation |
 
 ## License

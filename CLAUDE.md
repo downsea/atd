@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-**Pre-implementation.** Design approved on 2026-04-21 through a brainstorming session in the ANOS project. No code has been written yet.
+**SP-6 capstone complete.** atd-ref-server ships with 9 tools across 4 domains (echo, fs, shell, web), 243+ workspace tests, and a `hello_atd.{rs,py}` demo that auto-spawns the ref-server — zero ANOS dependency in the default path. Tag: `sp6-ref-server-capstone`.
 
 ## Reading order
 
@@ -20,7 +20,7 @@ atd-mvp is the **independent reference implementation** of the ATD (Agent Tool D
 
 ## Relationship to ANOS
 
-- **Reference server (Phase 0/1):** The ANOS daemon at `/home/nan/proj/anos/` implements the ATD dispatch pipeline and serves as the server-side reference during early development. No ANOS code changes are needed for atd-client to talk to it via Unix socket.
+- **Reference server:** `crates/atd-ref-server` is atd-mvp's own neutral reference ATD server, shipped via SP-1 through SP-5 (tags `sp1-ref-server-foundation` through `sp5-ref-server-web`) and demo'd in SP-6. The `hello_atd` demos run against it by default. ANOS is still a valid server to speak to — set `ATD_SOCK=~/.anos/anos.sock` on any demo to demo against ANOS instead. Both backends speak the same wire protocol; that's the point.
 - **Code reuse:** Pattern inspiration from ANOS crates is welcome, but **atd-mvp must have zero runtime dependency on any `anos-*` crate**. CI enforces this via an ANOS-free test harness.
 - **Whitepapers:** Source-of-truth lives in `/home/nan/proj/anos/docs/research/`. Copies in `docs/whitepaper/` are snapshots — update from the source before major design work.
 
@@ -41,7 +41,7 @@ Do not expand beyond these in the first 2-3 weeks:
 - 3 APIs only: `discover` + `describe` + `call`
 - 1 transport only: Unix socket
 - 1 language only: Rust reference
-- 1 demo only: LangChain agent calling an ATD tool through the ANOS daemon
+- Phase 0 demo: capstone `hello_atd` exercising atd-ref-server — three tools, two language SDKs, zero ANOS dependency
 
 Everything else (Python / TS SDK, stdio transport, MCP-compat, AppFunction binding, HTTP, events, skill runtime) is Phase 1+. See `docs/design.md` §7.
 
