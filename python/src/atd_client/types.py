@@ -79,6 +79,7 @@ class ToolSummary(BaseModel):
     tags: list[str] = Field(default_factory=list)
     visibility: ToolVisibility = ToolVisibility.READ
     tier: ToolTier = ToolTier.WARM
+    input_schema: dict[str, Any] | None = None
 
 
 # ---------- ToolDefinition family ----------
