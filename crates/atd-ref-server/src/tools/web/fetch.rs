@@ -12,7 +12,6 @@ use atd_types::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use reqwest::redirect::Policy;
 use url::Url;
 
 use crate::context::CallContext;
@@ -137,14 +136,27 @@ struct FetchArgs {
 fn ip_is_private(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
+            let o = v4.octets();
             v4.is_loopback()
                 || v4.is_link_local()
                 || v4.is_private()
                 || v4.is_broadcast()
                 || v4.is_unspecified()
                 || v4.is_multicast()
-                // 100.64.0.0/10 Carrier-Grade NAT
-                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 64)
+                // 0.0.0.0/8 — current network (catches 0.x.y.z, not just 0.0.0.0)
+                || o[0] == 0
+                // 100.64.0.0/10 — Carrier-Grade NAT
+                || (o[0] == 100 && (o[1] & 0xC0) == 64)
+                // 192.0.0.0/24 — IETF protocol assignments
+                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
+                // 192.0.2.0/24 — TEST-NET-1
+                || (o[0] == 192 && o[1] == 0 && o[2] == 2)
+                // 198.18.0.0/15 — Benchmarking
+                || (o[0] == 198 && (o[1] & 0xFE) == 18)
+                // 198.51.100.0/24 — TEST-NET-2
+                || (o[0] == 198 && o[1] == 51 && o[2] == 100)
+                // 203.0.113.0/24 — TEST-NET-3
+                || (o[0] == 203 && o[1] == 0 && o[2] == 113)
         }
         IpAddr::V6(v6) => {
             v6.is_loopback()
@@ -183,6 +195,12 @@ fn check_ssrf(url: &Url, allow_private: bool) -> Result<(), ToolCallError> {
     }
     // DNS resolve. Port doesn't matter for IP classification; use a dummy.
     let port = url.port_or_known_default().unwrap_or(80);
+    // SECURITY NOTE: DNS rebinding is not prevented here. We resolve once and
+    // check each IP, but an adversary controlling DNS could return a public IP
+    // for this lookup and then switch the record to a private IP for reqwest's
+    // own connect-time resolution. Accepted trade-off for MVP. Phase 2 fix
+    // requires binding reqwest to a custom resolver that shares this result
+    // OR adding a connect-time firewall layer.
     let mut addrs = match (host, port).to_socket_addrs() {
         Ok(it) => it.peekable(),
         Err(e) => {
@@ -365,8 +383,30 @@ impl Tool for WebFetchTool {
                 .min(MAX_TIMEOUT_MS)
                 .max(1);
 
+            let redirect_chain: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+                std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let chain_for_policy = redirect_chain.clone();
+            let allow_private_for_policy = allow_private;
+
+            let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
+                // Record the previous URL (where we came from).
+                if let Some(prev) = attempt.previous().last() {
+                    if let Ok(mut chain) = chain_for_policy.lock() {
+                        chain.push(prev.to_string());
+                    }
+                }
+                if attempt.previous().len() >= MAX_REDIRECTS {
+                    return attempt.error("too many redirects");
+                }
+                // Re-run the SSRF check on each redirect destination.
+                if let Err(e) = check_ssrf(attempt.url(), allow_private_for_policy) {
+                    return attempt.error(format!("redirect blocked: {e:?}"));
+                }
+                attempt.follow()
+            });
+
             let client = reqwest::Client::builder()
-                .redirect(Policy::limited(MAX_REDIRECTS))
+                .redirect(redirect_policy)
                 .timeout(Duration::from_millis(timeout_ms))
                 .user_agent(DEFAULT_UA)
                 .build()
@@ -418,7 +458,11 @@ impl Tool for WebFetchTool {
                 "content_length": content_length,
                 "truncated": truncated,
                 "binary": binary,
-                "redirected_from": serde_json::Value::Array(vec![]),
+                "redirected_from": redirect_chain.lock()
+                    .map(|v| serde_json::Value::Array(
+                        v.iter().map(|s| serde_json::Value::String(s.clone())).collect()
+                    ))
+                    .unwrap_or_else(|_| serde_json::Value::Array(vec![])),
                 "duration_ms": duration_ms,
             }))
         })
@@ -440,6 +484,10 @@ fn map_reqwest_error(e: reqwest::Error) -> ToolCallError {
         }
     } else if e.is_connect() {
         let msg = format!("{e}");
+        // reqwest 0.12 does not expose a stable TLS-specific error variant.
+        // We infer TLS failure from the formatted error string. This is fragile
+        // but is the best available option without vendoring hyper-rustls or
+        // mapping from private reqwest types.
         let code = if msg.to_lowercase().contains("tls") || msg.to_lowercase().contains("certificate") {
             "TLS_FAILED"
         } else {
@@ -696,5 +744,40 @@ mod tests {
         assert_eq!(r["binary"], true);
         assert_eq!(r["content"], "");
         assert_eq!(r["content_length"], body.len());
+    }
+
+    #[tokio::test]
+    async fn zero_octet_ip_blocked() {
+        let t = WebFetchTool::new();
+        let ctx = CallContext::for_test();
+        let err = t
+            .call(serde_json::json!({"url": "http://0.0.0.0:80"}), &ctx)
+            .await
+            .unwrap_err();
+        match err {
+            ToolCallError::ExecutionFailed { code, .. } => {
+                assert_eq!(code, "PRIVATE_ADDRESS_BLOCKED");
+            }
+            _ => panic!("expected PRIVATE_ADDRESS_BLOCKED, got {err:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_net_range_blocked() {
+        let t = WebFetchTool::new();
+        let ctx = CallContext::for_test();
+        let err = t
+            .call(
+                serde_json::json!({"url": "http://192.0.2.1:80"}),
+                &ctx,
+            )
+            .await
+            .unwrap_err();
+        match err {
+            ToolCallError::ExecutionFailed { code, .. } => {
+                assert_eq!(code, "PRIVATE_ADDRESS_BLOCKED");
+            }
+            _ => panic!("expected PRIVATE_ADDRESS_BLOCKED, got {err:?}"),
+        }
     }
 }
