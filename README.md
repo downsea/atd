@@ -102,6 +102,7 @@ Two evidence docs prove the independence and cross-vendor claims:
 
 ### Integration guides
 
+- [**Overview**](docs/integrations/overview.md) — how mainstream agent systems (LangChain, Hermes, Claude Desktop, Cursor, OpenAI/Anthropic SDK users, MCP clients, etc.) integrate with ATD; decision matrix + compatibility table
 - [LangChain](docs/integrations/langchain.md) — wire ATD tools into a LangChain agent (AgentExecutor + StructuredTool)
 - [Hermes Agent](docs/integrations/hermes.md) — `hermes mcp add atd` + LLM-driven chat (verbatim SP-7 transcripts)
 - [Claude Desktop / Claude Code / Cursor](docs/integrations/claude-code.md) — MCP bridge configuration for all three clients
