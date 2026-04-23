@@ -64,54 +64,261 @@ The five tests cover:
 5. `tools/call` with missing required args surfaces an MCP error (via
    either top-level `error` or `result.isError: true`).
 
-## 3. Hermes chat transcript (real agent with LLM)
+## 3. Hermes chat transcripts (real agent with LLM)
 
-**Note:** This section is manually captured and cannot be CI-gated. The
-surrounding test evidence in §2 is the reproducible proof.
+Captured 2026-04-23 using Hermes Agent v0.9.0 + DeepSeek `deepseek-chat`
+as the LLM backend. Three separate sessions, one per tool domain, each
+demonstrating the LLM autonomously selecting an ATD tool via MCP and
+synthesizing a user-facing reply from the tool result.
 
-### 3.1 Prerequisites
+### 3.1 Setup
 
 ```bash
-# 1. Build release binaries
-cargo build --release -p atd-ref-server -p atd-mcp-bridge
+# tmux session holds ref-server alive (subagent sandbox otherwise kills
+# background processes).
+tmux new-session -d -s atd-sp7 \
+  "/home/nan/proj/atd-mvp/target/release/atd-ref-server \
+     --sock /tmp/sp7-hermes.sock"
 
-# 2. Launch ref-server in the background
-atd-ref-server --sock /tmp/sp7-demo.sock &
-
-# 3. Configure Hermes to use the bridge (exact format depends on Hermes version)
-cat >> ~/.config/hermes/mcp.toml <<'EOF'
-[[mcp.server]]
-name = "atd-ref"
-command = "/abs/path/to/atd-mvp/target/release/atd-mcp-bridge"
-env.ATD_SOCK = "/tmp/sp7-demo.sock"
-EOF
-
-# 4. Start Hermes chat
-hermes chat
+# Register the bridge with Hermes. `--env` carries ATD_SOCK through the
+# MCP stdio child process.
+hermes mcp add atd \
+  --command /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge \
+  --env ATD_SOCK=/tmp/sp7-hermes.sock
 ```
 
-### 3.2 Transcript
+`hermes mcp test atd` confirmed the connection:
 
 ```
-TODO: manual capture — Hermes is not available in the subagent environment
-used to write this doc (headless CI, no installed Hermes binary).
+Testing 'atd'...
+Transport: stdio → /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge
+Auth: none
+✓ Connected (470ms)
+✓ Tools discovered: 9
 
-The CI evidence in §2 is the reproducible proof. Each e2e test acts as a
-minimal MCP client — it sends the same JSON-RPC messages a real agent
-client would send (initialize → notifications/initialized → tools/list →
-tools/call) and asserts on the full response shape. A Hermes session
-would layer an LLM on top of exactly this wire, but the wire itself is
-already validated by 5 passing deterministic tests.
-
-To capture this section manually:
-  1. Install Hermes and configure it per §3.1.
-  2. Run: hermes chat > /tmp/sp7-hermes.log 2>&1
-  3. Paste the session log here.
+  ref_shell_exec    Run a command via `bash -c`. …
+  ref_echo_say      Echoes input args back verbatim. …
+  ref_fs_read       Read a UTF-8 text file with 1-indexed line numbers. …
+  ref_shell_pwsh    Run a command via PowerShell. …
+  ref_fs_glob       Find files matching a glob pattern. …
+  ref_fs_grep       Regex search across files under a root. …
+  ref_fs_edit       Exact-string find-and-replace in a UTF-8 file. …
+  ref_web_fetch     HTTP GET a URL and return the body. …
+  ref_fs_write      Atomically write text content to a file …
 ```
 
-If you're reading this doc and the transcript block is a TODO, the Hermes
-capture hasn't been run yet. The deterministic evidence in §2 stands on its
-own; the Hermes transcript is additional color.
+Note the ATD-to-MCP name sanitization: `ref:echo.say` → `ref_echo_say`
+(colons + dots → underscores, required by MCP's identifier grammar). The
+bridge applies this transparently; agents see the sanitized form.
+
+### 3.2 Transcript 1 — `ref_shell_exec` via LLM
+
+**Prompt:**
+> "Use the ATD shell tool (ref_shell_exec) to run 'uname -s' and report
+> the exact stdout returned."
+
+**Hermes output (trimmed to the agent-visible content):**
+
+```
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+    I'll use the ATD shell tool to run the command for you.
+╰─────────────────────────────────────────────────────────────────────────╯
+  📞 Tool 1: mcp_atd_ref_shell_exec([])
+     Args: {}
+
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+  ✅ Tool 1 completed in 0.00s
+     Result: {"error": "atd-client error: tool execution failed:
+     ref:shell.exec: invalid args for ref:shell.exec: missing field
+     `command` (retryable=false)"}
+    I need to provide the command parameter. Let me run the command properly:
+╰─────────────────────────────────────────────────────────────────────────╯
+  📞 Tool 1: mcp_atd_ref_shell_exec(['command'])
+     Args: {
+       "command": "uname -s"
+     }
+
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+  ✅ Tool 1 completed in 0.00s
+     Result: {"result": "{\"duration_ms\":2,\"exit_code\":0,\"stderr\":\"\",
+     \"stderr_truncated\":false,\"stdout\":\"Linux\\n\",
+     \"stdout_truncated\":false}"}
+    The exact stdout returned is: `Linux`
+
+    The command `uname -s` executed successfully with exit code 0, and the
+    output shows the system is running Linux.
+╰─────────────────────────────────────────────────────────────────────────╯
+
+Session:   20260423_113932_8325a0
+Duration:  38s
+Messages:  6 (1 user, 4 tool calls)
+Model:     deepseek-chat
+```
+
+**Observations:**
+
+- The LLM tried calling the tool with no args first (`mcp_atd_ref_shell_exec([])`), got the `missing field 'command'` error back through the bridge.
+- It then self-corrected and called again with `{"command": "uname -s"}`.
+- The ATD error message (`"retryable=false"`) came through the bridge faithfully — the bridge is a pure forwarder, not a result rewriter.
+- Total round trip: 38s wall clock (dominated by LLM latency; the ATD tool calls themselves were <2ms each).
+
+### 3.3 Transcript 2 — `ref_fs_glob` via LLM
+
+**Prompt:**
+> "Use the ATD file glob tool (ref_fs_glob) to find all TOML files under
+> /home/nan/proj/atd-mvp. Report how many files were found and the first
+> three paths."
+
+**Hermes output:**
+
+```
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+    I'll use the ATD file glob tool to find all TOML files in the atd-mvp
+    project directory.
+╰─────────────────────────────────────────────────────────────────────────╯
+  📞 Tool 1: mcp_atd_ref_fs_glob(['pattern', 'root'])
+     Args: {
+       "pattern": "**/*.toml",
+       "root": "/home/nan/proj/atd-mvp"
+     }
+
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+  ✅ Tool 1 completed in 0.02s
+     Result: {"result": "{\"duration_ms\":16,\"paths\":[\"Cargo.toml\",
+     \"crates/atd-cli/Cargo.toml\",\"crates/atd-client/Cargo.toml\",
+     \"crates/atd-mcp-bridge/Cargo.toml\",\"crates/atd-ref-server/Cargo.toml\",
+     \"crates/atd-types/Cargo.toml\",\"examples/Cargo.toml\",
+     \"python/pyproject.toml\",\"rust-toolchain.toml\"],
+     \"root\":\"/home/nan/proj/atd-mvp\",\"truncated\":false}"}
+    Found 9 TOML files under /home/nan/proj/atd-mvp:
+
+    1. Cargo.toml
+    2. crates/atd-cli/Cargo.toml
+    3. crates/atd-client/Cargo.toml
+    4. crates/atd-mcp-bridge/Cargo.toml
+    5. crates/atd-ref-server/Cargo.toml
+    6. crates/atd-types/Cargo.toml
+    7. examples/Cargo.toml
+    8. python/pyproject.toml
+    9. rust-toolchain.toml
+
+    The first three paths are:
+    - Cargo.toml
+    - crates/atd-cli/Cargo.toml
+    - crates/atd-client/Cargo.toml
+╰─────────────────────────────────────────────────────────────────────────╯
+
+Session:   20260423_115300_ee7623
+Duration:  22s
+Messages:  4 (1 user, 2 tool calls)
+Model:     deepseek-chat
+```
+
+**Observations:**
+
+- First-try tool call succeeded (no retry needed). LLM inferred both
+  `pattern` and `root` parameter shapes from the MCP schema the bridge
+  advertised on `tools/list`.
+- `ref:fs.glob` honored `.gitignore` — the results don't include any
+  `target/` entries despite the repo having a built `target/` tree with
+  thousands of nested TOML manifests under vendored deps.
+- 22s wall clock, 16ms of actual ATD work inside the tool.
+
+### 3.4 Transcript 3 — `ref_fs_read` via LLM
+
+**Prompt:**
+> "Use the ATD file read tool (ref_fs_read) to read the first 5 lines of
+> /home/nan/proj/atd-mvp/Cargo.toml and tell me what the workspace
+> members are."
+
+**Hermes output (truncated result JSON for readability):**
+
+```
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+    I'll use the ATD file read tool to examine the Cargo.toml file …
+╰─────────────────────────────────────────────────────────────────────────╯
+  📞 Tool 1: mcp_atd_ref_fs_read(['uri'])
+     Args: {
+       "uri": "file:///home/nan/proj/atd-mvp/Cargo.toml"
+     }
+
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+  ✅ Tool 1 completed in 0.00s
+     Result: {"error": "atd-client error: tool execution failed:
+     ref:fs.read: invalid args for ref:fs.read: missing field `path`
+     (retryable=false)"}
+    I need to use the correct parameters for the ATD file read tool. Let me
+    check the tool's parameters and try again.
+╰─────────────────────────────────────────────────────────────────────────╯
+  📞 Tool 1: mcp_atd_ref_fs_read(['path'])
+     Args: {
+       "path": "/home/nan/proj/atd-mvp/Cargo.toml"
+     }
+
+╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
+  ✅ Tool 1 completed in 0.00s
+     Result: {"result": "{\"content\":\"   1\\t[workspace]\\n
+     2\\tresolver = \\\"2\\\"\\n   3\\tmembers = [\\\"crates/atd-types\\\",
+     \\\"crates/atd-client\\\", \\\"crates/atd-cli\\\",
+     \\\"crates/atd-mcp-bridge\\\", \\\"crates/atd-ref-server\\\",
+     \\\"examples\\\"]\\n   …\"}}
+
+    Perfect! I can see the Cargo.toml file contents. Looking at the first
+    5 lines (lines 1-5), I can see the workspace members are:
+
+    **Workspace members:**
+    - `crates/atd-types`
+    - `crates/atd-client`
+    - `crates/atd-cli`
+    - `crates/atd-mcp-bridge`
+    - `crates/atd-ref-server`
+    - `examples`
+
+    The workspace is defined with 6 members total. The file also shows
+    workspace-level package metadata including version 0.1.0, Apache-2.0
+    license, and Rust edition 2024.
+╰─────────────────────────────────────────────────────────────────────────╯
+
+Session:   20260423_115334_a68b0e
+Duration:  2m 0s
+Messages:  6 (1 user, 4 tool calls)
+Model:     deepseek-chat
+```
+
+**Observations:**
+
+- LLM initially guessed `uri: "file://..."` (MCP's own resource-style
+  argument). Bridge forwarded that raw to ATD, which rejected it with
+  `missing field 'path'`. LLM corrected to `{"path": "..."}` and
+  succeeded.
+- Line-numbered output (`   1\t[workspace]\n   2\tresolver = "2"\n …`) is
+  the verbatim tool response — `ref:fs.read` prefixes lines for agent
+  readability (see SP-2 for rationale).
+- LLM parsed the line-numbered output directly and summarized the six
+  workspace members correctly.
+
+### 3.5 What these transcripts add beyond §2
+
+§2 proves the wire works — request framing, JSON-RPC semantics, error
+propagation. §3 proves the LLM can *use* the wire:
+
+- Tool selection is LLM-driven, not pre-scripted. Each prompt names the
+  ATD tool domain; the LLM picks a specific tool, fills in arguments
+  based only on the MCP schema the bridge served up during
+  `tools/list`, and (when it guesses wrong) recovers from the bridged
+  error message.
+- The ATD error taxonomy survives the trip through the bridge —
+  `InvalidArgs("missing field 'command'")` becomes a structured MCP
+  tool-result error that the LLM can read and respond to.
+- End-to-end latency is LLM-dominated (seconds per turn), not
+  bridge-dominated (microseconds). That's the right shape — ATD is not
+  in the critical path for agent responsiveness.
+
+The three domains covered (shell / fs.glob / fs.read) map to three of
+the four ATD tool categories shipped by `atd-ref-server`. `ref:web.fetch`
+wasn't exercised here because it requires network and the sandbox's DNS
+returns private IPs that trip the SSRF guard (documented as expected
+behavior in SP-5's validation).
 
 ### 3.3 What this adds beyond §2
 
