@@ -324,9 +324,13 @@ async fn read_body_capped(
     let mut truncated = false;
     while let Some(chunk) = response.chunk().await? {
         if buf.len() >= cap {
-            // Already at cap; just keep draining so the server doesn't block.
+            // Cap already reached. Drop the Response (via function return) to
+            // close the connection — reqwest will RST, and we don't need any
+            // further bytes. Drain-past-cap logic (useful for subprocess pipes)
+            // would be a DoS vector here: a slow-drip server could hold our
+            // reqwest connection open for the full timeout window.
             truncated = true;
-            continue;
+            break;
         }
         let room = cap - buf.len();
         if chunk.len() <= room {
@@ -334,6 +338,7 @@ async fn read_body_capped(
         } else {
             buf.extend_from_slice(&chunk[..room]);
             truncated = true;
+            break;
         }
     }
     Ok((buf, truncated))
