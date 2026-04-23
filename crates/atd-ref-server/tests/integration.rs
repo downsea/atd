@@ -716,3 +716,71 @@ async fn e2e_fs_glob_invalid_pattern_returns_error() {
     let message = r["message"].as_str().unwrap_or("");
     assert!(message.contains("invalid glob") || message.contains("["));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_web_fetch_localhost_happy() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    // Ad-hoc HTTP server returning HTML.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            let body = b"<html><body><h1>Hello</h1></body></html>";
+            let mut resp = Vec::new();
+            resp.extend_from_slice(b"HTTP/1.1 200 OK\r\n");
+            resp.extend_from_slice(b"Content-Type: text/html; charset=utf-8\r\n");
+            resp.extend_from_slice(format!("Content-Length: {}\r\n", body.len()).as_bytes());
+            resp.extend_from_slice(b"Connection: close\r\n\r\n");
+            resp.extend_from_slice(body);
+            let _ = sock.write_all(&resp).await;
+            let _ = sock.shutdown().await;
+        }
+    });
+
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:web.fetch",
+            "args": {
+                "url": format!("http://127.0.0.1:{port}/"),
+                "allow_private": true,
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    assert_eq!(r["success"], serde_json::json!(true));
+    assert_eq!(r["result"]["status"], 200);
+    assert_eq!(r["result"]["binary"], false);
+    let content = r["result"]["content"].as_str().unwrap();
+    assert!(content.contains("Hello"), "content should contain 'Hello': {content:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn e2e_web_fetch_private_blocked() {
+    let srv = spawn_server().await;
+    let r = send_one_request(
+        &srv.sock,
+        &serde_json::json!({
+            "type": "run_tool",
+            "tool_id": "ref:web.fetch",
+            "args": {
+                "url": "http://127.0.0.1:9/",
+            },
+            "dry_run": false,
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(r["type"], "tool_result");
+    assert_eq!(r["success"], serde_json::json!(false));
+    assert_eq!(r["result"]["code"], "PRIVATE_ADDRESS_BLOCKED");
+}
