@@ -230,7 +230,7 @@ mod tests {
         match r {
             Response::ToolList { tools } => {
                 let arr = tools.as_array().unwrap();
-                assert_eq!(arr.len(), 8);
+                assert_eq!(arr.len(), 9);
                 let ids: Vec<&str> = arr.iter().map(|t| t["id"].as_str().unwrap()).collect();
                 assert!(ids.contains(&"ref:echo.say"));
                 assert!(ids.contains(&"ref:fs.read"));
@@ -240,6 +240,7 @@ mod tests {
                 assert!(ids.contains(&"ref:fs.grep"));
                 assert!(ids.contains(&"ref:shell.exec"));
                 assert!(ids.contains(&"ref:shell.pwsh"));
+                assert!(ids.contains(&"ref:web.fetch"));
             }
             _ => panic!("wrong variant"),
         }

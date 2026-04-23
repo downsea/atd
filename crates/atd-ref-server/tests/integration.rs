@@ -106,7 +106,7 @@ async fn e2e_tool_list_returns_echo() {
         .unwrap();
     assert_eq!(r["type"], "tool_list");
     let tools = r["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 8);
+    assert_eq!(tools.len(), 9);
     let ids: Vec<&str> = tools.iter().map(|t| t["id"].as_str().unwrap()).collect();
     assert!(ids.contains(&"ref:echo.say"));
     assert!(ids.contains(&"ref:fs.read"));
@@ -116,6 +116,7 @@ async fn e2e_tool_list_returns_echo() {
     assert!(ids.contains(&"ref:fs.grep"));
     assert!(ids.contains(&"ref:shell.exec"));
     assert!(ids.contains(&"ref:shell.pwsh"));
+    assert!(ids.contains(&"ref:web.fetch"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
