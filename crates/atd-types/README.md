@@ -1,6 +1,6 @@
 # atd-types
 
-Protocol types for the [Agent Tool Dispatch (ATD) protocol](https://github.com/<YOUR_USERNAME>/atd-mvp).
+Protocol types for the [Agent Tool Dispatch (ATD) protocol](https://github.com/downsea/atd-mvp).
 
 ## What's in here
 
@@ -32,4 +32,4 @@ let safety = ToolSafety {
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/<YOUR_USERNAME>/atd-mvp/blob/master/LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/downsea/atd-mvp/blob/master/LICENSE).

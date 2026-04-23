@@ -1,6 +1,6 @@
 # atd-mvp
 
-[![CI](https://github.com/<YOUR_USERNAME>/atd-mvp/actions/workflows/ci.yml/badge.svg)](https://github.com/<YOUR_USERNAME>/atd-mvp/actions/workflows/ci.yml)
+[![CI](https://github.com/downsea/atd-mvp/actions/workflows/ci.yml/badge.svg)](https://github.com/downsea/atd-mvp/actions/workflows/ci.yml)
 
 **The reference implementation of the Agent Tool Dispatch (ATD) protocol.**
 
@@ -13,7 +13,7 @@ other MCP-speaking agent.
 ## Quick start
 
 ```bash
-git clone https://github.com/<YOUR_USERNAME>/atd-mvp
+git clone https://github.com/downsea/atd-mvp
 cd atd-mvp
 cargo build --release -p atd-ref-server
 cargo run --example hello_atd -p atd-examples

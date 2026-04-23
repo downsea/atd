@@ -2,7 +2,7 @@
 
 MCP-over-stdio bridge that lets any MCP-speaking client (Claude Desktop,
 Cursor, Hermes, OpenAI Codex, …) drive tools served by an
-[ATD (Agent Tool Dispatch) server](https://github.com/<YOUR_USERNAME>/atd-mvp).
+[ATD (Agent Tool Dispatch) server](https://github.com/downsea/atd-mvp).
 
 ## Install
 
@@ -49,7 +49,7 @@ appear in Claude's tool list.
 
 - A running ATD server. Build one from source:
   ```bash
-  git clone https://github.com/<YOUR_USERNAME>/atd-mvp
+  git clone https://github.com/downsea/atd-mvp
   cargo build --release -p atd-ref-server
   atd-ref-server --sock /tmp/my-atd.sock
   ```
@@ -61,4 +61,4 @@ appear in Claude's tool list.
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/<YOUR_USERNAME>/atd-mvp/blob/master/LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/downsea/atd-mvp/blob/master/LICENSE).

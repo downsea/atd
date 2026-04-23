@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/atd-protocol/atd-mvp"
-Repository = "https://github.com/atd-protocol/atd-mvp"
+Homepage = "https://github.com/downsea/atd-mvp"
+Repository = "https://github.com/downsea/atd-mvp"
 
 [dependency-groups]
 dev = [

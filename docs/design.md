@@ -439,7 +439,7 @@ hint:  run 'atd allow fs.delete' to grant for this session
 
 These require resolution before Phase 0 starts:
 
-1. **Repo creation:** `/home/nan/proj/atd-mvp/` created now (alongside ANOS) or held until first real commit? **Recommendation:** create now, initialize with this design doc, then push to `github.com/atd-protocol/atd-mvp`.
+1. **Repo creation:** `/home/nan/proj/atd-mvp/` created now (alongside ANOS) or held until first real commit? **Recommendation:** create now, initialize with this design doc, then push to `github.com/downsea/atd-mvp`.
 2. **Cargo workspace vs polyrepo:** single `Cargo.toml` workspace with Rust crates, while Python/TS are sibling directories (not in workspace). **Recommendation:** yes, this matches Rust-ecosystem convention.
 3. **License:** MIT or Apache-2.0 or dual. **Recommendation:** Apache-2.0 (matches Hermes, allows upstream merge into Apache-licensed projects).
 4. **Versioning:** 0.1.0 semver from Day 1. Breaking changes allowed <1.0, protocol stability promised at 1.0.
@@ -456,7 +456,7 @@ Deliverables in order:
 5. Write `/home/nan/proj/atd-mvp/examples/hello_atd.rs`
 6. Run against local ANOS daemon (no ANOS code changes required)
 7. Write `/home/nan/proj/atd-mvp/README.md` — 15-min install story
-8. Push initial commit to `github.com/atd-protocol/atd-mvp` (pending org creation)
+8. Push initial commit to `github.com/downsea/atd-mvp` (pending org creation)
 
 ## 12. References
 

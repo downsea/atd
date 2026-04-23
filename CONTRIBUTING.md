@@ -20,7 +20,7 @@ codebase is small, the design is evolving, and external input is welcome.
 ## Development
 
 ```bash
-git clone https://github.com/<YOUR_USERNAME>/atd-mvp
+git clone https://github.com/downsea/atd-mvp
 cd atd-mvp
 cargo build --workspace
 cargo test --workspace --all-targets

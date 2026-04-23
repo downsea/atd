@@ -1,6 +1,6 @@
 # atd-client
 
-Rust client SDK for the [Agent Tool Dispatch (ATD) protocol](https://github.com/<YOUR_USERNAME>/atd-mvp).
+Rust client SDK for the [Agent Tool Dispatch (ATD) protocol](https://github.com/downsea/atd-mvp).
 
 Connect to any ATD-speaking server over a Unix socket, discover tools, describe them, and call them.
 
@@ -51,4 +51,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/<YOUR_USERNAME>/atd-mvp/blob/master/LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/downsea/atd-mvp/blob/master/LICENSE).

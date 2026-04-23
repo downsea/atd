@@ -58,7 +58,7 @@ Everything else (Python / TS SDK, stdio transport, MCP-compat, AppFunction bindi
 
 Per `docs/design.md` §10, confirm before first commit:
 
-1. Create repo now or wait for first code? — current answer: create now, initialize with docs, push when `github.com/atd-protocol/atd-mvp` org exists
+1. Create repo now or wait for first code? — current answer: create now, initialize with docs, push when `github.com/downsea/atd-mvp` org exists
 2. Cargo workspace vs polyrepo? — current answer: Cargo workspace with Python/TS as sibling directories
 3. License? — current answer: Apache-2.0
 4. Versioning? — current answer: 0.1.0 semver, breaking changes allowed until 1.0

@@ -256,7 +256,7 @@ Net change: `ANOS_SOCK` and `Endpoint::default_anos()` are gone. `ATD_SOCK` repl
 
 - **Demo video** — a 90-second screen capture of `cargo run --example hello_atd` from a fresh clone, for the project README and the eventual public announcement.
 - **Conformance suite** — a protocol-level test harness that validates third-party server implementations against the ATD wire protocol (tracked in `docs/design.md` §7).
-- **Public release** — push `atd-mvp` to `github.com/atd-protocol/atd-mvp`, announce to partner stakeholders.
+- **Public release** — push `atd-mvp` to `github.com/downsea/atd-mvp`, announce to partner stakeholders.
 - **Cross-OS validation** — verify the capstone demo on macOS and Windows. This SP was tested on Linux only (kernel 6.19.10, Fedora 43).
 
 These are downstream of the code. The code itself is capstone-complete.
