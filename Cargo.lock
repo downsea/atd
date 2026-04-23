@@ -126,6 +126,7 @@ dependencies = [
  "atd-client",
  "atd-types",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

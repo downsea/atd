@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
-[[bin]]
+[[example]]
 name = "hello_atd"
 path = "hello_atd.rs"
 
@@ -14,3 +14,4 @@ atd-client = { path = "../crates/atd-client" }
 atd-types = { path = "../crates/atd-types" }
 tokio = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
