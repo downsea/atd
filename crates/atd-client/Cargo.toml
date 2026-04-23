@@ -19,6 +19,13 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 
+[features]
+default = []
+adapters = ["openai", "anthropic", "langchain"]
+openai = []
+anthropic = []
+langchain = []
+
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }

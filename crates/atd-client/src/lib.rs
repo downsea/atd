@@ -10,6 +10,9 @@ pub mod protocol;
 pub mod sanitize;
 pub mod wire;
 
+#[cfg(any(feature = "openai", feature = "anthropic", feature = "langchain"))]
+pub mod adapters;
+
 pub use client::AtdClient;
 pub use endpoint::Endpoint;
 pub use options::{CallOptions, DiscoverFilter};
