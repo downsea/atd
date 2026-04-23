@@ -6,7 +6,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "MCP-over-stdio bridge that forwards tools/list and tools/call to an ATD server via atd-client."
+description = "MCP-over-stdio bridge forwarding tools/list and tools/call to any ATD (Agent Tool Dispatch) server. Lets Claude Desktop, Cursor, Hermes, and other MCP clients reach ATD-speaking tool servers."
+readme = "README.md"
+keywords = ["atd", "mcp", "bridge", "agent", "tool-dispatch"]
+categories = ["command-line-utilities", "api-bindings"]
+exclude = ["tests/fixtures/*"]
 
 [lib]
 name = "atd_mcp_bridge"

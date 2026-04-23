@@ -6,7 +6,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Reference Rust client SDK for the Agent Tool Dispatch (ATD) protocol."
+description = "Rust client SDK for the ATD (Agent Tool Dispatch) protocol — connect to any ATD-speaking server over Unix sockets."
+readme = "README.md"
+keywords = ["atd", "agent", "client", "sdk", "mcp"]
+categories = ["api-bindings", "asynchronous"]
+exclude = ["tests/fixtures/*", "benches/*"]
 
 [dependencies]
 atd-types = { path = "../atd-types", version = "0.1.0" }

@@ -6,7 +6,11 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Protocol-level types for the Agent Tool Dispatch (ATD) protocol."
+description = "Protocol types for the ATD (Agent Tool Dispatch) reference implementation."
+readme = "README.md"
+keywords = ["atd", "agent", "tool-dispatch", "mcp", "llm"]
+categories = ["api-bindings", "development-tools"]
+exclude = ["tests/fixtures/*"]
 
 [dependencies]
 serde = { workspace = true }
