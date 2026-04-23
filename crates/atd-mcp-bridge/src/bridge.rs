@@ -8,7 +8,7 @@ use crate::mcp::{
     ContentBlock, InitializeParams, InitializeResult, ServerCapabilities, ServerInfo, Tool,
     ToolsCallParams, ToolsCallResult, ToolsCapability, ToolsListResult,
 };
-use crate::sanitize::{desanitize, sanitize};
+use atd_client::sanitize::{desanitize_tool_name, sanitize_tool_name};
 
 const PROTOCOL_VERSION: &str = "2025-11-25";
 const BRIDGE_NAME: &str = "atd-mcp-bridge";
@@ -75,7 +75,7 @@ impl Bridge {
         let tools: Vec<Tool> = summaries
             .iter()
             .map(|s| Tool {
-                name: sanitize(&s.id),
+                name: sanitize_tool_name(&s.id),
                 description: if !s.description.is_empty() {
                     s.description.clone()
                 } else {
@@ -99,7 +99,28 @@ impl Bridge {
             None => return Response::err(id, -32602, "invalid params for tools/call"),
         };
 
-        let atd_id = desanitize(&params.name);
+        // Resolve the MCP-sanitized name back to an ATD tool id by consulting
+        // the live tool list. This avoids hardcoded namespace prefixes and
+        // stays correct as new namespaces are registered.
+        let summaries = match self
+            .client
+            .discover(None, DiscoverFilter::default())
+            .await
+        {
+            Ok(s) => s,
+            Err(e) => return Response::err(id, -32000, format!("discover failed: {e}")),
+        };
+        let known_ids: Vec<&str> = summaries.iter().map(|s| s.id.as_str()).collect();
+        let atd_id = match desanitize_tool_name(&params.name, known_ids.iter().copied()) {
+            Some(id_str) => id_str.to_string(),
+            None => {
+                return Response::err(
+                    id,
+                    -32602,
+                    format!("unknown tool name: {}", params.name),
+                )
+            }
+        };
         let result = self
             .client
             .call(&atd_id, params.arguments, CallOptions::default())
@@ -238,6 +259,12 @@ mod tests {
     async fn tools_call_desanitizes_and_forwards() {
         let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
             Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"anos:fs.read","description":"File Read","tier":"hot","visibility":"read"}
+                ]
+            }),
             Some("run_tool") => {
                 assert_eq!(req["tool_id"], "anos:fs.read");
                 json!({"type":"tool_result","tool_id":"anos:fs.read","result":{"content":"hi"},"success":true,"dry_run":false})
@@ -270,6 +297,12 @@ mod tests {
     async fn tools_call_propagates_server_type_error_as_is_error() {
         let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
             Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"anos:system.time","description":"System Time","tier":"hot","visibility":"read"}
+                ]
+            }),
             Some("run_tool") => json!({
                 "type": "error",
                 "message": "direct tool execution via IPC not yet supported — use RunTurn",
@@ -303,6 +336,12 @@ mod tests {
     async fn tools_call_propagates_success_false_as_is_error() {
         let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
             Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"anos:fs.read","description":"File Read","tier":"hot","visibility":"read"}
+                ]
+            }),
             Some("run_tool") => json!({
                 "type": "tool_result",
                 "tool_id": "anos:fs.read",
