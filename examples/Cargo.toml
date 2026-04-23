@@ -9,6 +9,15 @@ publish = false
 name = "hello_atd"
 path = "hello_atd.rs"
 
+[[example]]
+name = "hello_langchain"
+path = "hello_langchain.rs"
+required-features = ["langchain"]
+
+[features]
+default = []
+langchain = ["atd-client/langchain"]
+
 [dependencies]
 atd-client = { path = "../crates/atd-client" }
 atd-types = { path = "../crates/atd-types" }

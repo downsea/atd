@@ -176,6 +176,6 @@ def _build_pydantic_model(
 
     if not fields:
         # Pydantic requires at least one field; use a permissive model.
-        fields["_extra"] = (AnyType, Field(None))
+        fields["extra"] = (AnyType, Field(None))
 
     return create_model(name, **fields)
