@@ -92,6 +92,26 @@ Two evidence docs prove the independence and cross-vendor claims:
   — MCP bridge end-to-end tests prove a non-ANOS MCP client can drive
   atd-ref-server through the bridge.
 
+## Documentation
+
+### Quick start guides
+
+- [Rust](docs/quickstart/rust.md) — `cargo add atd-client`, first tool call, adapter usage
+- [Python](docs/quickstart/python.md) — sync + async API, LangChain adapter, OpenAI/Anthropic helpers
+- [TypeScript](docs/quickstart/typescript.md) — planned; stub with design preview
+
+### Integration guides
+
+- [LangChain](docs/integrations/langchain.md) — wire ATD tools into a LangChain agent (AgentExecutor + StructuredTool)
+- [Hermes Agent](docs/integrations/hermes.md) — `hermes mcp add atd` + LLM-driven chat (verbatim SP-7 transcripts)
+- [Claude Desktop / Claude Code / Cursor](docs/integrations/claude-code.md) — MCP bridge configuration for all three clients
+- [OpenClaw](docs/integrations/openclaw.md) — current MCP-bridge workaround + future skill plan
+
+### Protocol reference
+
+- [Wire format](docs/protocol/wire-format.md) — length-prefixed JSON framing, message types, server bindings, full type definitions
+- [Error codes](docs/protocol/error-codes.md) — `AtdError` taxonomy, server error codes, retry strategy
+
 ## Project status
 
 This is v0.1.0. Under the SemVer 0.x contract, breaking changes are
