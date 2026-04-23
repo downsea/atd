@@ -30,7 +30,7 @@ globset = "0.4"
 grep-searcher = "0.1"
 grep-regex = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli"] }
-html2md = "0.2"
+htmd = "0.5"
 url = "2"
 
 [dev-dependencies]

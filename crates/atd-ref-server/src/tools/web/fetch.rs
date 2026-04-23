@@ -5,8 +5,6 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use std::collections::HashMap;
-
 use atd_types::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
@@ -283,36 +281,14 @@ enum ContentKind {
     Binary,
 }
 
-// --- html2md script/style stripping ---
-//
-// html2md 0.2.15 does NOT strip <script>/<style> content by default: the
-// DummyHandler suppresses the element open/close tags but still recurses into
-// text-node children, so inline scripts leak into the output.  We register
-// a custom factory that produces a handler with skip_descendants=true for
-// those tags.
-
-struct SkipDescendantsHandler;
-struct SkipDescendantsFactory;
-
-impl html2md::TagHandler for SkipDescendantsHandler {
-    fn handle(&mut self, _tag: &html2md::Handle, _printer: &mut html2md::StructuredPrinter) {}
-    fn after_handle(&mut self, _printer: &mut html2md::StructuredPrinter) {}
-    fn skip_descendants(&self) -> bool {
-        true
-    }
-}
-
-impl html2md::TagHandlerFactory for SkipDescendantsFactory {
-    fn instantiate(&self) -> Box<dyn html2md::TagHandler> {
-        Box::new(SkipDescendantsHandler)
-    }
-}
-
+/// Convert HTML to markdown, stripping script and style tag contents so
+/// agents aren't fed JavaScript source or CSS as body text.
 fn html_to_markdown(html: &str) -> String {
-    let mut custom: HashMap<String, Box<dyn html2md::TagHandlerFactory>> = HashMap::new();
-    custom.insert("script".into(), Box::new(SkipDescendantsFactory));
-    custom.insert("style".into(), Box::new(SkipDescendantsFactory));
-    html2md::parse_html_custom(html, &custom)
+    use htmd::HtmlToMarkdown;
+    let converter = HtmlToMarkdown::builder()
+        .skip_tags(vec!["script", "style"])
+        .build();
+    converter.convert(html).unwrap_or_default()
 }
 
 /// Stream-read bytes up to `cap`. Returns `(bytes, truncated)`.
