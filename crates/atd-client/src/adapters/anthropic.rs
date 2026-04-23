@@ -12,11 +12,10 @@
 //! ]
 //! ```
 //!
-//! Note: `ToolSummary` does not carry `input_schema` (that field lives on
-//! `ToolDefinition`). Tools emitted here will have an empty `input_schema`
-//! (`{"type":"object","properties":{}}`). For richer schemas, call
-//! `client.describe(id)` to get the full `ToolDefinition` and use its
-//! `input_schema` field directly.
+//! `ToolSummary.input_schema` carries the JSON Schema when the server
+//! populates it. If absent, adapters fall back to an empty schema stub
+//! (`{"type":"object","properties":{}}`). For full schema details, call
+//! `client.describe(id)` to get the `ToolDefinition`.
 
 use atd_types::ToolSummary;
 use serde_json::{json, Value};
@@ -25,18 +24,20 @@ use crate::sanitize::sanitize_tool_name;
 
 /// Convert a list of ATD tool summaries to Anthropic Messages API tools.
 ///
-/// Each tool's `input_schema` field uses an empty JSON Schema object because
-/// `ToolSummary` does not include the full input schema. Use
-/// `client.describe(id)` and `ToolDefinition.input_schema` for full schema
-/// details.
+/// Each tool's `input_schema` field uses `ToolSummary.input_schema` when
+/// present, falling back to an empty JSON Schema stub when the server did
+/// not populate it.
 pub fn as_anthropic_tools(summaries: &[ToolSummary]) -> Vec<Value> {
     summaries
         .iter()
         .map(|t| {
+            let input_schema = t.input_schema.clone().unwrap_or_else(
+                || serde_json::json!({"type": "object", "properties": {}}),
+            );
             json!({
                 "name": sanitize_tool_name(&t.id),
                 "description": t.description,
-                "input_schema": json!({"type": "object", "properties": {}}),
+                "input_schema": input_schema,
             })
         })
         .collect()
@@ -56,6 +57,11 @@ mod tests {
             tier: ToolTier::Warm,
             visibility: ToolVisibility::Read,
             tags: vec![],
+            input_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+            })),
         }
     }
 
@@ -73,6 +79,7 @@ mod tests {
         assert_eq!(out[0]["name"], "ref_fs_read");
         assert_eq!(out[0]["description"], "read a file");
         assert!(out[0]["input_schema"].is_object());
+        assert_eq!(out[0]["input_schema"]["properties"]["text"]["type"], "string");
         assert!(out[0].get("function").is_none());
         assert!(out[0].get("type").is_none());
     }
@@ -81,5 +88,13 @@ mod tests {
     fn name_sanitization_applied() {
         let out = as_anthropic_tools(&[fake_summary("xiaomi:light.toggle", "")]);
         assert_eq!(out[0]["name"], "xiaomi_light_toggle");
+    }
+
+    #[test]
+    fn falls_back_to_empty_schema_when_input_schema_is_none() {
+        let mut s = fake_summary("ref:no.schema", "no schema");
+        s.input_schema = None;
+        let out = as_anthropic_tools(&[s]);
+        assert_eq!(out[0]["input_schema"], serde_json::json!({"type": "object", "properties": {}}));
     }
 }

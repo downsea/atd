@@ -17,6 +17,8 @@ pub struct ToolSummary {
     pub visibility: ToolVisibility,
     #[serde(default = "default_tier")]
     pub tier: ToolTier,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 fn default_tier() -> ToolTier {
@@ -33,6 +35,7 @@ impl From<&ToolDefinition> for ToolSummary {
             tags: def.capability.tags.clone(),
             visibility: def.visibility,
             tier: default_tier(),
+            input_schema: Some(def.input_schema.clone()),
         }
     }
 }
@@ -89,6 +92,25 @@ mod tests {
         assert_eq!(s.domain, "fs");
         assert_eq!(s.tags, vec!["filesystem"]);
         assert_eq!(s.tier, ToolTier::Warm);
+        // input_schema is populated from the definition
+        assert!(s.input_schema.is_some());
+    }
+
+    #[test]
+    fn input_schema_absent_in_wire_when_none() {
+        // A ToolSummary with input_schema: None must not emit the field in JSON
+        let s = ToolSummary {
+            id: "x".into(),
+            name: "x".into(),
+            description: "d".into(),
+            domain: "d".into(),
+            tags: vec![],
+            visibility: ToolVisibility::Read,
+            tier: ToolTier::Warm,
+            input_schema: None,
+        };
+        let j = serde_json::to_string(&s).unwrap();
+        assert!(!j.contains("input_schema"), "field should be absent when None: {j}");
     }
 
     #[test]

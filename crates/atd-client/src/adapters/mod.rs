@@ -43,6 +43,7 @@ mod tests {
             tier: ToolTier::Warm,
             visibility: ToolVisibility::Read,
             tags: vec![],
+            input_schema: None,
         }
     }
 
