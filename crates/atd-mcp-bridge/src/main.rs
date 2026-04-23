@@ -3,8 +3,7 @@
 //! Usage:
 //!   atd-mcp-bridge [--sock PATH]
 //!
-//! Defaults to $HOME/.anos/anos.sock. Speaks MCP (JSON-RPC 2.0) on stdin/stdout,
-//! logs to stderr.
+//! Speaks MCP (JSON-RPC 2.0) on stdin/stdout, logs to stderr.
 
 use atd_client::{AtdClient, Endpoint};
 use atd_mcp_bridge::bridge::Bridge;
@@ -22,7 +21,7 @@ async fn main() {
                 sock_path = args.next().map(std::path::PathBuf::from);
             }
             "-h" | "--help" => {
-                eprintln!("usage: atd-mcp-bridge [--sock PATH]");
+                eprintln!("usage: atd-mcp-bridge [--sock PATH]\n\nOne of --sock PATH or ATD_SOCK env var is required.\nPoints the bridge at an ATD-speaking Unix socket.");
                 std::process::exit(0);
             }
             other => {
@@ -32,10 +31,26 @@ async fn main() {
         }
     }
 
-    let endpoint = match sock_path {
-        Some(p) => Endpoint::unix(p),
-        None => Endpoint::default_anos(),
+    let sock = sock_path
+        .or_else(|| {
+            std::env::var("ATD_SOCK")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(std::path::PathBuf::from)
+        });
+
+    let sock = match sock {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "atd-mcp-bridge: no target socket configured.\n\
+             specify --sock PATH or set ATD_SOCK=/path/to/atd-server.sock"
+            );
+            std::process::exit(2);
+        }
     };
+
+    let endpoint = Endpoint::unix(sock);
 
     eprintln!("atd-mcp-bridge: connecting to {endpoint:?}");
     let client = match AtdClient::connect(endpoint).await {
