@@ -12,8 +12,8 @@ pub fn sanitize(atd_id: &str) -> String {
 /// MCP name → ATD id. Recognizes the `<namespace>_` prefix and splits the rest.
 /// Falls back to returning the name unchanged if the shape isn't recognized.
 pub fn desanitize(mcp_name: &str) -> String {
-    // Known namespaces used by the ANOS daemon.
-    for ns in &["anos", "host", "mock"] {
+    // Known namespaces used by the ANOS daemon and atd-ref-server.
+    for ns in &["anos", "host", "mock", "ref"] {
         let prefix = format!("{ns}_");
         if let Some(rest) = mcp_name.strip_prefix(&prefix) {
             if let Some((domain, action)) = rest.split_once('_') {
