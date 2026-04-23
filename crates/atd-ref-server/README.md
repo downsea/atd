@@ -47,6 +47,20 @@ atd --sock $HOME/.atd-ref/server.sock call ref:fs.grep \
 
 Both tools honor `.gitignore` / `.ignore` / `.rgignore` and skip hidden files by default. `ref:fs.grep` skips binary files entirely (detected by NUL byte). Results are capped by `max_matches` (default 1000) and `ctx.max_output_bytes` — when either limit hits, `truncated: true` is set.
 
+### Web tool
+
+```bash
+# Fetch a public URL and get markdown back:
+atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
+  --args '{"url": "https://example.com"}'
+
+# Localhost with the SSRF escape hatch:
+atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
+  --args '{"url": "http://127.0.0.1:8080/", "allow_private": true}'
+```
+
+`ref:web.fetch` blocks private/loopback/link-local addresses by default (set `allow_private: true` to opt in). HTML bodies are stripped and converted to markdown; JSON and text pass through verbatim; binary responses return metadata only (`binary: true`, empty `content`). Limits: 10 MiB body, 30s timeout (configurable up to 120s), 5 redirects. Request headers are allowlisted — only `Accept`, `Accept-Language`, `Referer`, `User-Agent` are accepted; anything else (`Authorization`, `Cookie`, etc.) is rejected.
+
 ## How to add a tool
 
 1. **Create the tool file** at `src/tools/<name>.rs`:
@@ -168,7 +182,7 @@ Lifetime: from connection `accept()` to `close`. Not persisted; not shared acros
 - **SP-2 (shipped):** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + `ReadTracker` per-connection state
 - **SP-3 (shipped):** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell) + shared subprocess handler
 - **SP-4 (shipped):** `ref:fs.glob` + `ref:fs.grep` — ripgrep-powered search tools
-- **SP-5:** `ref:web.fetch`
+- **SP-5 (shipped):** `ref:web.fetch` — HTTP GET with SSRF guard + HTML→markdown
 
 See `../../docs/superpowers/specs/2026-04-22-atd-ref-server-sp1-foundation.md` and `sp2-*` for details on shipped sub-projects.
 
