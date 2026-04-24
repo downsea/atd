@@ -360,7 +360,69 @@ Fields:
 | `retryable` | `bool` | yes | Whether the caller should retry. Absent = unknown. |
 | `details` | `Object` | yes | Additional structured context. Server-defined. |
 
-### 4.6 Future message types (not in v0.1.0)
+### 4.6 `hello` / `hello_ack` — capability handshake (SP-12)
+
+Optional connection-scoped handshake: the client declares the capabilities it
+would like to hold, and the server replies with the subset its
+`--grant-capability` allow-list authorizes. Subsequent `run_tool` calls use
+this subset to enforce each tool's `required_capabilities`.
+
+**Request:**
+
+```json
+{
+  "type": "hello",
+  "client_id": "my-agent-7",          // optional; free-form string for logs
+  "requested_capabilities": ["exec", "read"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "type": "hello_ack",
+  "granted_capabilities": ["exec"],   // intersection of requested + allow-list
+  "server_version": "atd-ref-server 0.2.0",
+  "supported_tiers": ["hot", "warm", "cold"]
+}
+```
+
+**Rules:**
+
+- `hello` is optional. A client that skips it runs with an empty capability
+  set — fine for tools declaring no `required_capabilities`, refused with
+  `code: 1001` otherwise.
+- `hello` is idempotent within a connection: re-sending with a different set
+  **replaces** the stored set (does not union).
+- Pre-SP-12 servers reply with a generic `type: "error"`. SDKs (`atd-client`,
+  `atd_client`) demote this to "no capabilities granted" so a single
+  `hello()` call works against any server version.
+
+### 4.7 Capability-denied error (SP-12)
+
+When `run_tool` targets a tool whose `required_capabilities` are not a subset
+of the connection's granted set, the server returns:
+
+```json
+{
+  "type": "error",
+  "code": 1001,
+  "retryable": false,
+  "message": "capability denied for ref:x: missing [\"exec\"]",
+  "details": {
+    "required": ["exec"],
+    "granted": [],
+    "missing": ["exec"]
+  }
+}
+```
+
+`code = 1001` is the stable wire value (`ERR_CAPABILITY_DENIED`). Both the
+Rust and Python SDKs map this to a typed `CapabilityDenied` exception
+carrying both the required and granted lists verbatim.
+
+### 4.8 Future message types (not in v0.1.0)
 
 The following types are documented here for implementers planning forward compatibility.
 The reference server returns `type: "error"` with `message: "not implemented"` if it

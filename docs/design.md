@@ -33,6 +33,7 @@
 - ❌ HTTP/JSON transport — defer to Phase 2 (Unix socket + stdio covers Phase 0/1).
 - ❌ AppFunction binding reference implementation — defer to Phase 2 (requires real hardware).
 - ❌ Conformance test suite enforcement — Phase 2.
+- ❌ v3 distributed dispatch — device affinity, UCAN token attenuation, session migrate/fork/handoff. **SP-12 ships the structural placeholders** (a single-node allow-list capability gate, a single `CliBinding`, a single `RedactPathsMiddleware`) so the four-layer v3 architecture is pointable-at-code; full v3 semantics remain Phase 2+.
 
 ## 2. Architecture
 
@@ -53,12 +54,17 @@
 │  └──────────────┴─────────────┴─────────────────────────┘│
 ├──────────────────────────────────────────────────────────┤
 │             ATD Server / Dispatch Core                   │
-│    reference = ANOS daemon (Phase 0/1)                   │
+│   reference = atd-ref-server (SP-12): capability gate,   │
+│   tier policy, binding selection, result-middleware.     │
+│   v3 distributed dispatch (device affinity, UCAN,        │
+│   session handoff) remains Phase 2+.                     │
 ├──────────────────────────────────────────────────────────┤
 │  Server-side Bindings                                    │
-│  ┌───────┬───────┬───────┬──────────────────────────────┐│
-│  │  CLI  │  MCP  │ REST  │  AppFunction (Phase 2)      ││
-│  └───────┴───────┴───────┴──────────────────────────────┘│
+│  ┌─────────┬─────┬──────┬──────┬────────────────────────┐│
+│  │ Native  │ CLI │ MCP  │ REST │ AppFunction (Phase 2) ││
+│  │ (SP-12) │ (12)│ (*)  │ (*)  │                       ││
+│  └─────────┴─────┴──────┴──────┴────────────────────────┘│
+│  (*) wire binding today; native Binding impl is Phase 2. │
 └──────────────────────────────────────────────────────────┘
 ```
 

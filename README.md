@@ -23,7 +23,7 @@ Expected output:
 ```
 [atd] auto-spawning atd-ref-server → /tmp/.../demo.sock
 [atd] connected
-[atd] 9 tools registered
+[atd] 10 tools registered   # 9 native + ref:external.uname on unix (SP-12)
 
 [1/3] ref:echo.say {"text":"hello from ATD"}
       → {"echoed":{"text":"hello from ATD"}}
@@ -59,11 +59,11 @@ examples.
 ## Architecture at a glance
 
 ```
-┌──────────────┐  length-prefixed JSON  ┌──────────────────┐
-│  atd-client  │ ←───────────────────→  │ ATD server       │
-└──────────────┘    (Unix socket)       │ (atd-ref-server  │
-                                         │  or yours)       │
-                                         └──────────────────┘
+┌──────────────┐  length-prefixed JSON  ┌────────────────────────────────────────┐
+│  atd-client  │ ←───────────────────→  │ atd-ref-server                          │
+│              │    (Unix socket)       │  Hello → capability gate                │
+│              │                        │  registry → tier → binding → middleware │
+└──────────────┘                        └────────────────────────────────────────┘
 
 ┌──────────────┐   MCP JSON-RPC    ┌────────────────┐      ┌──────────────┐
 │  MCP client  │ ← stdio ────────→ │ atd-mcp-bridge │ ←──→ │  ATD server  │
@@ -76,11 +76,37 @@ examples.
 
 - The ATD wire protocol is length-prefixed JSON over a Unix socket —
   trivial to implement in any language.
-- The reference server `atd-ref-server` ships with 9 real tools:
-  `ref:echo.say`, `ref:fs.{read,write,edit,glob,grep}`,
-  `ref:shell.{exec,pwsh}`, `ref:web.fetch`.
+- The reference server `atd-ref-server` ships with 9 native tools
+  (`ref:echo.say`, `ref:fs.{read,write,edit,glob,grep}`,
+  `ref:shell.{exec,pwsh}`, `ref:web.fetch`) plus `ref:external.uname`
+  on unix (SP-12 `CliBinding` demo).
 - The MCP bridge is a thin forwarder — ~200 lines — letting any MCP
   client reach an ATD server.
+
+### Dispatch layer (SP-12)
+
+`atd-ref-server` demonstrates four canonical dispatch primitives that
+make the "ATD = agent-era POSIX" framing concrete in code:
+
+- **Capability gate** — connection-scoped allow-list declared via
+  `--grant-capability`; clients request a subset through `Hello`; tools
+  whose `required_capabilities` are not granted are refused with error
+  code `1001` (`AtdError::CapabilityDenied`).
+- **Tier-aware deadlines** — `Hot`, `Warm`, `Cold` tiers on the tool
+  definition drive per-call timeout + max-output budgets, overridable
+  via `--tier-override hot=timeout_ms=300`.
+- **Binding abstraction** — `NativeBinding` (delegates to the `Tool`
+  impl, default) and `CliBinding` (spawns a subprocess, maps JSON args
+  to argv, honors deadlines). Future bindings (MCP, REST,
+  AppFunction) slot in through the same trait.
+- **Result-middleware chain** — run on success before the wire reply;
+  ships with `RedactPathsMiddleware` (redacts `$HOME` paths), enabled
+  by default. Disable with `--middleware none`; compose chains with
+  repeated `--middleware`.
+
+The v3 distributed-dispatch features — device affinity, UCAN tokens,
+session migrate/fork/handoff — remain Phase 2+. See
+`docs/whitepaper/atd-v3-skills-architecture-brief.md` for the target.
 
 ## Validation
 

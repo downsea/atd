@@ -14,6 +14,7 @@ from typing import Any
 
 from atd_client import protocol
 from atd_client.errors import (
+    CapabilityDenied,
     InvalidArguments,
     ProtocolError,
     ServerUnreachable,
@@ -119,6 +120,40 @@ class AtdClient:
         resp = await self._request(protocol.ping_request())
         if resp.get("type") != protocol.RESP_PONG:
             raise ProtocolError(expected="pong", got=str(resp.get("type")))
+
+    async def hello(
+        self,
+        requested_capabilities: list[str],
+        *,
+        client_id: str | None = None,
+    ) -> list[str]:
+        """SP-12 Hello handshake.
+
+        Declare the capabilities this connection would like to hold; the
+        server replies with the subset it actually granted (intersection
+        with its allow-list). Call this once per connection, after
+        :meth:`connect`, before any :meth:`call` that targets a tool with
+        ``required_capabilities``.
+
+        Back-compat: against a pre-SP-12 server that does not understand
+        the handshake, returns an empty list rather than raising — the
+        caller can still use tools that declare no required capabilities.
+        """
+        req = protocol.hello_request(client_id, list(requested_capabilities))
+        resp = await self._request(req)
+        rtype = resp.get("type")
+        if rtype == protocol.RESP_HELLO_ACK:
+            granted = resp.get("granted_capabilities", [])
+            if not isinstance(granted, list):
+                raise ProtocolError(
+                    expected="granted_capabilities: list[str]", got=repr(granted)
+                )
+            return [str(c) for c in granted]
+        if rtype == protocol.RESP_ERROR:
+            # Pre-SP-12 server: no hello handler. Fail-open to "no caps"
+            # so the caller can still call tools that declare none.
+            return []
+        raise ProtocolError(expected="hello_ack", got=str(rtype))
 
     # ---------- public API ----------
 
@@ -255,6 +290,18 @@ class AtdClient:
                 retryable=retryable,
             )
         if t == protocol.RESP_ERROR:
+            # SP-12 capability-denied: code=1001 with details.{required,
+            # granted}. Surface as a typed exception so callers can catch
+            # it without string-matching.
+            if resp.get("code") == protocol.ERR_CAPABILITY_DENIED:
+                details = resp.get("details") or {}
+                required = details.get("required", []) if isinstance(details, dict) else []
+                granted = details.get("granted", []) if isinstance(details, dict) else []
+                raise CapabilityDenied(
+                    tool_id=tool_id,
+                    required=[str(c) for c in required],
+                    granted=[str(c) for c in granted],
+                )
             raise ToolExecutionFailed(
                 tool_id=tool_id,
                 inner=RuntimeError(

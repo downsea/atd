@@ -68,6 +68,42 @@ impl AtdClient {
         }
     }
 
+    /// SP-12 Hello handshake. Declare the capabilities the client would
+    /// like to hold on this connection; returns the subset the server
+    /// actually granted.
+    ///
+    /// Back-compat: pre-SP-12 servers do not recognize `hello` and will
+    /// typically respond with a wire error. This method demotes that to
+    /// "no capabilities granted" (`Ok(vec![])`) so callers can treat the
+    /// pre-SP-12 case identically to the fail-closed SP-12 case — a single
+    /// `hello()` call works against any server version.
+    pub async fn hello(
+        &self,
+        client_id: Option<&str>,
+        requested: Vec<String>,
+    ) -> Result<Vec<String>, AtdError> {
+        let req = Request::Hello {
+            client_id: client_id.map(|s| s.to_string()),
+            requested_capabilities: requested,
+        };
+        match self.request(&req).await {
+            Ok(Response::HelloAck { granted_capabilities, .. }) => Ok(granted_capabilities),
+            // Pre-SP-12 server: it doesn't know `hello`; it may reply with
+            // a generic error. Demote to "no caps granted" rather than
+            // failing — the caller can still call tools that declare no
+            // required_capabilities.
+            Ok(Response::Error { .. }) => Ok(vec![]),
+            // Protocol-level failure (e.g. wire decode): same back-compat
+            // treatment.
+            Err(AtdError::ProtocolError { .. }) => Ok(vec![]),
+            Ok(other) => Err(AtdError::ProtocolError {
+                expected: "hello_ack".into(),
+                got: format!("{other:?}"),
+            }),
+            Err(e) => Err(e),
+        }
+    }
+
     pub(crate) async fn request(&self, req: &Request) -> Result<Response, AtdError> {
         let mut guard = self.inner.lock().await;
         match &mut *guard {
@@ -242,6 +278,23 @@ impl AtdClient {
                     })
                 }
             }
+            // SP-12: server returns code=1001 for capability denial with
+            // a `details` payload carrying `required` + `granted`. Surface
+            // as the typed AtdError::CapabilityDenied so callers can catch
+            // it without string-matching.
+            Response::Error {
+                message: _,
+                code: Some(code),
+                details,
+                ..
+            } if code == crate::protocol::ERR_CAPABILITY_DENIED => {
+                let (required, granted) = extract_cap_denied_sets(details.as_ref());
+                Err(AtdError::CapabilityDenied {
+                    tool_id: tool_id.to_string(),
+                    required,
+                    granted,
+                })
+            }
             Response::Error { message, retryable, .. } => Err(AtdError::ToolExecutionFailed {
                 tool_id: tool_id.to_string(),
                 inner: Box::new(std::io::Error::other(format!(
@@ -276,6 +329,28 @@ fn derive_domain(id: &str) -> String {
         Some((_ns, rest)) => rest.split('.').next().unwrap_or("").to_string(),
         None => String::new(),
     }
+}
+
+/// Pull `required` + `granted` out of a `details` payload for
+/// CAPABILITY_DENIED. Tolerant: missing / malformed fields become empty
+/// vectors so the client surfaces whatever the server sent without
+/// failing on its own.
+fn extract_cap_denied_sets(details: Option<&serde_json::Value>) -> (Vec<String>, Vec<String>) {
+    let Some(d) = details else {
+        return (vec![], vec![]);
+    };
+    let to_vec = |v: &serde_json::Value| -> Vec<String> {
+        v.as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let required = d.get("required").map(to_vec).unwrap_or_default();
+    let granted = d.get("granted").map(to_vec).unwrap_or_default();
+    (required, granted)
 }
 
 fn extract_error(value: &serde_json::Value) -> (String, String, bool) {
@@ -638,5 +713,123 @@ mod tests {
         // host:media.convert → domain "media", and name falls back to id when both name and description empty
         assert_eq!(summaries[2].domain, "media");
         assert_eq!(summaries[2].name, "host:media.convert");
+    }
+
+    // ---- SP-12 additions ----
+
+    #[tokio::test]
+    async fn hello_returns_granted_subset_from_server() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::Hello {
+                client_id,
+                requested_capabilities,
+            } => {
+                assert_eq!(client_id.as_deref(), Some("test"));
+                assert_eq!(requested_capabilities, vec!["exec", "admin"]);
+                Response::HelloAck {
+                    granted_capabilities: vec!["exec".into()],
+                    server_version: "atd-ref-server 0.2.0".into(),
+                    supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
+                }
+            }
+            _ => unreachable!(),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let granted = client
+            .hello(Some("test"), vec!["exec".into(), "admin".into()])
+            .await
+            .unwrap();
+        assert_eq!(granted, vec!["exec"]);
+    }
+
+    #[tokio::test]
+    async fn hello_degrades_to_empty_caps_on_pre_sp12_server_error() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::Hello { .. } => Response::Error {
+                message: "unknown request".into(),
+                code: None,
+                retryable: None,
+                details: None,
+            },
+            _ => unreachable!(),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let granted = client.hello(None, vec!["exec".into()]).await.unwrap();
+        assert!(granted.is_empty(), "pre-SP-12 server → empty grant");
+    }
+
+    #[tokio::test]
+    async fn call_surfaces_capability_denied_with_both_sets() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::RunTool { .. } => Response::Error {
+                message: "capability denied for ref:x: missing [\"exec\"]".into(),
+                code: Some(crate::protocol::ERR_CAPABILITY_DENIED),
+                retryable: Some(false),
+                details: Some(serde_json::json!({
+                    "required": ["exec"],
+                    "granted": [],
+                    "missing": ["exec"],
+                })),
+            },
+            _ => unreachable!(),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let err = client
+            .call(
+                "ref:x",
+                serde_json::json!({}),
+                crate::options::CallOptions::default(),
+            )
+            .await
+            .unwrap_err();
+        match err {
+            AtdError::CapabilityDenied {
+                tool_id,
+                required,
+                granted,
+            } => {
+                assert_eq!(tool_id, "ref:x");
+                assert_eq!(required, vec!["exec"]);
+                assert!(granted.is_empty());
+            }
+            other => panic!("expected CapabilityDenied, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn call_non_capability_error_still_maps_to_tool_execution_failed() {
+        // Regression: pre-existing error shape (no code, or non-1001 code)
+        // must continue to map to ToolExecutionFailed.
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |_| Response::Error {
+            message: "something else".into(),
+            code: Some(500),
+            retryable: Some(true),
+            details: None,
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let err = client
+            .call(
+                "ref:x",
+                serde_json::json!({}),
+                crate::options::CallOptions::default(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, AtdError::ToolExecutionFailed { .. }),
+            "non-1001 errors must still be ToolExecutionFailed, got {err:?}"
+        );
     }
 }

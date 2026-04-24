@@ -161,10 +161,12 @@ CapabilityDenied {
 
 | attribute | value |
 |---|---|
-| **Trigger** | The server refuses the call because the client lacks required capabilities |
+| **Trigger** | The server refuses the call because the client lacks required capabilities (SP-12: wire code `1001` / `ERR_CAPABILITY_DENIED`) |
+| **Wire mapping** | `Response::Error { code: Some(1001), details: { required, granted, missing } }` |
+| **How to grant** | Server operator: `atd-ref-server --grant-capability <name>`. Client: `AtdClient::hello(requested_capabilities)` declares what you want. |
 | **is_retryable()** | `false` |
 | **suggest_fix()** | `"run atd allow <tool_id> to grant for this session"` |
-| **Source line** | `error.rs:19–24` (variant), `error.rs:71–73` (suggest_fix impl) |
+| **Source line** | `error.rs:19–24` (variant), `error.rs:71–73` (suggest_fix impl); mapping: `client.rs` where server `code == 1001` |
 
 Recovery example:
 

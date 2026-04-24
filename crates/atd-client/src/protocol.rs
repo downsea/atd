@@ -1,11 +1,28 @@
 use serde::{Deserialize, Serialize};
 
+/// Wire value of `code` on `Response::Error` when dispatch refuses a call
+/// whose `required_capabilities` are not a subset of the connection's
+/// granted capability set. SP-12 Task 2.
+pub const ERR_CAPABILITY_DENIED: u16 = 1001;
+
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Request {
     #[serde(rename = "ping")]
     Ping,
+
+    /// SP-12 Hello handshake. Optional: pre-SP-12 servers do not recognize
+    /// it; `AtdClient::hello` tolerates that and returns an empty granted
+    /// set so callers can treat "no capabilities" and "server too old"
+    /// identically.
+    #[serde(rename = "hello")]
+    Hello {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        #[serde(default)]
+        requested_capabilities: Vec<String>,
+    },
 
     #[serde(rename = "tool_list")]
     ToolList,
@@ -27,6 +44,16 @@ pub enum Request {
 pub enum Response {
     #[serde(rename = "pong")]
     Pong,
+
+    #[serde(rename = "hello_ack")]
+    HelloAck {
+        #[serde(default)]
+        granted_capabilities: Vec<String>,
+        #[serde(default)]
+        server_version: String,
+        #[serde(default)]
+        supported_tiers: Vec<String>,
+    },
 
     #[serde(rename = "tool_list")]
     ToolListResponse { tools: serde_json::Value },

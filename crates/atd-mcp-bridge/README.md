@@ -54,6 +54,23 @@ appear in Claude's tool list.
   atd-ref-server --sock /tmp/my-atd.sock
   ```
 
+## Limitations
+
+### Capability-gated tools
+
+SP-12 introduced a connection-scoped capability gate on
+`atd-ref-server`: tools can declare `required_capabilities` which the
+server enforces before dispatch. The MCP bridge does **not** issue an
+ATD `Hello` handshake, so every call it proxies runs with an empty
+capability set. This is fine for the default ATD reference tools
+(all declare `required_capabilities: []`) but any tool you install
+that requires capabilities will be refused with code `1001`
+(`CAPABILITY_DENIED`) when called through the bridge.
+
+If you need to call capability-gated tools, use the Rust or Python
+ATD client directly (both expose `hello()` on the client surface).
+Propagating capabilities through the MCP bridge is a future-SP item.
+
 ## See also
 
 - [`atd-types`](https://crates.io/crates/atd-types) — protocol types
