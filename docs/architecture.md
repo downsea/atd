@@ -421,38 +421,38 @@ Cryptographically signed, delegatable UCAN-style tokens are 🚫 non-goal for v1
 | Connection-scoped allow-list | ✅ (SP-12) | See §4.2.3 |
 | UCAN delegation tree | 🚫 | See [§9.3](#9-non-goals-explicit) |
 | Token revocation store | 🚫 | Same |
-| Per-call agent identity tracking | ❌ | All calls currently execute as `did:anos:system`. Blocks fine-grained audit + tokens. |
+| Per-call agent identity tracking | ✅ (SP-operability-v1) | `CallContext.caller_id` populated from `Hello.client_id`; see `crates/atd-runtime/src/context.rs`. Prerequisite for UCAN tokens (§9.3). |
 
 ### 5.4 Audit logging
 
 | Component | Status | Notes |
 |---|---|---|
-| Structured per-call audit (tool_id, args_hash, outcome, duration, caller, tier, binding) | ❌ | Issue [`security-audit-logging-missing`](issues/2026-04-24-security-audit-logging-missing.md) |
-| `--log-format json` CLI flag | ❌ | Planned |
-| `tracing` subscriber integration | ❌ | Prerequisite |
+| Structured per-call audit (tool_id, args_hash, outcome, duration, caller, tier, binding) | ✅ (SP-operability-v1) | `CallEvent` schema v1 emitted per call; see `crates/atd-runtime/src/audit.rs`. |
+| `--audit-log <path>` CLI flag | ✅ (SP-operability-v1) | Enables `JsonLinesAuditSink` on the ref server. |
+| `tracing` subscriber integration | ✅ (SP-operability-v1) | `JsonLinesAuditSink` writes JSONL events alongside the existing `tracing` subscriber. |
 
-Without audit, the other security layers are unobservable in retrospect. Shipping audit is the most valuable next security-adjacent SP; it is a prerequisite for meaningful multi-tenant authz (§9.3 defers that, but keeps this on the critical path).
+Audit is the observability spine for the other security layers. SP-operability-v1 landed this as the first security-adjacent SP post-SP-13; it unblocks meaningful multi-tenant authz work (§9.3 defers UCAN tokens, but audit no longer blocks that path).
 
 ### 5.5 Rate limiting and concurrency
 
 | Component | Source | Status | Notes |
 |---|---|---|---|
 | `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | Declared on every tool; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
-| `ToolResources.max_concurrent` | same | 📜 | Same |
-| Server-side semaphore wrapping per-tool invocation | — | ❌ | Planned: `tokio::sync::Semaphore` in `Registry` |
-| Server-side rate-limiter (token bucket via `governor`) | — | ❌ | Planned |
-| `AtdError::TooManyCalls` variant | — | ❌ | Would need to be added |
+| `ToolResources.max_concurrent` | same | ✅ (SP-operability-v1) | Enforced by per-tool `tokio::sync::Semaphore` in `Registry`. |
+| Server-side semaphore wrapping per-tool invocation | `crates/atd-runtime/src/registry.rs` | ✅ (SP-operability-v1) | Refuses with `ERR_RATE_LIMITED` (1002, retryable) when permits are exhausted. |
+| Server-side rate-limiter (token bucket via `governor`) | — | ❌ | Still planned; `rate_limit_per_min` remains declarative. |
+| `AtdError::RateLimited` variant | `crates/atd-protocol/src/error.rs` | ✅ (SP-operability-v1) | Wire code 1002; see [`docs/protocol/error-codes.md`](protocol/error-codes.md). |
 
 ### 5.6 Dry-run consistency
 
 | Component | Status | Notes |
 |---|---|---|
-| `CallOptions.dry_run` wire field | ✅ | Part of `RunTool` message |
-| `Tool::honor_dry_run()` trait method | ❌ | Proposed in issue [`security-dry-run-inconsistent`](issues/2026-04-24-security-dry-run-inconsistent.md) |
-| Dispatch-level rejection when `dry_run: true` but tool doesn't honor | ❌ | Planned — `AtdError::NotImplemented { feature: "dry_run" }` |
-| Per-tool dry-run semantics (read-only tools vs destructive tools) | ⚠️ | Some tools silently ignore; others implicitly honor. Inconsistent. |
+| `CallOptions.dry_run` wire field | ✅ | Part of `RunTool` message. |
+| Server-side short-circuit on `dry_run: true` | ✅ (SP-operability-v1) | Uniform across tools; see [`docs/protocol/dry-run-contract.md`](protocol/dry-run-contract.md). |
+| `ToolSafety.dry_run` metadata correctness | ✅ (SP-operability-v1) | `shell.exec` / `shell.pwsh` corrected to `true` (they have side effects); field remains informational in v1. |
+| Per-tool dry-run semantics delegation | 🚫 v1 | Deferred to a possible SP-operability-v2: route `dry_run: true` to tools declaring `ToolSafety.dry_run: true` for tool-specific previews. |
 
-Closing this gap (a small SP) removes a silent-execute footgun: today, an agent asking `ref:shell.exec("rm -rf /", dry_run=true)` will run the command. v1 target: explicit rejection unless the tool opts in.
+The v1 contract is a server-side short-circuit: the server returns a synthetic `tool_result` without invoking the tool. This closes the silent-execute footgun — `ref:shell.exec("rm -rf /", dry_run=true)` no longer runs the command.
 
 ### 5.7 Target state (v1)
 
@@ -461,9 +461,10 @@ v1 security posture closes when:
 - Classifications ✅ (done)
 - Per-tool runtime controls ✅ (done for current tool set)
 - Connection-scoped capability gate ✅ (done — SP-12)
-- Audit logging ✅ (proposed SP after SP-13)
-- Rate limiting + max_concurrent enforcement ✅ (proposed SP)
-- Dry-run consistency ✅ (proposed small SP)
+- Audit logging ✅ (landed — SP-operability-v1)
+- Rate limiting + max_concurrent enforcement ✅ (landed — SP-operability-v1)
+- Dry-run consistency ✅ (landed — SP-operability-v1)
+- Per-call agent identity tracking ✅ (landed — SP-operability-v1)
 - Full UCAN tokens 🚫 (Phase 2)
 - Tool signature verification 🚫 (Phase 2)
 
@@ -471,10 +472,10 @@ v1 security posture closes when:
 
 | Gap | Next SP | Status |
 |---|---|---|
-| Audit logging | Proposed SP post-SP-13 | ❌ |
-| Rate limiting + max_concurrent | Proposed SP post-SP-13 | ❌ |
-| Dry-run consistency | Proposed small SP | ❌ |
-| Per-call agent identity | Enabler for audit + tokens — part of audit SP | ❌ |
+| Audit logging | SP-operability-v1 | ✅ |
+| Rate limiting + max_concurrent | SP-operability-v1 | ✅ |
+| Dry-run consistency | SP-operability-v1 | ✅ |
+| Per-call agent identity | SP-operability-v1 | ✅ |
 | UCAN tokens | Phase 2 — see [§9.3](#9-non-goals-explicit) | 🚫 |
 | Tool signature verification | Phase 2 — see [§9.4](#9-non-goals-explicit) | 🚫 |
 
@@ -753,10 +754,10 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 
 | Item | Layer | Status | Target SP | Rough window | Gate |
 |---|---|---|---|---|---|
-| Audit logging (structured per-call events) | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
-| Rate limiting + `max_concurrent` enforcement | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
-| Dry-run consistency across tools | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
-| Per-call agent identity tracking | Security | ❌ | bundled with audit | Q2 2026 | Prerequisite for audit and UCAN tokens |
+| Audit logging (structured per-call events) | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; JsonLinesAuditSink via --audit-log flag; CallEvent schema v1. |
+| Rate limiting + `max_concurrent` enforcement | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; per-tool tokio Semaphore in Registry; ERR_RATE_LIMITED (1002) wire code. |
+| Dry-run consistency across tools | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; server-side short-circuit documented in docs/protocol/dry-run-contract.md; shell.exec/pwsh ToolSafety.dry_run corrected to true. |
+| Per-call agent identity tracking | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; CallContext.caller_id populated from Hello.client_id; prerequisite for UCAN tokens (arch §9.3). |
 | Machine-readable `atd-protocol-schema.json` | Schema | ❌ | proposed SP | Q2 2026 | No adopter gate |
 | Conformance suite (SP-8 original) | Cross-cutting | ❌ | SP to be planned | Q2-Q3 2026 | Benefits from protocol schema being shipped first |
 | Ergonomic aliases DSL (SDK-only) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate; low priority |

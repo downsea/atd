@@ -182,6 +182,18 @@ match client.call("ref:fs.write", args, opts).await {
 }
 ```
 
+### 2.3a `RateLimited` (wire code `1002` / `ERR_RATE_LIMITED`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | Dispatch refuses the call because the tool's `max_concurrent` permits are exhausted (SP-operability-v1: per-tool `tokio::sync::Semaphore` in `Registry`). The tool is never invoked. |
+| **Wire mapping** | `Response::Error { code: Some(1002), message: "rate limited: <tool_id>" }` — emitted by `atd-runtime` when `try_acquire_owned` on the per-tool semaphore returns `TryAcquireError::NoPermits`. |
+| **Retryable?** | `true` — the client may retry after a backoff (no permits available *right now*, but permits free as in-flight calls complete). |
+| **Source line** | `crates/atd-protocol/src/messages.rs` (constant `ERR_RATE_LIMITED`); `crates/atd-runtime/src/registry.rs` (enforcement); `crates/atd-runtime/src/error.rs` (`ToolCallError::RateLimited`). |
+| **Since** | SP-operability-v1 |
+
+Note: in v0.1.0 the SDK does not yet surface this as a dedicated `AtdError::RateLimited` variant; it arrives as a generic wire-error response with `code == 1002`. Client retry code should key off the numeric code.
+
 ### 2.4 `BindingUnavailable`
 
 ```rust

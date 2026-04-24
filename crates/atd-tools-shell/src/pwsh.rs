@@ -59,7 +59,7 @@ fn definition() -> &'static ToolDefinition {
         }],
         safety: ToolSafety {
             level: SafetyLevel::Destructive,
-            dry_run: false,
+            dry_run: true,
             side_effects: vec!["subprocess".into(), "filesystem".into(), "network".into()],
             data_sensitivity: Some("depends on command".into()),
         },

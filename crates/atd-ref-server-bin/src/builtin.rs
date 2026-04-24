@@ -93,4 +93,23 @@ mod tests {
             vec!["conformance.denied".to_string()]
         );
     }
+
+    #[test]
+    fn shell_tools_declare_dry_run_true() {
+        let reg = builtin_registry(false);
+        let exec = reg
+            .get("ref:shell.exec")
+            .expect("shell.exec registered by default");
+        assert!(
+            exec.tool.definition().safety.dry_run,
+            "shell.exec has side effects → should declare dry_run: true"
+        );
+        let pwsh = reg
+            .get("ref:shell.pwsh")
+            .expect("shell.pwsh registered by default");
+        assert!(
+            pwsh.tool.definition().safety.dry_run,
+            "shell.pwsh has side effects → should declare dry_run: true"
+        );
+    }
 }
