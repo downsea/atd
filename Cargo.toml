@@ -10,7 +10,7 @@ members = [
     "crates/atd-tools-web",
     "crates/atd-cli",
     "crates/atd-mcp-bridge",
-    "crates/atd-ref-server",
+    "crates/atd-ref-server-bin",
     "examples",
 ]
 

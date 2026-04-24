@@ -1,15 +1,15 @@
 [package]
-name = "atd-ref-server"
+name = "atd-ref-server-bin"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Neutral reference server for the Agent Tool Dispatch (ATD) protocol — ships with real tools, zero dependency on any specific agent framework."
+description = "Reference server binary for the Agent Tool Dispatch (ATD) protocol — wires atd-runtime + atd-tools-* into an installable executable."
 
 [lib]
-name = "atd_ref_server"
+name = "atd_ref_server_bin"
 path = "src/lib.rs"
 
 [[bin]]

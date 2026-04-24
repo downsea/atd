@@ -22,7 +22,7 @@ pub fn builtin_registry() -> Registry {
 
     #[cfg(unix)]
     {
-        use crate::tools::external::uname;
+        use crate::external::uname;
         let stub = Arc::new(uname::UnameStub::new());
         let binding = Arc::new(uname::cli_binding());
         reg.register_with_binding(stub, binding);

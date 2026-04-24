@@ -142,7 +142,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "atd-ref-server"
+name = "atd-ref-server-bin"
 version = "0.1.0"
 dependencies = [
  "atd-protocol",

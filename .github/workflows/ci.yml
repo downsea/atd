@@ -22,7 +22,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build release binaries (e2e tests need these)
-        run: cargo build --release -p atd-ref-server -p atd-mcp-bridge
+        run: cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
 
       - name: Run tests
         run: cargo test --workspace --all-targets

@@ -50,7 +50,7 @@ appear in Claude's tool list.
 - A running ATD server. Build one from source:
   ```bash
   git clone https://github.com/downsea/atd-mvp
-  cargo build --release -p atd-ref-server
+  cargo build --release -p atd-ref-server-bin
   atd-ref-server --sock /tmp/my-atd.sock
   ```
 

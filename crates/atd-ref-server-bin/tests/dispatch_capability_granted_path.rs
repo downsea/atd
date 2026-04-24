@@ -1,18 +1,17 @@
-//! SP-12 Task 5 — result-middleware integration test.
+//! SP-12 Task 2 — capability-granted integration test.
 //!
-//! Registers a tool whose output contains an absolute `$HOME/...` path,
-//! installs `RedactPathsMiddleware::with_home_default`, and verifies the
-//! path is rewritten to `<redacted:home>/...` by the time the result
-//! reaches the wire. Complements the unit tests in `middleware.rs` by
-//! proving the server actually invokes the chain on the success path.
+//! Complement to `dispatch_capability_denied_path.rs`. Here the server grants
+//! `exec`; the client requests it in `Hello`; the subsequent `run_tool` is
+//! allowed through the gate and the tool's result is returned. Together, the
+//! two tests pin both branches of the `CapabilityDenied` error path.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_runtime::middleware::RedactPathsMiddleware;
+use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_ref_server::server::{Server, ServerConfig};
+use atd_ref_server_bin::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
@@ -20,21 +19,21 @@ use atd_protocol::{
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
-struct EmitHomePathTool {
+struct GatedTool {
     def: ToolDefinition,
 }
 
-impl EmitHomePathTool {
+impl GatedTool {
     fn new() -> Self {
         Self {
             def: ToolDefinition {
-                id: "test:emit.home_path".into(),
-                name: "emit home path".into(),
-                description: "returns an absolute $HOME path for middleware tests".into(),
+                id: "test:gated.op".into(),
+                name: "gated op".into(),
+                description: "requires exec capability".into(),
                 version: "0.0.0".into(),
                 capability: ToolCapability {
                     domain: "test".into(),
-                    actions: vec![],
+                    actions: vec!["op".into()],
                     tags: vec![],
                     intent_examples: vec![],
                 },
@@ -62,30 +61,29 @@ impl EmitHomePathTool {
                     signature: None,
                 },
                 visibility: ToolVisibility::Read,
-                required_capabilities: vec![],
+                required_capabilities: vec!["exec".into()],
                 tier: None,
             },
         }
     }
 }
 
-impl Tool for EmitHomePathTool {
+impl Tool for GatedTool {
     fn definition(&self) -> &ToolDefinition {
         &self.def
     }
     fn call<'a>(
         &'a self,
         _args: serde_json::Value,
-        _ctx: &'a atd_runtime::context::CallContext,
+        ctx: &'a atd_runtime::context::CallContext,
     ) -> CallFuture<'a> {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        // Echo a marker + the capabilities the tool saw, so the test can
+        // confirm caps flow through the CallContext.
+        let caps_view = ctx.capabilities.granted();
         Box::pin(async move {
             Ok(serde_json::json!({
-                "leaked_path": format!("{}/secret/config.toml", home),
-                "unrelated": "this string has no home in it",
-                "nested": {
-                    "also_leaked": format!("{}/another", home),
-                },
+                "ran": true,
+                "caps_in_context": caps_view,
             }))
         })
     }
@@ -97,24 +95,22 @@ struct ServerHandle {
     _task: tokio::task::JoinHandle<std::io::Result<()>>,
 }
 
-async fn spawn_with_middleware(
-    middleware: Vec<Arc<dyn atd_runtime::middleware::Middleware>>,
-) -> ServerHandle {
+async fn spawn(granted: Vec<String>) -> ServerHandle {
     let dir = tempfile::tempdir().unwrap();
     let sock = dir.path().join("server.sock");
 
     let mut registry = Registry::new();
-    registry.register(Arc::new(EmitHomePathTool::new()));
+    registry.register(Arc::new(GatedTool::new()));
 
     let cfg = ServerConfig {
         socket_path: sock.clone(),
         cwd: std::env::current_dir().unwrap(),
         max_output_bytes: 1_048_576,
         default_call_timeout_ms: 5_000,
-        granted_capabilities: vec![],
+        granted_capabilities: granted,
     };
-    let mut server = Server::new(registry, cfg);
-    server.set_middleware(middleware);
+
+    let server = Server::new(registry, cfg);
     let task = tokio::spawn(server.run());
 
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
@@ -132,8 +128,10 @@ async fn spawn_with_middleware(
     panic!("server did not create socket within 5s at {sock:?}");
 }
 
-async fn send_one(sock: &std::path::Path, req: serde_json::Value) -> serde_json::Value {
-    let mut stream = UnixStream::connect(sock).await.unwrap();
+async fn send_on_stream(
+    stream: &mut UnixStream,
+    req: serde_json::Value,
+) -> serde_json::Value {
     let body = serde_json::to_vec(&req).unwrap();
     stream
         .write_all(&(body.len() as u32).to_be_bytes())
@@ -150,57 +148,66 @@ async fn send_one(sock: &std::path::Path, req: serde_json::Value) -> serde_json:
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn middleware_redacts_home_path_on_wire() {
-    // Pin HOME so the middleware's pattern matches a known value
-    // deterministically across CI/dev environments.
-    unsafe {
-        std::env::set_var("HOME", "/tmp/sp12-test-home");
-    }
+async fn hello_grants_requested_subset_when_server_allows() {
+    let srv = spawn(vec!["exec".into(), "read".into()]).await;
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
 
-    let mw: Arc<dyn atd_runtime::middleware::Middleware> =
-        Arc::new(RedactPathsMiddleware::with_home_default());
-    let srv = spawn_with_middleware(vec![mw]).await;
-
-    let r = send_one(
-        &srv.sock,
+    let hello = send_on_stream(
+        &mut stream,
         serde_json::json!({
-            "type": "run_tool",
-            "tool_id": "test:emit.home_path",
-            "args": {},
-            "dry_run": false,
+            "type": "hello",
+            "client_id": "integration-test",
+            "requested_capabilities": ["exec", "write"],
         }),
     )
     .await;
-    assert_eq!(r["success"], serde_json::json!(true));
-    assert_eq!(r["result"]["leaked_path"], "<redacted:home>/secret/config.toml");
-    assert_eq!(
-        r["result"]["unrelated"],
-        "this string has no home in it"
+    assert_eq!(hello["type"], "hello_ack");
+    let granted: Vec<String> =
+        serde_json::from_value(hello["granted_capabilities"].clone()).unwrap();
+    assert_eq!(granted, vec!["exec"]); // "write" not in server's allow-list
+    assert!(
+        hello["server_version"]
+            .as_str()
+            .unwrap()
+            .starts_with("atd-ref-server ")
     );
-    // Nested fields also get redacted.
-    assert_eq!(r["result"]["nested"]["also_leaked"], "<redacted:home>/another");
+    let tiers: Vec<String> = serde_json::from_value(hello["supported_tiers"].clone()).unwrap();
+    assert_eq!(tiers, vec!["hot", "warm", "cold"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn no_middleware_leaves_result_untouched() {
-    // Same setup, empty middleware chain → raw path comes through.
-    unsafe {
-        std::env::set_var("HOME", "/tmp/sp12-test-home");
-    }
-    let srv = spawn_with_middleware(vec![]).await;
+async fn run_tool_allowed_after_hello_grants_required_cap() {
+    let srv = spawn(vec!["exec".into()]).await;
+    let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
 
-    let r = send_one(
-        &srv.sock,
+    let _hello = send_on_stream(
+        &mut stream,
+        serde_json::json!({
+            "type": "hello",
+            "requested_capabilities": ["exec"],
+        }),
+    )
+    .await;
+
+    let call = send_on_stream(
+        &mut stream,
         serde_json::json!({
             "type": "run_tool",
-            "tool_id": "test:emit.home_path",
+            "tool_id": "test:gated.op",
             "args": {},
             "dry_run": false,
         }),
     )
     .await;
-    assert_eq!(
-        r["result"]["leaked_path"],
-        "/tmp/sp12-test-home/secret/config.toml"
-    );
+    assert_eq!(call["type"], "tool_result");
+    assert_eq!(call["success"], serde_json::json!(true));
+    assert_eq!(call["result"]["ran"], serde_json::json!(true));
+    // CallContext.capabilities must mirror the connection's Hello-granted set.
+    let caps: Vec<String> =
+        serde_json::from_value(call["result"]["caps_in_context"].clone()).unwrap();
+    assert_eq!(caps, vec!["exec"]);
 }
+
+// Silence unused warning from shared test helpers.
+#[allow(dead_code)]
+fn _unused(_: ToolCallError) {}

@@ -8,7 +8,7 @@ Zero dependency on any specific client SDK or agent framework. In particular, ze
 
 ```bash
 # build
-cargo build --release -p atd-ref-server --bin atd-ref-server
+cargo build --release -p atd-ref-server-bin --bin atd-ref-server
 
 # run (defaults to $HOME/.atd-ref/server.sock)
 ./target/release/atd-ref-server &
@@ -103,7 +103,7 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
 
 4. **Add unit tests** in the same file under `#[cfg(test)] mod tests`.
 
-5. **`cargo test -p atd-ref-server`** — done.
+5. **`cargo test -p atd-ref-server-bin`** — done.
 
 ## Architecture
 
