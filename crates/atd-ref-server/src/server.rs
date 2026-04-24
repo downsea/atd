@@ -158,8 +158,8 @@ pub(crate) async fn dispatch(
             }
         }
         Request::ToolSchema { tool_id } => match state.registry.get(&tool_id) {
-            Some(tool) => Response::ToolSchema {
-                schema: serde_json::to_value(tool.definition())
+            Some(entry) => Response::ToolSchema {
+                schema: serde_json::to_value(entry.definition())
                     .unwrap_or_else(|_| serde_json::json!({})),
             },
             None => Response::Error {
@@ -182,8 +182,8 @@ pub(crate) async fn dispatch(
                     dry_run: true,
                 };
             }
-            let tool = match state.registry.get(&tool_id) {
-                Some(t) => t.clone(),
+            let entry = match state.registry.get(&tool_id) {
+                Some(e) => e.clone(),
                 None => {
                     return Response::Error {
                         message: format!("tool not found: {tool_id}"),
@@ -197,7 +197,7 @@ pub(crate) async fn dispatch(
             // required_capabilities are not a subset of the connection's
             // granted set. Sorted `missing` + `granted` keep the error shape
             // deterministic for tests and UI.
-            let required = tool.definition().required_capabilities.clone();
+            let required = entry.definition().required_capabilities.clone();
             let missing: Vec<String> = required
                 .iter()
                 .filter(|c| !caps.contains(c))
@@ -225,7 +225,10 @@ pub(crate) async fn dispatch(
             // maps each tier to deadline + max_output budgets. Tools without
             // a tier field default to Warm (spec §8 Q5), preserving pre-SP-12
             // behavior for the 9 built-in tools that never set tier.
-            let tier = tool.definition().tier.unwrap_or(crate::tier::ToolTier::Warm);
+            let tier = entry
+                .definition()
+                .tier
+                .unwrap_or(crate::tier::ToolTier::Warm);
             let tier_timeout = state.tier_policy.timeout(tier);
             let tier_max_output = state.tier_policy.max_output(tier);
 
@@ -238,7 +241,15 @@ pub(crate) async fn dispatch(
                 capabilities: caps.clone(),
                 tier,
             };
-            match tool.call(args, &ctx).await {
+            // SP-12 Task 4: dispatch through the binding. NativeBinding (the
+            // default for `Registry::register`) simply calls back into
+            // `Tool::call`; CliBinding spawns a subprocess. Same surface
+            // either way.
+            match entry
+                .binding
+                .call(entry.definition(), args, &ctx)
+                .await
+            {
                 Ok(data) => Response::ToolResult {
                     tool_id,
                     result: data,
@@ -319,6 +330,10 @@ mod tests {
         match r {
             Response::ToolList { tools } => {
                 let arr = tools.as_array().unwrap();
+                // SP-12: +1 for ref:external.uname on unix.
+                #[cfg(unix)]
+                assert_eq!(arr.len(), 10);
+                #[cfg(not(unix))]
                 assert_eq!(arr.len(), 9);
                 let ids: Vec<&str> = arr.iter().map(|t| t["id"].as_str().unwrap()).collect();
                 assert!(ids.contains(&"ref:echo.say"));

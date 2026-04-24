@@ -106,6 +106,10 @@ async fn e2e_tool_list_returns_echo() {
         .unwrap();
     assert_eq!(r["type"], "tool_list");
     let tools = r["tools"].as_array().unwrap();
+    // SP-12: +1 for ref:external.uname on unix.
+    #[cfg(unix)]
+    assert_eq!(tools.len(), 10);
+    #[cfg(not(unix))]
     assert_eq!(tools.len(), 9);
     let ids: Vec<&str> = tools.iter().map(|t| t["id"].as_str().unwrap()).collect();
     assert!(ids.contains(&"ref:echo.say"));
@@ -117,6 +121,8 @@ async fn e2e_tool_list_returns_echo() {
     assert!(ids.contains(&"ref:shell.exec"));
     assert!(ids.contains(&"ref:shell.pwsh"));
     assert!(ids.contains(&"ref:web.fetch"));
+    #[cfg(unix)]
+    assert!(ids.contains(&"ref:external.uname"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

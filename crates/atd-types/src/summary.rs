@@ -34,7 +34,9 @@ impl From<&ToolDefinition> for ToolSummary {
             domain: def.capability.domain.clone(),
             tags: def.capability.tags.clone(),
             visibility: def.visibility,
-            tier: default_tier(),
+            // SP-12: propagate the definition's tier when set; fall back to
+            // Warm (the summary default) when absent.
+            tier: def.tier.unwrap_or_else(default_tier),
             input_schema: Some(def.input_schema.clone()),
         }
     }

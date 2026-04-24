@@ -33,8 +33,24 @@ pub trait Tool: Send + Sync {
     ) -> CallFuture<'a>;
 }
 
+/// One registered tool plus the binding dispatch uses to execute it.
+/// SP-12 Task 4: `Binding` sits between dispatch and the `Tool` impl so
+/// the same tool can be served via different execution strategies
+/// (in-process, CLI subprocess, future MCP / REST / AppFunction).
+#[derive(Clone)]
+pub struct RegisteredTool {
+    pub tool: Arc<dyn Tool>,
+    pub binding: Arc<dyn crate::binding::Binding>,
+}
+
+impl RegisteredTool {
+    pub fn definition(&self) -> &ToolDefinition {
+        self.tool.definition()
+    }
+}
+
 pub struct Registry {
-    tools: HashMap<String, Arc<dyn Tool>>,
+    tools: HashMap<String, RegisteredTool>,
 }
 
 impl Registry {
@@ -42,24 +58,38 @@ impl Registry {
         Self { tools: HashMap::new() }
     }
 
-    /// Register a tool. Panics on duplicate tool_id — startup misconfiguration
-    /// should fail loud, not at request time.
+    /// Register a tool with the default `NativeBinding` — dispatch will call
+    /// the tool's `Tool::call` directly. Panics on duplicate tool_id:
+    /// startup misconfiguration should fail loud, not at request time.
     pub fn register(&mut self, tool: Arc<dyn Tool>) {
+        let binding: Arc<dyn crate::binding::Binding> =
+            Arc::new(crate::binding::NativeBinding::new(tool.clone()));
+        self.register_with_binding(tool, binding);
+    }
+
+    /// Register a tool paired with an explicit binding. Use this for tools
+    /// whose execution strategy differs from "run the `Tool::call` future"
+    /// (e.g. `CliBinding` for subprocess-backed tools).
+    pub fn register_with_binding(
+        &mut self,
+        tool: Arc<dyn Tool>,
+        binding: Arc<dyn crate::binding::Binding>,
+    ) {
         let id = tool.definition().id.clone();
         if self.tools.contains_key(&id) {
             panic!("duplicate tool registration: {id}");
         }
-        self.tools.insert(id, tool);
+        self.tools.insert(id, RegisteredTool { tool, binding });
     }
 
-    pub fn get(&self, tool_id: &str) -> Option<&Arc<dyn Tool>> {
+    pub fn get(&self, tool_id: &str) -> Option<&RegisteredTool> {
         self.tools.get(tool_id)
     }
 
     pub fn summaries(&self) -> Vec<ToolSummary> {
         self.tools
             .values()
-            .map(|t| ToolSummary::from(t.definition()))
+            .map(|r| ToolSummary::from(r.tool.definition()))
             .collect()
     }
 
