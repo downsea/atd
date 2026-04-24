@@ -57,6 +57,13 @@ struct Args {
         default_values_t = vec!["redact_paths".to_string()]
     )]
     middleware: Vec<String>,
+
+    /// Register a test-only conformance tool (ref:conformance.denied_op)
+    /// that requires the 'conformance.denied' capability. Used by the
+    /// atd-conformance suite to validate the ERR_CAPABILITY_DENIED
+    /// (code 1001) wire path. NOT for production use.
+    #[arg(long, default_value_t = false)]
+    enable_conformance_tool: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -74,7 +81,7 @@ async fn main() -> std::process::ExitCode {
     config.default_call_timeout_ms = args.timeout_ms;
     config.granted_capabilities = args.grant_capabilities;
 
-    let registry = builtin_registry();
+    let registry = builtin_registry(args.enable_conformance_tool);
     let mut server = Server::new(registry, config);
 
     // Apply tier overrides before run() so they take effect before any

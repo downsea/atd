@@ -328,7 +328,7 @@ mod tests {
 
     fn test_state() -> Arc<ServerState> {
         Arc::new(ServerState {
-            registry: builtin_registry(),
+            registry: builtin_registry(false),
             config: ServerConfig {
                 socket_path: PathBuf::from("/tmp/unused-in-dispatch-tests.sock"),
                 cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),

@@ -33,7 +33,7 @@ async fn spawn() -> ServerHandle {
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec![],
     };
-    let server = Server::new(builtin_registry(), cfg);
+    let server = Server::new(builtin_registry(false), cfg);
     let task = tokio::spawn(server.run());
 
     let deadline = std::time::Instant::now() + Duration::from_secs(5);

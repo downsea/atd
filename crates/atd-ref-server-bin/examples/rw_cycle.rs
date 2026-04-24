@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = ServerConfig::default();
     config.socket_path = sock.clone();
     config.cwd = workdir.path().to_path_buf();
-    let server = Server::new(builtin_registry(), config);
+    let server = Server::new(builtin_registry(false), config);
     let _server_handle = Arc::new(tokio::spawn(async move {
         let _ = server.run().await;
     }));

@@ -8,7 +8,14 @@ use atd_tools_fs::{FsEditTool, FsGlobTool, FsGrepTool, FsReadTool, FsWriteTool};
 use atd_tools_shell::{ShellExecTool, ShellPwshTool};
 use atd_tools_web::WebFetchTool;
 
-pub fn builtin_registry() -> Registry {
+/// Build the reference server's built-in tool registry.
+///
+/// When `enable_conformance_tool` is `true`, additionally registers
+/// `ref:conformance.denied_op` — a test-only tool that requires the
+/// `conformance.denied` capability. This exists solely so the
+/// `atd-conformance` suite can exercise the `ERR_CAPABILITY_DENIED`
+/// (code 1001) wire path. Production deployments pass `false`.
+pub fn builtin_registry(enable_conformance_tool: bool) -> Registry {
     let mut reg = Registry::new();
     reg.register(Arc::new(EchoTool::new()));
     reg.register(Arc::new(FsReadTool::new()));
@@ -28,6 +35,11 @@ pub fn builtin_registry() -> Registry {
         reg.register_with_binding(stub, binding);
     }
 
+    if enable_conformance_tool {
+        use crate::conformance::ConformanceDeniedTool;
+        reg.register(Arc::new(ConformanceDeniedTool::new()));
+    }
+
     reg
 }
 
@@ -37,7 +49,7 @@ mod tests {
 
     #[test]
     fn builtin_registry_contains_all_tools() {
-        let r = builtin_registry();
+        let r = builtin_registry(false);
         #[cfg(unix)]
         assert_eq!(r.count(), 10);
         #[cfg(not(unix))]
@@ -51,6 +63,10 @@ mod tests {
         assert!(r.get("ref:shell.exec").is_some());
         assert!(r.get("ref:shell.pwsh").is_some());
         assert!(r.get("ref:web.fetch").is_some());
+        assert!(
+            r.get("ref:conformance.denied_op").is_none(),
+            "conformance tool must NOT be registered by default"
+        );
         #[cfg(unix)]
         {
             let entry = r
@@ -58,5 +74,23 @@ mod tests {
                 .expect("uname registered on unix");
             assert_eq!(entry.binding.name(), "cli");
         }
+    }
+
+    #[test]
+    fn builtin_registry_with_conformance_tool_adds_one() {
+        let default = builtin_registry(false);
+        let extended = builtin_registry(true);
+        assert_eq!(
+            extended.count(),
+            default.count() + 1,
+            "enabling conformance tool should add exactly one tool"
+        );
+        let entry = extended
+            .get("ref:conformance.denied_op")
+            .expect("conformance tool registered when flag is true");
+        assert_eq!(
+            entry.tool.definition().required_capabilities,
+            vec!["conformance.denied".to_string()]
+        );
     }
 }

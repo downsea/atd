@@ -2,6 +2,7 @@
 //! CliBinding demo (external::uname, unix-only) into an executable.
 
 pub mod builtin;
+pub mod conformance;
 pub mod server;
 
 #[cfg(unix)]
