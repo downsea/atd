@@ -107,6 +107,14 @@ pub(crate) async fn dispatch(
 ) -> Response {
     match req {
         Request::Ping => Response::Pong,
+        // SP-12 Task 1: stub Hello handler — always grants nothing.
+        // Task 2 intersects `requested_capabilities` with the server's
+        // `--grant-capability` set and stores the result on the connection.
+        Request::Hello { client_id: _, requested_capabilities: _ } => Response::HelloAck {
+            granted_capabilities: vec![],
+            server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
+            supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
+        },
         Request::ToolList => {
             let summaries = state.registry.summaries();
             Response::ToolList {
@@ -157,6 +165,11 @@ pub(crate) async fn dispatch(
                     Instant::now() + Duration::from_millis(state.config.default_call_timeout_ms),
                 ),
                 read_tracker: Some(tracker.clone()),
+                // SP-12 Task 1: empty capability set + Warm tier preserves
+                // current behavior. Task 2 wires `Hello`-derived caps; Task 3
+                // derives tier from the tool definition.
+                capabilities: std::sync::Arc::new(crate::capability::CapabilitySet::empty()),
+                tier: crate::tier::ToolTier::Warm,
             };
             match tool.call(args, &ctx).await {
                 Ok(data) => Response::ToolResult {

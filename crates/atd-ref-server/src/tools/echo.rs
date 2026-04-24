@@ -138,6 +138,8 @@ mod tests {
             call_id: ulid::Ulid::new(),
             deadline: None,
             read_tracker: None,
+            capabilities: std::sync::Arc::new(crate::capability::CapabilitySet::empty()),
+            tier: crate::tier::ToolTier::Warm,
         };
         let big = "x".repeat(1_000);
         let args = serde_json::json!({"big": big});

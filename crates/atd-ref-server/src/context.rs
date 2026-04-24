@@ -4,13 +4,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::capability::CapabilitySet;
+use crate::tier::ToolTier;
 use crate::tracker::ReadTracker;
 
 pub struct CallContext {
     /// Working directory for relative-path tools (Read / Bash / Glob / ...).
     pub cwd: PathBuf,
     /// Advisory truncation budget. Tools should respect this and return
-    /// truncation markers when producing larger output.
+    /// truncation markers when producing larger output. In SP-12 this is
+    /// derived from the tool's tier via `TierPolicy::max_output`.
     pub max_output_bytes: usize,
     /// Unique id for tracing/logging; not emitted on the wire.
     pub call_id: ulid::Ulid,
@@ -20,6 +23,14 @@ pub struct CallContext {
     /// Shared-per-connection read tracker. `None` in isolated unit tests;
     /// server always attaches one via `Arc::clone` in per-connection state.
     pub read_tracker: Option<Arc<ReadTracker>>,
+    /// Connection-scoped capability allow-list. Populated from the `Hello`
+    /// handshake; shared across all calls on a single connection. Tools that
+    /// gate side effects on caller authority may read this, though dispatch
+    /// already enforces `required_capabilities` before invocation.
+    pub capabilities: Arc<CapabilitySet>,
+    /// Tier the current call resolved to. Informational for tools; dispatch
+    /// uses the tier to pick the deadline / max_output budget above.
+    pub tier: ToolTier,
 }
 
 impl CallContext {
@@ -31,7 +42,8 @@ impl CallContext {
 #[cfg(any(test, feature = "testing"))]
 impl CallContext {
     /// Construct a sensible default for unit tests. cwd = current dir,
-    /// 1 MiB output budget, fresh call_id, no deadline, no tracker.
+    /// 1 MiB output budget, fresh call_id, no deadline, no tracker,
+    /// empty capability set, Warm tier.
     pub fn for_test() -> Self {
         Self {
             cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
@@ -39,6 +51,8 @@ impl CallContext {
             call_id: ulid::Ulid::new(),
             deadline: None,
             read_tracker: None,
+            capabilities: Arc::new(CapabilitySet::empty()),
+            tier: ToolTier::Warm,
         }
     }
 
@@ -52,6 +66,8 @@ impl CallContext {
             call_id: ulid::Ulid::new(),
             deadline: None,
             read_tracker: Some(tracker.clone()),
+            capabilities: Arc::new(CapabilitySet::empty()),
+            tier: ToolTier::Warm,
         };
         (ctx, tracker)
     }
@@ -92,6 +108,8 @@ mod tests {
             call_id: ulid::Ulid::new(),
             deadline: Some(Instant::now() + Duration::from_secs(5)),
             read_tracker: None,
+            capabilities: Arc::new(CapabilitySet::empty()),
+            tier: ToolTier::Warm,
         };
         let r = ctx.remaining_time().unwrap();
         assert!(r <= Duration::from_secs(5));
@@ -106,7 +124,16 @@ mod tests {
             call_id: ulid::Ulid::new(),
             deadline: Some(Instant::now() - Duration::from_secs(10)),
             read_tracker: None,
+            capabilities: Arc::new(CapabilitySet::empty()),
+            tier: ToolTier::Warm,
         };
         assert_eq!(ctx.remaining_time().unwrap(), Duration::ZERO);
+    }
+
+    #[test]
+    fn for_test_has_empty_capabilities_and_warm_tier() {
+        let ctx = CallContext::for_test();
+        assert!(ctx.capabilities.granted().is_empty());
+        assert_eq!(ctx.tier, ToolTier::Warm);
     }
 }

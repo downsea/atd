@@ -6,11 +6,24 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Error code emitted when a client calls a tool whose required capabilities
+/// are not a subset of the connection's granted set. Surfaced on the wire via
+/// `Response::Error { code: Some(ERR_CAPABILITY_DENIED), ... }`.
+pub const ERR_CAPABILITY_DENIED: u16 = 1001;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Request {
     #[serde(rename = "ping")]
     Ping,
+
+    #[serde(rename = "hello")]
+    Hello {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        #[serde(default)]
+        requested_capabilities: Vec<String>,
+    },
 
     #[serde(rename = "tool_list")]
     ToolList,
@@ -31,6 +44,13 @@ pub enum Request {
 pub enum Response {
     #[serde(rename = "pong")]
     Pong,
+
+    #[serde(rename = "hello_ack")]
+    HelloAck {
+        granted_capabilities: Vec<String>,
+        server_version: String,
+        supported_tiers: Vec<String>,
+    },
 
     #[serde(rename = "tool_list")]
     ToolList { tools: serde_json::Value },
@@ -129,5 +149,96 @@ mod tests {
         };
         let j = serde_json::to_string(&r).unwrap();
         assert_eq!(j, r#"{"type":"error","message":"boom"}"#);
+    }
+
+    #[test]
+    fn hello_serializes_with_default_empty_caps() {
+        let r = Request::Hello {
+            client_id: None,
+            requested_capabilities: vec![],
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        // client_id is skipped when None; requested_capabilities serialized empty.
+        assert_eq!(j, r#"{"type":"hello","requested_capabilities":[]}"#);
+    }
+
+    #[test]
+    fn hello_roundtrip_with_client_id_and_caps() {
+        let r = Request::Hello {
+            client_id: Some("agent-7".into()),
+            requested_capabilities: vec!["read".into(), "exec".into()],
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        let back: Request = serde_json::from_str(&j).unwrap();
+        match back {
+            Request::Hello {
+                client_id,
+                requested_capabilities,
+            } => {
+                assert_eq!(client_id.as_deref(), Some("agent-7"));
+                assert_eq!(requested_capabilities, vec!["read", "exec"]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn hello_deserializes_with_missing_fields() {
+        // requested_capabilities default = [], client_id default = None.
+        let j = r#"{"type":"hello"}"#;
+        let back: Request = serde_json::from_str(j).unwrap();
+        match back {
+            Request::Hello {
+                client_id,
+                requested_capabilities,
+            } => {
+                assert!(client_id.is_none());
+                assert!(requested_capabilities.is_empty());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn hello_ack_roundtrip() {
+        let r = Response::HelloAck {
+            granted_capabilities: vec!["read".into()],
+            server_version: "atd-ref-server 0.2.0".into(),
+            supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        assert!(j.contains(r#""type":"hello_ack""#));
+        let back: Response = serde_json::from_str(&j).unwrap();
+        match back {
+            Response::HelloAck {
+                granted_capabilities,
+                server_version,
+                supported_tiers,
+            } => {
+                assert_eq!(granted_capabilities, vec!["read"]);
+                assert_eq!(server_version, "atd-ref-server 0.2.0");
+                assert_eq!(supported_tiers, vec!["hot", "warm", "cold"]);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn err_capability_denied_constant_is_1001() {
+        // Regression pin — the wire value is part of the protocol.
+        assert_eq!(ERR_CAPABILITY_DENIED, 1001);
+    }
+
+    #[test]
+    fn existing_ping_pong_unchanged() {
+        // Regression: SP-12 additions must not change Ping/Pong wire form.
+        assert_eq!(
+            serde_json::to_string(&Request::Ping).unwrap(),
+            r#"{"type":"ping"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Response::Pong).unwrap(),
+            r#"{"type":"pong"}"#
+        );
     }
 }
