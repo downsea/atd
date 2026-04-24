@@ -381,3 +381,196 @@ v2 dispatch extends with additional bindings, more built-in middleware, and pote
 - [`docs/issues/2026-04-24-dispatch-tier-hardcoded-warm.md`](issues/2026-04-24-dispatch-tier-hardcoded-warm.md) — **note:** this issue described state *before* SP-12; verify with `git log` whether it's still open
 - [`docs/issues/2026-04-24-dispatch-binding-single-impl.md`](issues/2026-04-24-dispatch-binding-single-impl.md) — same note, pre-SP-12
 - [`docs/issues/2026-04-24-dispatch-preferred-binding-ignored.md`](issues/2026-04-24-dispatch-preferred-binding-ignored.md)
+
+## 5. Security Layer
+
+### 5.1 Classification taxonomy
+
+Every tool declares three classifications as part of its `ToolDefinition`. They are **descriptive metadata** — callers and human operators use them to reason about risk. They are NOT (in v1) enforcement mechanisms on their own; §5.2-§5.5 describe the actual runtime controls.
+
+| Classification | Values | Declaring field |
+|---|---|---|
+| Safety level | `Read` / `Write` / `Financial` / `Privacy` / `Physical` / `Destructive` | `ToolSafety::level` |
+| Visibility | `Read` / `Write` / `Dangerous` / `System` | `ToolVisibility` (top-level) |
+| Trust level | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
+
+Status: ✅ implemented in `crates/atd-types/`. Every built-in tool declares all three. LLM adapters surface `Visibility` and `SafetyLevel` to agent-framework tool pickers where supported.
+
+Trust signatures (`ToolTrust::signature`) are declarative-only in v1 (`📜 informational`). Full signature verification is 🚫 non-goal — see [§9.4](#9-non-goals-explicit).
+
+### 5.2 Per-tool runtime controls
+
+Four specific runtime defenses run inside individual tools, not at the dispatch layer. Each defends a specific attack surface exposed by that tool's category.
+
+| Control | Applies to | Source | Status |
+|---|---|---|---|
+| **SSRF guard** (loopback + RFC1918 + link-local + CGN + TEST-NET + 0.0.0.0/8 + IPv4-mapped-private; re-checked on every redirect hop) | `ref:web.fetch` | `crates/atd-ref-server/src/tools/web/fetch.rs::check_ssrf` | ✅ (SP-5) |
+| **Header allowlist** (Accept, Accept-Language, Referer, User-Agent only; Authorization + Cookie rejected with `InvalidArgs`) | `ref:web.fetch` | same file, `build_headers` | ✅ (SP-5) |
+| **Must-read-before-edit** (mtime + size proof required in session before `fs.edit` will apply) | `ref:fs.edit` | `crates/atd-ref-server/src/tracker.rs` (ReadTracker), used from `crates/atd-ref-server/src/tools/fs/edit.rs` | ✅ (SP-2) |
+| **SIGTERM → grace → SIGKILL subprocess timeout** | `ref:shell.exec` / `ref:shell.pwsh` | `crates/atd-ref-server/src/tools/shell/shared.rs` | ✅ (SP-3) |
+| **Request-arg schema validation** (serde + per-tool checks) | all tools | per-tool `call` impls | ✅ |
+
+### 5.3 Capability tokens
+
+v1's capability mechanism is the connection-scoped allow-list described in [§4.2.3](#423-capability-gate). Clients request capabilities via the `Hello` message; the server intersects with its `--grant-capability` allow-list; tools declaring `required_capabilities` outside the intersection are refused with `AtdError::CapabilityDenied` (code `1001`).
+
+Cryptographically signed, delegatable UCAN-style tokens are 🚫 non-goal for v1; see [§9.3](#9-non-goals-explicit) for the deferral rationale and for the interim multi-tenant workaround (separate sockets per access tier).
+
+| Component | Status | Notes |
+|---|---|---|
+| Connection-scoped allow-list | ✅ (SP-12) | See §4.2.3 |
+| UCAN delegation tree | 🚫 | See [§9.3](#9-non-goals-explicit) |
+| Token revocation store | 🚫 | Same |
+| Per-call agent identity tracking | ❌ | All calls currently execute as `did:anos:system`. Blocks fine-grained audit + tokens. |
+
+### 5.4 Audit logging
+
+| Component | Status | Notes |
+|---|---|---|
+| Structured per-call audit (tool_id, args_hash, outcome, duration, caller, tier, binding) | ❌ | Issue [`security-audit-logging-missing`](issues/2026-04-24-security-audit-logging-missing.md) |
+| `--log-format json` CLI flag | ❌ | Planned |
+| `tracing` subscriber integration | ❌ | Prerequisite |
+
+Without audit, the other security layers are unobservable in retrospect. Shipping audit is the most valuable next security-adjacent SP; it is a prerequisite for meaningful multi-tenant authz (§9.3 defers that, but keeps this on the critical path).
+
+### 5.5 Rate limiting and concurrency
+
+| Component | Source | Status | Notes |
+|---|---|---|---|
+| `ToolResources.rate_limit_per_min` | `crates/atd-types/src/tool.rs` | 📜 | Declared on every tool; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
+| `ToolResources.max_concurrent` | same | 📜 | Same |
+| Server-side semaphore wrapping per-tool invocation | — | ❌ | Planned: `tokio::sync::Semaphore` in `Registry` |
+| Server-side rate-limiter (token bucket via `governor`) | — | ❌ | Planned |
+| `AtdError::TooManyCalls` variant | — | ❌ | Would need to be added |
+
+### 5.6 Dry-run consistency
+
+| Component | Status | Notes |
+|---|---|---|
+| `CallOptions.dry_run` wire field | ✅ | Part of `RunTool` message |
+| `Tool::honor_dry_run()` trait method | ❌ | Proposed in issue [`security-dry-run-inconsistent`](issues/2026-04-24-security-dry-run-inconsistent.md) |
+| Dispatch-level rejection when `dry_run: true` but tool doesn't honor | ❌ | Planned — `AtdError::NotImplemented { feature: "dry_run" }` |
+| Per-tool dry-run semantics (read-only tools vs destructive tools) | ⚠️ | Some tools silently ignore; others implicitly honor. Inconsistent. |
+
+Closing this gap (a small SP) removes a silent-execute footgun: today, an agent asking `ref:shell.exec("rm -rf /", dry_run=true)` will run the command. v1 target: explicit rejection unless the tool opts in.
+
+### 5.7 Target state (v1)
+
+v1 security posture closes when:
+
+- Classifications ✅ (done)
+- Per-tool runtime controls ✅ (done for current tool set)
+- Connection-scoped capability gate ✅ (done — SP-12)
+- Audit logging ✅ (proposed SP after SP-13)
+- Rate limiting + max_concurrent enforcement ✅ (proposed SP)
+- Dry-run consistency ✅ (proposed small SP)
+- Full UCAN tokens 🚫 (Phase 2)
+- Tool signature verification 🚫 (Phase 2)
+
+### 5.8 Gap → SP mapping
+
+| Gap | Next SP | Status |
+|---|---|---|
+| Audit logging | Proposed SP post-SP-13 | ❌ |
+| Rate limiting + max_concurrent | Proposed SP post-SP-13 | ❌ |
+| Dry-run consistency | Proposed small SP | ❌ |
+| Per-call agent identity | Enabler for audit + tokens — part of audit SP | ❌ |
+| UCAN tokens | Phase 2 — see [§9.3](#9-non-goals-explicit) | 🚫 |
+| Tool signature verification | Phase 2 — see [§9.4](#9-non-goals-explicit) | 🚫 |
+
+### 5.9 See also
+
+- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — error taxonomy including `CapabilityDenied`
+- [`docs/issues/2026-04-24-security-audit-logging-missing.md`](issues/2026-04-24-security-audit-logging-missing.md)
+- [`docs/issues/2026-04-24-resource-limits-not-enforced.md`](issues/2026-04-24-resource-limits-not-enforced.md)
+- [`docs/issues/2026-04-24-security-dry-run-inconsistent.md`](issues/2026-04-24-security-dry-run-inconsistent.md)
+- [`docs/issues/2026-04-24-security-capability-tokens-deferred.md`](issues/2026-04-24-security-capability-tokens-deferred.md)
+- [`docs/issues/2026-04-24-security-trust-signature-unverified.md`](issues/2026-04-24-security-trust-signature-unverified.md)
+
+## 6. Extensibility
+
+Four extension surfaces where ATD accepts code outside the reference implementation: new bindings, new tools, new middleware, and (v1+ planned) new aliases.
+
+### 6.1 Binding extensibility
+
+Adding a new binding back-end (for example: a gRPC binding, a WebAssembly binding, a REST binding):
+
+| Step | Contract |
+|---|---|
+| 1. Implement `Binding` trait | Defined in `crates/atd-ref-server/src/binding.rs`. Given `args: serde_json::Value` + `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. Respect `ctx.deadline`. |
+| 2. Register an instance | `Registry::register_binding("grpc", Arc::new(GrpcBinding::new(...)))` at startup |
+| 3. Tools declare `bindings: [ToolBinding { protocol: BindingProtocol::..., config: ... }, ...]` | One tool may have multiple bindings; dispatch picks one (currently: first) |
+
+Current bindings:
+
+| Binding | Protocol enum | Status |
+|---|---|---|
+| `NativeBinding` | `BindingProtocol::Cli` (historical name retained) | ✅ |
+| `CliBinding` (subprocess) | `BindingProtocol::Cli` | ✅ |
+| MCP binding | `BindingProtocol::Mcp` | 🚫 ([§9.5](#9-non-goals-explicit)) |
+| REST binding | `BindingProtocol::Rest` | 🚫 ([§9.5](#9-non-goals-explicit)) |
+| AppFunction binding | `BindingProtocol::AppFunction` | 🚫 ([§9.5](#9-non-goals-explicit)) |
+| Distributed binding | — | 🚫 ([§9.1](#9-non-goals-explicit)) |
+
+**Runtime-routing note:** v1 always routes to the first (and usually only) binding a tool declares. `CallOptions::preferred_binding` is currently dropped; issue [`dispatch-preferred-binding-ignored`](issues/2026-04-24-dispatch-preferred-binding-ignored.md). If real multi-binding tools land, the dispatcher's selection logic needs a small upgrade (pick preferred if available; else first).
+
+### 6.2 Tool extensibility
+
+Adding a new tool to the reference server (or to a third-party ATD server):
+
+| Step | Contract |
+|---|---|
+| 1. Implement `Tool` trait | Defined in `crates/atd-ref-server/src/registry.rs`. Return `ToolDefinition` in `definition()`; implement `call(args, ctx)` returning `Result<serde_json::Value, ToolCallError>`. |
+| 2. Register | `registry.register(Arc::new(MyTool::new()))` in `builtin.rs` or equivalent |
+| 3. Declare required capabilities, safety, tier, bindings | Via the returned `ToolDefinition` |
+
+Tools outside this repo can implement the same trait and register in their own `atd-ref-server`-analogue binary. The reference server is not required to host all tools; any crate can host a `Registry` and serve an ATD socket.
+
+Canonical examples: `crates/atd-ref-server/src/tools/{echo,fs,shell,web}/`.
+
+### 6.3 Middleware extensibility
+
+Adding a new result-middleware:
+
+| Step | Contract |
+|---|---|
+| 1. Implement `Middleware` trait | Defined in `crates/atd-ref-server/src/middleware.rs`. Given the prior result + metadata, return a (possibly rewritten) result or an error to short-circuit the chain. |
+| 2. Register | `Pipeline::from_flags(["my_middleware", ...])` at startup, or programmatically via `Pipeline::add(Arc::new(MyMiddleware))` |
+| 3. Enable per deployment | CLI: repeated `--middleware <name>` flags compose a chain in declaration order |
+
+Middleware receives the `ToolResult::Success` case only; errors flow past untouched. Middleware can transform `success.data`, strip metadata fields, or reject with an error (rare; usually used for policy enforcement like "never return paths starting with `/etc/`").
+
+Built-ins so far: `RedactPathsMiddleware`. Proposed additions — see §10 roadmap.
+
+### 6.4 Ergonomic aliases (SDK-only)
+
+Planned, not yet shipped.
+
+| Component | Status | Target |
+|---|---|---|
+| SDK-side alias table (e.g., `current_time` → `ref:system.time`) | ❌ | SDK exposes a registration API |
+| Alias → canonical id resolution before `call()` | ❌ | Transform happens in the client before serialization; server sees canonical id only |
+| Built-in alias pack | ❌ | One pack per high-traffic domain (fs, shell, web) |
+
+**Scope discipline:** the alias mechanism is SDK-side; the server does not participate. This mirrors v3 Appendix J's recommended approach and avoids protocol-level ambiguity.
+
+### 6.5 Extension-point checklist
+
+A third-party implementer asking "what can I extend without forking the reference server?" — the answer for v1:
+
+| You want to... | Extension surface | Requires fork of ref-server? |
+|---|---|---|
+| Add a new tool (any domain) | `Tool` trait implementation | No |
+| Add a new binding back-end | `Binding` trait implementation | No |
+| Add a new result middleware | `Middleware` trait implementation | No |
+| Add an SDK-side alias | SDK's alias-registration API (when landed) | No |
+| Change the wire format | — | Yes (not an extension point) |
+| Change the error taxonomy | — | Yes |
+| Add a new `ToolTier` variant | — | Yes |
+
+### 6.6 See also
+
+- [`crates/atd-ref-server/src/binding.rs`](../crates/atd-ref-server/src/binding.rs) — `Binding` trait definition
+- [`crates/atd-ref-server/src/middleware.rs`](../crates/atd-ref-server/src/middleware.rs) — `Middleware` trait definition
+- [`crates/atd-ref-server/src/registry.rs`](../crates/atd-ref-server/src/registry.rs) — `Tool` trait and registration
+- [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — origin of the `Binding` / `Middleware` traits
