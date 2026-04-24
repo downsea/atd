@@ -6,7 +6,7 @@
 
 **Architecture:** New workspace member `atd-conformance` — hybrid library (`pub fn run_conformance`) + thin CLI binary (`atd-conformance --target <sock>`). Fixtures are JSON files organized into `wire/`, `sanitize/`, `behavior/` directories, loaded at runtime. The lib is consumable as a dev-dep by any Rust ATD server. Self-conformance is validated via an integration test that spawns `atd-ref-server` and runs the full suite.
 
-**Tech Stack:** Rust 2024, cargo 1.94.1. Depends on `atd-protocol` + `atd-sdk` + `serde` + `serde_json` + `tokio` + `clap`. Dev-dep on `atd-ref-server-bin` (spawn binary via `CARGO_BIN_EXE_atd-ref-server`) + `tempfile`. No new external dependencies beyond these; they're all already in the workspace.
+**Tech Stack:** Rust 2024, cargo 1.94.1. Depends on `atd-protocol` + `atd-sdk` + `serde` + `serde_json` + `tokio` + `clap`. Dev-dep on `atd-ref-server-bin` (spawn binary via a `ref_server_bin()` helper that derives the path from `std::env::current_exe()`; the plan Task 8 body below sketched `env!("CARGO_BIN_EXE_atd-ref-server")` but that env var only exposes **same-package** binaries — the shipped implementation uses the `current_exe()` pattern in `crates/atd-conformance/tests/atd_mvp_self_conformance.rs::ref_server_bin`) + `tempfile`. No new external dependencies beyond these; they're all already in the workspace.
 
 **Spec:** `docs/superpowers/specs/2026-04-24-sp8-conformance-suite-design.md`
 

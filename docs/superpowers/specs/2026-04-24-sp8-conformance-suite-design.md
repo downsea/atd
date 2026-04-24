@@ -86,7 +86,12 @@ Unix socket via `atd-sdk`; it has no business being coupled to the
 reference server implementation.
 
 The `atd-ref-server-bin` dev-dep exists only so the self-conformance
-integration test can spawn the binary via `CARGO_BIN_EXE_atd-ref-server`.
+integration test can spawn the binary via a `ref_server_bin()` helper that
+derives the path from `std::env::current_exe()`. (The earlier design-stage
+sketch used `CARGO_BIN_EXE_<name>`, but that env var only exposes binaries
+from the **same** package as the test — it's unset for dev-dep binaries in
+other workspace crates. See `crates/atd-conformance/tests/atd_mvp_self_conformance.rs::ref_server_bin`
+for the shipped pattern.)
 
 ## 4. `ConformanceCase` JSON schema
 
@@ -357,7 +362,9 @@ JUnit XML output is **not implemented** in this SP (see §8 non-goals).
 
 ## 7. Self-conformance integration test
 
-`crates/atd-conformance/tests/atd_mvp_self_conformance.rs`:
+`crates/atd-conformance/tests/atd_mvp_self_conformance.rs` — design-stage sketch
+(the shipped version replaces `env!("CARGO_BIN_EXE_atd-ref-server")` with a
+`ref_server_bin()` helper, see errata note above):
 
 ```rust
 use atd_conformance::{run_conformance, Opts, Outcome};
@@ -370,7 +377,7 @@ async fn atd_ref_server_passes_conformance_suite() {
     let sock_dir = tempfile::tempdir().unwrap();
     let sock = sock_dir.path().join("conformance.sock");
 
-    let bin = env!("CARGO_BIN_EXE_atd-ref-server");
+    let bin = env!("CARGO_BIN_EXE_atd-ref-server");   // see errata: shipped impl uses ref_server_bin()
     let mut child: Child = Command::new(bin)
         .arg("--sock").arg(&sock)
         .arg("--grant-capability").arg("read")
