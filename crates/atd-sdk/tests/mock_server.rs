@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 
 // Re-declare wire + protocol shapes here so the mock server has literally no
-// path dependency into atd-sdk or atd-types crate internals.
+// path dependency into atd-sdk or atd-protocol crate internals.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum ServerReq {
