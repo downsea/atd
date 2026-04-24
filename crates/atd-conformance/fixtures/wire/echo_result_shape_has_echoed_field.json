@@ -1,7 +1,7 @@
 {
   "category": "wire",
   "name": "echo_result_shape_has_echoed_field",
-  "description": "The ref:echo.say tool result's data contains an 'echoed' field reflecting the args.",
+  "description": "The ref:echo.say tool result's result contains an 'echoed' field reflecting the args.",
   "send": {
     "type": "run_tool",
     "tool_id": "ref:echo.say",
@@ -11,6 +11,6 @@
   "expect_response_matches": {
     "type": "tool_result",
     "success": true,
-    "data": { "echoed": { "text": "round-trip" } }
+    "result": { "echoed": { "text": "round-trip" } }
   }
 }
