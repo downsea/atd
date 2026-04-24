@@ -36,6 +36,8 @@ discover tools on a server, inspect their schemas, and invoke them. The protocol
 - TLS or authentication at the protocol layer (use OS-level socket permissions)
 - Session continuity across reconnections
 
+See [`../architecture.md`](../architecture.md) for the higher-level layer model this wire protocol implements. The architecture doc describes the three core mechanisms (schema, dispatch, security) and points back to this document for byte-level detail.
+
 ---
 
 ## 2. Framing

@@ -15,6 +15,8 @@ dedicated guide:
 
 If you're choosing between options or evaluating coverage, read on.
 
+For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../architecture.md`](../architecture.md).
+
 ---
 
 ## The five integration paths

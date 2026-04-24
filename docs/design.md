@@ -5,6 +5,8 @@
 **Owner:** ANOS project → future `atd-protocol` org
 **Related whitepaper:** [`/home/nan/proj/anos/docs/research/toward-agent-tool-dispatch-v2.md`](/home/nan/proj/anos/docs/research/toward-agent-tool-dispatch-v2.md) (esp. §2.4, §7, Appendix G)
 
+> **Note (2026-04-24):** This document is the original Phase 0 design spec from 2026-04-21. It has been **superseded by** [`docs/architecture.md`](architecture.md) as the normative architecture reference for the reference implementation. This file is retained for historical context — to understand the Phase 0 scoping decisions and the then-open questions (§10), read this doc. To understand the current architecture, crate layout, and evolution path, read `docs/architecture.md`.
+
 ---
 
 ## 0. Context and Independence

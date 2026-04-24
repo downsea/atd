@@ -120,6 +120,10 @@ Two evidence docs prove the independence and cross-vendor claims:
 
 ## Documentation
 
+### Architecture
+
+- [**Architecture (v1)**](docs/architecture.md) — canonical layer model (Schema · Dispatch · Security · Extensibility · adjacent Skills layer), per-layer status tables, component/crate map, non-goals, and evolution path. Start here for the full picture.
+
 ### Quick start guides
 
 - [Rust](docs/quickstart/rust.md) — `cargo add atd-client`, first tool call, adapter usage
