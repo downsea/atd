@@ -1,0 +1,14 @@
+{
+  "category": "wire",
+  "name": "hello_handshake_shape",
+  "description": "Hello handshake returns a hello_ack with granted_capabilities array (may be empty).",
+  "send": {
+    "type": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": []
+  },
+  "expect_response_matches": {
+    "type": "hello_ack",
+    "granted_capabilities": []
+  }
+}

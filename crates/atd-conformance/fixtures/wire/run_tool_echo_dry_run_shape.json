@@ -1,0 +1,16 @@
+{
+  "category": "wire",
+  "name": "run_tool_echo_dry_run_shape",
+  "description": "Dry-run on ref:echo.say preserves the dry_run=true flag in the response.",
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:echo.say",
+    "args": { "text": "hello" },
+    "dry_run": true
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "tool_id": "ref:echo.say",
+    "dry_run": true
+  }
+}

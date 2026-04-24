@@ -1,0 +1,7 @@
+{
+  "category": "wire",
+  "name": "ping_roundtrip",
+  "description": "Client sends Request::Ping; server replies Response::Pong.",
+  "send": { "type": "ping" },
+  "expect_response_matches": { "type": "pong" }
+}

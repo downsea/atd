@@ -1,0 +1,7 @@
+{
+  "category": "wire",
+  "name": "tool_list_shape",
+  "description": "Request::ToolList returns Response::ToolListResponse with a tools array.",
+  "send": { "type": "tool_list" },
+  "expect_response_matches": { "type": "tool_list", "tools": "*" }
+}

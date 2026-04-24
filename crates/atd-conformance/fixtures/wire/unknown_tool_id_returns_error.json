@@ -1,0 +1,14 @@
+{
+  "category": "wire",
+  "name": "unknown_tool_id_returns_error",
+  "description": "Calling a tool that the server doesn't register returns a Response::Error (no tool_result).",
+  "send": {
+    "type": "run_tool",
+    "tool_id": "nonexistent:tool.missing",
+    "args": {},
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "error"
+  }
+}

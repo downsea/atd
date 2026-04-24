@@ -1,0 +1,13 @@
+{
+  "category": "wire",
+  "name": "hello_no_client_id",
+  "description": "Hello with no client_id is accepted (field is optional).",
+  "send": {
+    "type": "hello",
+    "requested_capabilities": []
+  },
+  "expect_response_matches": {
+    "type": "hello_ack",
+    "granted_capabilities": []
+  }
+}

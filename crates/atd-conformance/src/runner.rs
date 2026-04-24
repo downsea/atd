@@ -43,18 +43,15 @@ pub async fn run_case(case: &ConformanceCase, target: &atd_sdk::Endpoint) -> Cas
 
     let outcome = match case {
         ConformanceCase::Sanitize(s) => run_sanitize_case(s),
-        // Wire path implemented in Task 4:
-        ConformanceCase::Wire(_) => Outcome::Skip {
-            why: "wire runner not yet implemented (Task 4)".into(),
-        },
+        ConformanceCase::Wire(w) => {
+            let path = target_to_path(target);
+            crate::wire::run_wire_case(w, &path).await
+        }
         // Behavior path implemented in Task 5:
         ConformanceCase::Behavior(_) => Outcome::Skip {
             why: "behavior runner not yet implemented (Task 5)".into(),
         },
     };
-
-    // `target` is unused for sanitize; silence the warning until wire is added.
-    let _ = target;
 
     CaseResult {
         name,
@@ -75,6 +72,16 @@ fn run_sanitize_case(case: &SanitizeCase) -> Outcome {
                 case.input, actual, case.expect_sanitized
             ),
         }
+    }
+}
+
+/// Extract the Unix socket path from an atd_sdk::Endpoint.
+/// The conformance suite is Unix-socket-only in v1. If new Endpoint
+/// variants are added upstream, the exhaustive match forces us to
+/// decide here.
+fn target_to_path(endpoint: &atd_sdk::Endpoint) -> std::path::PathBuf {
+    match endpoint {
+        atd_sdk::Endpoint::UnixSocket(p) => p.clone(),
     }
 }
 

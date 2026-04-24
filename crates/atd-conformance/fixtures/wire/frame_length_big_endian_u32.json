@@ -1,0 +1,7 @@
+{
+  "category": "wire",
+  "name": "frame_length_big_endian_u32",
+  "description": "Frame is prefixed by a 4-byte big-endian u32 length. For {\"type\":\"ping\"} (body 16 bytes = 0x10), the expected prefix is 00000010.",
+  "send": { "type": "ping" },
+  "expect_wire_bytes_prefix_hex": "00000010"
+}

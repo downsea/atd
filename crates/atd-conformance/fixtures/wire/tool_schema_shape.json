@@ -1,0 +1,7 @@
+{
+  "category": "wire",
+  "name": "tool_schema_shape",
+  "description": "Request::ToolSchema for a known tool returns ToolSchemaResponse with a schema object.",
+  "send": { "type": "tool_schema", "tool_id": "ref:echo.say" },
+  "expect_response_matches": { "type": "tool_schema", "schema": "*" }
+}

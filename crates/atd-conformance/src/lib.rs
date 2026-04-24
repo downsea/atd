@@ -10,9 +10,9 @@
 
 pub mod case;
 pub mod runner;
+pub mod wire;
 
 // Modules populated in subsequent tasks:
-// pub mod wire;     (Task 4)
 // pub mod report;   (Task 6)
 
 // run_conformance entry added in Task 7.

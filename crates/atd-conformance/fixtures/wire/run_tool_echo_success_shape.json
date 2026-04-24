@@ -1,0 +1,17 @@
+{
+  "category": "wire",
+  "name": "run_tool_echo_success_shape",
+  "description": "Running ref:echo.say returns a tool_result with success=true.",
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:echo.say",
+    "args": { "text": "hello" },
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "tool_id": "ref:echo.say",
+    "success": true,
+    "dry_run": false
+  }
+}
