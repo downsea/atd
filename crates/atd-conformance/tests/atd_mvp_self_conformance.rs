@@ -115,6 +115,7 @@ fn spawn_server(bin: &Path, sock: &Path) -> Child {
         .arg("write")
         .arg("--grant-capability")
         .arg("exec")
+        .arg("--enable-conformance-tool")
         // Suppress the server's startup log so the test output isn't
         // polluted. On a failure, panic! will include the conformance
         // failures themselves.
