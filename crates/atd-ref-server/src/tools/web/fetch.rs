@@ -5,7 +5,7 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use atd_types::{
+use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };

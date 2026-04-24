@@ -20,7 +20,7 @@ langchain = ["atd-client/langchain"]
 
 [dependencies]
 atd-client = { path = "../crates/atd-client" }
-atd-types = { path = "../crates/atd-types" }
+atd-protocol = { path = "../crates/atd-protocol" }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }

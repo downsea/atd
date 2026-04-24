@@ -1,7 +1,7 @@
 //! `atd list` — discover tools and print them, filtered by flags.
 
 use atd_client::{AtdClient, DiscoverFilter};
-use atd_types::{AtdError, ToolTier, ToolVisibility};
+use atd_protocol::{AtdError, ToolTier, ToolVisibility};
 use std::io::Write;
 
 use crate::cli::ListArgs;

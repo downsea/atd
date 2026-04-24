@@ -159,21 +159,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     outcome
 }
 
-fn print_result(r: atd_types::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
+fn print_result(r: atd_protocol::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
     match r {
-        atd_types::ToolResult::Success { data, .. } => {
+        atd_protocol::ToolResult::Success { data, .. } => {
             println!("      → {}", serde_json::to_string(&data)?);
         }
-        atd_types::ToolResult::Error { code, message, .. } => {
+        atd_protocol::ToolResult::Error { code, message, .. } => {
             println!("      ✗ {code}: {message}");
         }
     }
     Ok(())
 }
 
-fn print_glob_result(r: atd_types::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
+fn print_glob_result(r: atd_protocol::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
     match r {
-        atd_types::ToolResult::Success { data, .. } => {
+        atd_protocol::ToolResult::Success { data, .. } => {
             let paths = data["paths"].as_array().cloned().unwrap_or_default();
             let preview: Vec<String> = paths
                 .iter()
@@ -187,21 +187,21 @@ fn print_glob_result(r: atd_types::ToolResult) -> Result<(), Box<dyn std::error:
             };
             println!("      → {} paths: {}{}", paths.len(), preview.join(", "), suffix);
         }
-        atd_types::ToolResult::Error { code, message, .. } => {
+        atd_protocol::ToolResult::Error { code, message, .. } => {
             println!("      ✗ {code}: {message}");
         }
     }
     Ok(())
 }
 
-fn print_shell_result(r: atd_types::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
+fn print_shell_result(r: atd_protocol::ToolResult) -> Result<(), Box<dyn std::error::Error>> {
     match r {
-        atd_types::ToolResult::Success { data, .. } => {
+        atd_protocol::ToolResult::Success { data, .. } => {
             let exit = data["exit_code"].as_i64().unwrap_or(-1);
             let stdout = data["stdout"].as_str().unwrap_or("").trim();
             println!("      → exit {exit}, stdout={stdout:?}");
         }
-        atd_types::ToolResult::Error { code, message, .. } => {
+        atd_protocol::ToolResult::Error { code, message, .. } => {
             println!("      ✗ {code}: {message}");
         }
     }

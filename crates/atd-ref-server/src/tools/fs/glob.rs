@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use atd_types::{
+use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };

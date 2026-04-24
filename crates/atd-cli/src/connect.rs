@@ -1,7 +1,7 @@
 //! Endpoint resolution + AtdClient connect helper.
 
 use atd_client::{AtdClient, Endpoint};
-use atd_types::AtdError;
+use atd_protocol::AtdError;
 use std::path::PathBuf;
 
 /// Resolve the endpoint from an optional explicit `--sock PATH` override.

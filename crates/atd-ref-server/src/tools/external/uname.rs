@@ -13,7 +13,7 @@
 
 use std::path::PathBuf;
 
-use atd_types::{
+use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
 };

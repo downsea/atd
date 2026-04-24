@@ -99,7 +99,7 @@ name = "atd-cli"
 version = "0.1.0"
 dependencies = [
  "atd-client",
- "atd-types",
+ "atd-protocol",
  "clap",
  "serde",
  "serde_json",
@@ -111,7 +111,7 @@ dependencies = [
 name = "atd-client"
 version = "0.1.0"
 dependencies = [
- "atd-types",
+ "atd-protocol",
  "serde",
  "serde_json",
  "tempfile",
@@ -124,7 +124,7 @@ name = "atd-examples"
 version = "0.1.0"
 dependencies = [
  "atd-client",
- "atd-types",
+ "atd-protocol",
  "serde_json",
  "tempfile",
  "tokio",
@@ -135,7 +135,7 @@ name = "atd-mcp-bridge"
 version = "0.1.0"
 dependencies = [
  "atd-client",
- "atd-types",
+ "atd-protocol",
  "serde",
  "serde_json",
  "tempfile",
@@ -144,10 +144,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "atd-ref-server"
 version = "0.1.0"
 dependencies = [
- "atd-types",
+ "atd-protocol",
  "clap",
  "globset",
  "grep-regex",
@@ -167,12 +176,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "atd-types"
+name = "atd-runtime"
 version = "0.1.0"
 dependencies = [
+ "atd-protocol",
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atd-tools-echo"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "atd-tools-fs"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "atd-tools-shell"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "atd-tools-web"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

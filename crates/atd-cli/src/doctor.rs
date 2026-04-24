@@ -2,7 +2,7 @@
 //! how many tools does `discover` return.
 
 use atd_client::{AtdClient, DiscoverFilter};
-use atd_types::AtdError;
+use atd_protocol::AtdError;
 use serde::Serialize;
 use std::io::Write;
 use std::path::PathBuf;

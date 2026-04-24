@@ -1,14 +1,14 @@
 [package]
-name = "atd-types"
+name = "atd-protocol"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Protocol types for the ATD (Agent Tool Dispatch) reference implementation."
+description = "Protocol types, wire codec, and sanitization rules for the ATD (Agent Tool Dispatch) reference implementation."
 readme = "README.md"
-keywords = ["atd", "agent", "tool-dispatch", "mcp", "llm"]
+keywords = ["atd", "agent", "tool-dispatch", "protocol", "mcp"]
 categories = ["api-bindings", "development-tools"]
 exclude = ["tests/fixtures/*"]
 

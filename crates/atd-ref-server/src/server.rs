@@ -489,18 +489,18 @@ mod tests {
     }
 
     struct FailingTool {
-        def: atd_types::ToolDefinition,
+        def: atd_protocol::ToolDefinition,
         mode: FailureMode,
     }
 
     impl FailingTool {
         fn new(id: &str, mode: FailureMode) -> Self {
-            use atd_types::{
+            use atd_protocol::{
                 BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolResources,
                 ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
             };
             Self {
-                def: atd_types::ToolDefinition {
+                def: atd_protocol::ToolDefinition {
                     id: id.into(),
                     name: id.into(),
                     description: "test failure tool".into(),
@@ -544,7 +544,7 @@ mod tests {
     }
 
     impl Tool for FailingTool {
-        fn definition(&self) -> &atd_types::ToolDefinition {
+        fn definition(&self) -> &atd_protocol::ToolDefinition {
             &self.def
         }
         fn call<'a>(

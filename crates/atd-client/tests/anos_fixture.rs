@@ -107,7 +107,7 @@ async fn describe_against_real_anos_tool_schema_fixture() {
     assert!(
         def.bindings.iter().any(|b| matches!(
             b.protocol,
-            atd_types::BindingProtocol::AppFunction | atd_types::BindingProtocol::Cli
+            atd_protocol::BindingProtocol::AppFunction | atd_protocol::BindingProtocol::Cli
         )),
         "expected at least one known binding protocol"
     );

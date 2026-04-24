@@ -1,4 +1,4 @@
-use atd_types::{ToolTier, ToolVisibility};
+use atd_protocol::{ToolTier, ToolVisibility};
 
 #[derive(Debug, Clone, Default)]
 pub struct DiscoverFilter {
@@ -11,5 +11,5 @@ pub struct DiscoverFilter {
 #[derive(Debug, Clone, Default)]
 pub struct CallOptions {
     pub dry_run: bool,
-    pub preferred_binding: Option<atd_types::BindingProtocol>,
+    pub preferred_binding: Option<atd_protocol::BindingProtocol>,
 }

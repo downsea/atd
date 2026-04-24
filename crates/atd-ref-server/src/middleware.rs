@@ -9,7 +9,7 @@
 //! Error paths bypass middleware in SP-12 — spec §8 Q4. A future SP can
 //! add an `on_error` hook once a real consumer exists.
 
-use atd_types::ToolDefinition;
+use atd_protocol::ToolDefinition;
 
 /// A result-rewriting hook. Must be deterministic and side-effect-free
 /// beyond the `result` mutation + any internal audit sinks the impl owns.
@@ -102,7 +102,7 @@ impl Middleware for RedactPathsMiddleware {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_types::{
+    use atd_protocol::{
         BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolResources, ToolSafety,
         ToolTrust, ToolVisibility, TrustLevel,
     };

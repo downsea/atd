@@ -19,7 +19,7 @@ pub mod anthropic;
 #[cfg(feature = "langchain")]
 pub mod langchain;
 
-use atd_types::ToolSummary;
+use atd_protocol::ToolSummary;
 
 /// Given a sanitized name returned by an LLM, find the original ATD tool id.
 /// Convenience wrapper over `sanitize::desanitize_tool_name` that takes a
@@ -32,7 +32,7 @@ pub fn resolve_sanitized_id<'a>(sanitized: &str, known: &'a [ToolSummary]) -> Op
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_types::{ToolSummary, ToolTier, ToolVisibility};
+    use atd_protocol::{ToolSummary, ToolTier, ToolVisibility};
 
     fn make_summary(id: &str) -> ToolSummary {
         ToolSummary {

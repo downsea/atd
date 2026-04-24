@@ -1,7 +1,7 @@
 //! `atd call` — invoke a tool with JSON args and print the result.
 
 use atd_client::{AtdClient, CallOptions};
-use atd_types::{AtdError, ToolResult};
+use atd_protocol::{AtdError, ToolResult};
 use std::io::Write;
 
 use crate::cli::CallArgs;

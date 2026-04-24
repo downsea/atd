@@ -7,7 +7,7 @@
 //!   cargo run --example hello_langchain -p atd-examples --features langchain
 
 use atd_client::adapters::langchain::as_langchain_tools;
-use atd_types::ToolSummary;
+use atd_protocol::ToolSummary;
 use serde_json::json;
 
 fn main() {
@@ -32,8 +32,8 @@ fn fake_summary(id: &str, desc: &str) -> ToolSummary {
         name: id.into(),
         description: desc.into(),
         domain: "demo".into(),
-        tier: atd_types::ToolTier::Warm,
-        visibility: atd_types::ToolVisibility::Read,
+        tier: atd_protocol::ToolTier::Warm,
+        visibility: atd_protocol::ToolVisibility::Read,
         tags: vec![],
         input_schema: Some(json!({
             "type": "object",

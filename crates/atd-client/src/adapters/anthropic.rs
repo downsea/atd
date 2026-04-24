@@ -17,7 +17,7 @@
 //! (`{"type":"object","properties":{}}`). For full schema details, call
 //! `client.describe(id)` to get the `ToolDefinition`.
 
-use atd_types::ToolSummary;
+use atd_protocol::ToolSummary;
 use serde_json::{json, Value};
 
 use crate::sanitize::sanitize_tool_name;
@@ -46,7 +46,7 @@ pub fn as_anthropic_tools(summaries: &[ToolSummary]) -> Vec<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_types::{ToolSummary, ToolTier, ToolVisibility};
+    use atd_protocol::{ToolSummary, ToolTier, ToolVisibility};
 
     fn fake_summary(id: &str, desc: &str) -> ToolSummary {
         ToolSummary {

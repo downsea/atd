@@ -54,7 +54,7 @@ async fn main() -> std::process::ExitCode {
     }
 }
 
-fn fail(e: atd_types::AtdError) -> std::process::ExitCode {
+fn fail(e: atd_protocol::AtdError) -> std::process::ExitCode {
     eprintln!("atd: {e}");
     if let Some(hint) = e.suggest_fix() {
         eprintln!("hint: {hint}");

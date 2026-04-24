@@ -5,7 +5,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use atd_types::{ToolDefinition, ToolSummary};
+use atd_protocol::{ToolDefinition, ToolSummary};
 
 use crate::context::CallContext;
 use crate::error::ToolCallError;
@@ -107,7 +107,7 @@ impl Default for Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_types::{
+    use atd_protocol::{
         BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolResources, ToolSafety,
         ToolTrust, ToolVisibility, TrustLevel,
     };

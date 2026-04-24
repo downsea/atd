@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 atd-client = { path = "../atd-client", version = "0.1.0" }
-atd-types = { path = "../atd-types", version = "0.1.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

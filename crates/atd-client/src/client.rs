@@ -1,4 +1,4 @@
-use atd_types::AtdError;
+use atd_protocol::AtdError;
 #[cfg(test)]
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::UnixStream;
@@ -125,7 +125,7 @@ impl AtdClient {
         &self,
         query: Option<&str>,
         filter: crate::options::DiscoverFilter,
-    ) -> Result<Vec<atd_types::ToolSummary>, AtdError> {
+    ) -> Result<Vec<atd_protocol::ToolSummary>, AtdError> {
         let resp = self.request(&Request::ToolList).await?;
         let raw = match resp {
             Response::ToolListResponse { tools } => tools,
@@ -148,16 +148,16 @@ impl AtdClient {
             got: format!("{raw}"),
         })?;
 
-        let mut out: Vec<atd_types::ToolSummary> = Vec::with_capacity(arr.len());
+        let mut out: Vec<atd_protocol::ToolSummary> = Vec::with_capacity(arr.len());
         for v in arr {
-            match serde_json::from_value::<atd_types::ToolSummary>(v.clone()) {
+            match serde_json::from_value::<atd_protocol::ToolSummary>(v.clone()) {
                 Ok(s) => out.push(s),
                 Err(_) => {
                     // Tolerate entries that are full ToolDefinitions by projecting down.
                     if let Ok(def) =
-                        serde_json::from_value::<atd_types::ToolDefinition>(v.clone())
+                        serde_json::from_value::<atd_protocol::ToolDefinition>(v.clone())
                     {
-                        out.push(atd_types::ToolSummary::from(&def));
+                        out.push(atd_protocol::ToolSummary::from(&def));
                     }
                 }
             }
@@ -200,7 +200,7 @@ impl AtdClient {
     pub async fn describe(
         &self,
         tool_id: &str,
-    ) -> Result<atd_types::ToolDefinition, AtdError> {
+    ) -> Result<atd_protocol::ToolDefinition, AtdError> {
         let resp = self
             .request(&Request::ToolSchema {
                 tool_id: tool_id.to_string(),
@@ -236,7 +236,7 @@ impl AtdClient {
         tool_id: &str,
         args: serde_json::Value,
         opts: crate::options::CallOptions,
-    ) -> Result<atd_types::ToolResult, AtdError> {
+    ) -> Result<atd_protocol::ToolResult, AtdError> {
         let resp = self
             .request(&Request::RunTool {
                 tool_id: tool_id.to_string(),
@@ -258,9 +258,9 @@ impl AtdClient {
                     // remain None until the server populates them (tracked in
                     // the ANOS-side issue for run_tool metadata parity). The
                     // client must not synthesize values it doesn't have.
-                    Ok(atd_types::ToolResult::Success {
+                    Ok(atd_protocol::ToolResult::Success {
                         data: result,
-                        metadata: atd_types::ToolResultMetadata::for_tool(resp_tool_id),
+                        metadata: atd_protocol::ToolResultMetadata::for_tool(resp_tool_id),
                     })
                 } else {
                     let (code, message, retryable) = extract_error(&result);
@@ -270,7 +270,7 @@ impl AtdClient {
                     // small when the payload already matches the canonical
                     // shape.
                     let reason = serde_json::to_string(&result).ok();
-                    Ok(atd_types::ToolResult::Error {
+                    Ok(atd_protocol::ToolResult::Error {
                         code,
                         message,
                         reason,
@@ -312,7 +312,7 @@ impl AtdClient {
 
 /// Derive a display name if the server didn't send one.
 /// Preference order: explicit name > description > id.
-fn derive_name(s: &atd_types::ToolSummary) -> String {
+fn derive_name(s: &atd_protocol::ToolSummary) -> String {
     if !s.name.is_empty() {
         s.name.clone()
     } else if !s.description.is_empty() {
@@ -609,7 +609,7 @@ mod tests {
             .await
             .unwrap();
         match r {
-            atd_types::ToolResult::Error { code, .. } => assert_eq!(code, "EPERM"),
+            atd_protocol::ToolResult::Error { code, .. } => assert_eq!(code, "EPERM"),
             _ => panic!("expected error variant"),
         }
     }
@@ -638,7 +638,7 @@ mod tests {
             .await
             .unwrap();
         match r {
-            atd_types::ToolResult::Error { code, message, reason, retryable } => {
+            atd_protocol::ToolResult::Error { code, message, reason, retryable } => {
                 assert_eq!(code, "UNKNOWN"); // defaults used for structured extraction
                 assert_eq!(message, "tool call failed");
                 assert!(!retryable);

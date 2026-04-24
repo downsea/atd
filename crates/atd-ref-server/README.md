@@ -66,7 +66,7 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
 1. **Create the tool file** at `src/tools/<name>.rs`:
 
    ```rust
-   use atd_types::ToolDefinition;
+   use atd_protocol::ToolDefinition;
    use crate::context::CallContext;
    use crate::error::ToolCallError;
    use crate::registry::{CallFuture, Tool};

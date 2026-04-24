@@ -13,7 +13,7 @@ use std::time::Duration;
 use atd_ref_server::middleware::RedactPathsMiddleware;
 use atd_ref_server::registry::{CallFuture, Registry, Tool};
 use atd_ref_server::server::{Server, ServerConfig};
-use atd_types::{
+use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };

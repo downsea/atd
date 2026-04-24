@@ -15,7 +15,7 @@ All types are `serde`-compatible with the ATD wire format (length-prefixed JSON 
 ## Quick example
 
 ```rust
-use atd_types::{ToolSummary, ToolSafety, SafetyLevel};
+use atd_protocol::{ToolSummary, ToolSafety, SafetyLevel};
 
 let safety = ToolSafety {
     level: SafetyLevel::Read,

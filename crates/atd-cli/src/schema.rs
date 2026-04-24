@@ -1,7 +1,7 @@
 //! `atd schema` — describe a tool and pretty-print its ToolDefinition.
 
 use atd_client::AtdClient;
-use atd_types::AtdError;
+use atd_protocol::AtdError;
 use std::io::Write;
 
 use crate::cli::SchemaArgs;

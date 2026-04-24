@@ -1,6 +1,6 @@
 //! Tier-aware dispatch policy.
 //!
-//! `atd_types::ToolTier` (Hot/Warm/Cold) is the authoritative tier enum —
+//! `atd_protocol::ToolTier` (Hot/Warm/Cold) is the authoritative tier enum —
 //! this module adds the **policy** that maps each tier to a timeout budget
 //! and a max-output budget used at dispatch time. SP-12 makes the `tier`
 //! signal load-bearing; a future SP can extend this with placement /
@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-pub use atd_types::ToolTier;
+pub use atd_protocol::ToolTier;
 
 /// Per-tier budgets used when constructing `CallContext` for a tool call.
 /// `Warm` defaults match the pre-SP-12 server config (1 MiB / 60 s) to keep

@@ -127,13 +127,13 @@ impl Bridge {
             .await;
 
         let mcp_result = match result {
-            Ok(atd_types::ToolResult::Success { data, .. }) => ToolsCallResult {
+            Ok(atd_protocol::ToolResult::Success { data, .. }) => ToolsCallResult {
                 content: vec![ContentBlock::Text {
                     text: serde_json::to_string(&data).unwrap_or_else(|_| "{}".into()),
                 }],
                 is_error: false,
             },
-            Ok(atd_types::ToolResult::Error { code, message, .. }) => ToolsCallResult {
+            Ok(atd_protocol::ToolResult::Error { code, message, .. }) => ToolsCallResult {
                 content: vec![ContentBlock::Text {
                     text: format!("[{code}] {message}"),
                 }],

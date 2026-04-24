@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use atd_types::ToolDefinition;
+use atd_protocol::ToolDefinition;
 
 use crate::context::CallContext;
 use crate::error::ToolCallError;
@@ -142,7 +142,7 @@ mod tests {
     }
     impl PassthroughTool {
         fn new() -> Self {
-            use atd_types::{
+            use atd_protocol::{
                 BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolResources,
                 ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
             };
