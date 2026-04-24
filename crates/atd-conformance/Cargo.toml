@@ -1,0 +1,32 @@
+[package]
+name = "atd-conformance"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Conformance test suite for the ATD (Agent Tool Dispatch) protocol. Verifies any ATD-speaking server for wire + core-behavior equivalence with the reference SDK."
+readme = "README.md"
+keywords = ["atd", "conformance", "protocol", "testing", "spec"]
+categories = ["development-tools::testing", "api-bindings"]
+
+[lib]
+name = "atd_conformance"
+path = "src/lib.rs"
+
+[[bin]]
+name = "atd-conformance"
+path = "src/main.rs"
+
+[dependencies]
+atd-protocol = { path = "../atd-protocol", version = "0.1.0" }
+atd-sdk = { path = "../atd-sdk", version = "0.1.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+atd-ref-server-bin = { path = "../atd-ref-server-bin", version = "0.1.0" }
+tempfile = { workspace = true }

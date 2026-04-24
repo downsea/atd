@@ -108,6 +108,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-conformance"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "atd-ref-server-bin",
+ "atd-sdk",
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "atd-examples"
 version = "0.1.0"
 dependencies = [
