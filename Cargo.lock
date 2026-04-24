@@ -98,8 +98,8 @@ dependencies = [
 name = "atd-cli"
 version = "0.1.0"
 dependencies = [
- "atd-client",
  "atd-protocol",
+ "atd-sdk",
  "clap",
  "serde",
  "serde_json",
@@ -108,23 +108,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "atd-client"
-version = "0.1.0"
-dependencies = [
- "atd-protocol",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "atd-examples"
 version = "0.1.0"
 dependencies = [
- "atd-client",
  "atd-protocol",
+ "atd-sdk",
  "serde_json",
  "tempfile",
  "tokio",
@@ -134,8 +122,8 @@ dependencies = [
 name = "atd-mcp-bridge"
 version = "0.1.0"
 dependencies = [
- "atd-client",
  "atd-protocol",
+ "atd-sdk",
  "serde",
  "serde_json",
  "tempfile",
@@ -183,6 +171,18 @@ dependencies = [
  "atd-protocol",
  "serde",
  "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atd-sdk"
+version = "0.1.0"
+dependencies = [
+ "atd-protocol",
+ "serde",
+ "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
 ]

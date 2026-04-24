@@ -1,6 +1,6 @@
 //! End-to-end integration: spawn the `atd-ref-server` binary and drive it
 //! over a real Unix socket with a self-contained client. Deliberately no
-//! dependency on `atd-client` — this verifies the server is reachable by
+//! dependency on `atd-sdk` — this verifies the server is reachable by
 //! any correct ATD client, not a specific SDK.
 
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ fn bin_path() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_atd-ref-server"))
 }
 
-/// Self-contained tiny client. Same pattern as atd-client's mock_server.rs but
+/// Self-contained tiny client. Same pattern as atd-sdk's mock_server.rs but
 /// inverted: here the client is in the test file and the server is the
 /// production binary we just built.
 async fn send_one_request(

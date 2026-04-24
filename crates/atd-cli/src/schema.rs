@@ -1,6 +1,6 @@
 //! `atd schema` — describe a tool and pretty-print its ToolDefinition.
 
-use atd_client::AtdClient;
+use atd_sdk::AtdClient;
 use atd_protocol::AtdError;
 use std::io::Write;
 
@@ -29,7 +29,7 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_client::Endpoint;
+    use atd_sdk::Endpoint;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixListener;
 

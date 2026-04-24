@@ -5,7 +5,7 @@ use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 
 use crate::endpoint::Endpoint;
-use atd_protocol::messages::{Request, Response};
+use atd_protocol::{Request, Response};
 use atd_protocol::wire::{read_frame, write_frame};
 
 /// Async ATD client.
@@ -287,7 +287,7 @@ impl AtdClient {
                 code: Some(code),
                 details,
                 ..
-            } if code == atd_protocol::messages::ERR_CAPABILITY_DENIED => {
+            } if code == atd_protocol::ERR_CAPABILITY_DENIED => {
                 let (required, granted) = extract_cap_denied_sets(details.as_ref());
                 Err(AtdError::CapabilityDenied {
                     tool_id: tool_id.to_string(),
@@ -770,7 +770,7 @@ mod tests {
         spin_server(server_end, |req| match req {
             Request::RunTool { .. } => Response::Error {
                 message: "capability denied for ref:x: missing [\"exec\"]".into(),
-                code: Some(atd_protocol::messages::ERR_CAPABILITY_DENIED),
+                code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
                 retryable: Some(false),
                 details: Some(serde_json::json!({
                     "required": ["exec"],

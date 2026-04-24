@@ -1,7 +1,7 @@
 //! `atd doctor` — connectivity sanity check: socket exists, ping succeeds,
 //! how many tools does `discover` return.
 
-use atd_client::{AtdClient, DiscoverFilter};
+use atd_sdk::{AtdClient, DiscoverFilter};
 use atd_protocol::AtdError;
 use serde::Serialize;
 use std::io::Write;
@@ -28,7 +28,7 @@ pub async fn run(
     let socket_exists = sock.exists();
     let socket_path = sock.to_string_lossy().into_owned();
 
-    let (ping_ok, tool_count, error) = match AtdClient::connect(atd_client::Endpoint::unix(&sock)).await {
+    let (ping_ok, tool_count, error) = match AtdClient::connect(atd_sdk::Endpoint::unix(&sock)).await {
         Ok(client) => match client.discover(None, DiscoverFilter::default()).await {
             Ok(v) => (true, Some(v.len()), None),
             Err(e) => (true, None, Some(format!("discover failed: {e}"))),

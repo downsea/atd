@@ -1,9 +1,9 @@
-//! Contract test: atd-client must correctly parse the wire shapes that the
+//! Contract test: atd-sdk must correctly parse the wire shapes that the
 //! ANOS daemon actually produces. Fixtures in tests/fixtures/ are captured
 //! from a live daemon via scripts/capture_anos_fixtures.sh — refresh them
 //! whenever ANOS bumps its protocol.
 
-use atd_client::{AtdClient, DiscoverFilter, Endpoint};
+use atd_sdk::{AtdClient, DiscoverFilter, Endpoint};
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;

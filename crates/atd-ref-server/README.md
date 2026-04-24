@@ -2,7 +2,7 @@
 
 Neutral reference server for the [ATD protocol](../../docs/design.md). Stands up a Unix-socket daemon that speaks the standard ATD wire format and exposes a small but real tool catalog. Designed to be **forked**: third parties writing their own ATD server can read the code and use it as a working template.
 
-Zero dependency on any specific client SDK or agent framework. In particular, zero dependency on `atd-client`, `atd-mcp-bridge`, `atd-cli`, or any `anos-*` crate.
+Zero dependency on any specific client SDK or agent framework. In particular, zero dependency on `atd-sdk`, `atd-mcp-bridge`, `atd-cli`, or any `anos-*` crate.
 
 ## Quick start
 

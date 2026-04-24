@@ -1,6 +1,6 @@
 //! Endpoint resolution + AtdClient connect helper.
 
-use atd_client::{AtdClient, Endpoint};
+use atd_sdk::{AtdClient, Endpoint};
 use atd_protocol::AtdError;
 use std::path::PathBuf;
 

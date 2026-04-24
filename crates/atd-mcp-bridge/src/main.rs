@@ -5,7 +5,7 @@
 //!
 //! Speaks MCP (JSON-RPC 2.0) on stdin/stdout, logs to stderr.
 
-use atd_client::{AtdClient, Endpoint};
+use atd_sdk::{AtdClient, Endpoint};
 use atd_mcp_bridge::bridge::Bridge;
 use atd_mcp_bridge::jsonrpc::{read_request, write_response, Response};
 use std::io::{BufReader, BufWriter};

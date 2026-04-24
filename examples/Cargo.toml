@@ -16,10 +16,10 @@ required-features = ["langchain"]
 
 [features]
 default = []
-langchain = ["atd-client/langchain"]
+langchain = ["atd-sdk/langchain"]
 
 [dependencies]
-atd-client = { path = "../crates/atd-client" }
+atd-sdk = { path = "../crates/atd-sdk" }
 atd-protocol = { path = "../crates/atd-protocol" }
 tokio = { workspace = true }
 serde_json = { workspace = true }

@@ -1,15 +1,15 @@
-//! Integration test: prove atd-client can drive the full protocol against a
+//! Integration test: prove atd-sdk can drive the full protocol against a
 //! server that has zero `anos-*` crate dependencies. This is the load-bearing
 //! check for the "independent reference implementation" claim in CLAUDE.md.
 
-use atd_client::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
+use atd_sdk::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 
 // Re-declare wire + protocol shapes here so the mock server has literally no
-// path dependency into atd-client or atd-types crate internals.
+// path dependency into atd-sdk or atd-types crate internals.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum ServerReq {

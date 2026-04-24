@@ -1,6 +1,6 @@
 //! `atd list` — discover tools and print them, filtered by flags.
 
-use atd_client::{AtdClient, DiscoverFilter};
+use atd_sdk::{AtdClient, DiscoverFilter};
 use atd_protocol::{AtdError, ToolTier, ToolVisibility};
 use std::io::Write;
 
@@ -104,7 +104,7 @@ fn truncate(s: &str, n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_client::Endpoint;
+    use atd_sdk::Endpoint;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixListener;
 

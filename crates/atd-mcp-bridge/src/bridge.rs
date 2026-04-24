@@ -1,6 +1,6 @@
-//! Bridge dispatch: route MCP methods to atd-client calls.
+//! Bridge dispatch: route MCP methods to atd-sdk calls.
 
-use atd_client::{AtdClient, CallOptions, DiscoverFilter};
+use atd_sdk::{AtdClient, CallOptions, DiscoverFilter};
 use serde_json::json;
 
 use crate::jsonrpc::{Request, Response};
@@ -8,7 +8,7 @@ use crate::mcp::{
     ContentBlock, InitializeParams, InitializeResult, ServerCapabilities, ServerInfo, Tool,
     ToolsCallParams, ToolsCallResult, ToolsCapability, ToolsListResult,
 };
-use atd_client::sanitize::{desanitize_tool_name, sanitize_tool_name};
+use atd_sdk::sanitize::{desanitize_tool_name, sanitize_tool_name};
 
 const PROTOCOL_VERSION: &str = "2025-11-25";
 const BRIDGE_NAME: &str = "atd-mcp-bridge";
@@ -142,8 +142,8 @@ impl Bridge {
             Err(e) => {
                 use std::error::Error as StdError;
                 let text = match e.source() {
-                    Some(src) => format!("atd-client error: {e}: {src}"),
-                    None => format!("atd-client error: {e}"),
+                    Some(src) => format!("atd-sdk error: {e}: {src}"),
+                    None => format!("atd-sdk error: {e}"),
                 };
                 ToolsCallResult {
                     content: vec![ContentBlock::Text { text }],
@@ -159,7 +159,7 @@ impl Bridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_client::Endpoint;
+    use atd_sdk::Endpoint;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixListener;
 
@@ -290,7 +290,7 @@ mod tests {
 
     // Covers the real-ANOS scenario: the daemon answers run_tool with
     // `{"type":"error","message":"direct tool execution via IPC not yet supported — use RunTurn"}`
-    // (see docs/issues/2026-04-21-atd-run-tool-stub.md). atd-client maps this
+    // (see docs/issues/2026-04-21-atd-run-tool-stub.md). atd-sdk maps this
     // to AtdError::ToolExecutionFailed, and the bridge must surface it as MCP
     // isError=true content so the LLM sees an honest failure.
     #[tokio::test]
@@ -324,7 +324,7 @@ mod tests {
         let j = serde_json::to_string(&resp).unwrap();
         assert!(j.contains("\"isError\":true"));
         assert!(
-            j.contains("atd-client error") && j.contains("direct tool execution"),
+            j.contains("atd-sdk error") && j.contains("direct tool execution"),
             "expected wrapped error message in content, got: {j}"
         );
     }

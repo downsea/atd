@@ -1,6 +1,6 @@
 //! `atd call` — invoke a tool with JSON args and print the result.
 
-use atd_client::{AtdClient, CallOptions};
+use atd_sdk::{AtdClient, CallOptions};
 use atd_protocol::{AtdError, ToolResult};
 use std::io::Write;
 
@@ -62,7 +62,7 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atd_client::Endpoint;
+    use atd_sdk::Endpoint;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixListener;
 

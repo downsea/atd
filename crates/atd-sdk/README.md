@@ -1,4 +1,4 @@
-# atd-client
+# atd-sdk
 
 Rust client SDK for the [Agent Tool Dispatch (ATD) protocol](https://github.com/downsea/atd-mvp).
 
@@ -7,13 +7,13 @@ Connect to any ATD-speaking server over a Unix socket, discover tools, describe 
 ## Install
 
 ```bash
-cargo add atd-client
+cargo add atd-sdk
 ```
 
 ## Quick example
 
 ```rust
-use atd_client::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
+use atd_sdk::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

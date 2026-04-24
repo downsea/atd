@@ -1,14 +1,14 @@
 [package]
-name = "atd-client"
+name = "atd-sdk"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
-description = "Rust client SDK for the ATD (Agent Tool Dispatch) protocol — connect to any ATD-speaking server over Unix sockets."
+description = "Rust SDK for the ATD (Agent Tool Dispatch) protocol — connect to any ATD-speaking server over Unix sockets."
 readme = "README.md"
-keywords = ["atd", "agent", "client", "sdk", "mcp"]
+keywords = ["atd", "agent", "sdk", "client", "mcp"]
 categories = ["api-bindings", "asynchronous"]
 exclude = ["tests/fixtures/*", "benches/*"]
 

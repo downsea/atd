@@ -1,5 +1,5 @@
 //! atd-mvp capstone demo. Auto-spawns `atd-ref-server` (the in-repo neutral
-//! reference ATD server), connects via `atd-client`, exercises three
+//! reference ATD server), connects via `atd-sdk`, exercises three
 //! representative tools end-to-end.
 //!
 //! This demo has ZERO dependency on an external agent orchestration server.
@@ -16,7 +16,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use atd_client::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
+use atd_sdk::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
 use tokio::process::{Child, Command};
 
 const SOCKET_WAIT_ATTEMPTS: u32 = 30;

@@ -1,4 +1,4 @@
-//! Demo of atd-client's LangChain (and OpenAI-shape) adapter.
+//! Demo of atd-sdk's LangChain (and OpenAI-shape) adapter.
 //!
 //! Uses fake ToolSummaries — self-contained, no server needed.
 //! Prints JSON-formatted output of 3 tool descriptions via `as_langchain_tools`.
@@ -6,7 +6,7 @@
 //! Run:
 //!   cargo run --example hello_langchain -p atd-examples --features langchain
 
-use atd_client::adapters::langchain::as_langchain_tools;
+use atd_sdk::adapters::langchain::as_langchain_tools;
 use atd_protocol::ToolSummary;
 use serde_json::json;
 

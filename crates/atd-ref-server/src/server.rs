@@ -8,7 +8,7 @@ use tokio::net::{UnixListener, UnixStream};
 
 use crate::context::CallContext;
 use crate::error::ToolCallError;
-use atd_protocol::messages::{Request, Response};
+use atd_protocol::{Request, Response};
 use crate::registry::Registry;
 use atd_protocol::wire::{read_frame, write_frame};
 
@@ -223,7 +223,7 @@ pub(crate) async fn dispatch(
                     message: format!(
                         "capability denied for {tool_id}: missing {missing_sorted:?}"
                     ),
-                    code: Some(atd_protocol::messages::ERR_CAPABILITY_DENIED),
+                    code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
                     retryable: Some(false),
                     details: Some(serde_json::json!({
                         "required": required_sorted,
@@ -630,7 +630,7 @@ mod tests {
                 assert_eq!(result["message"], "denied");
                 assert_eq!(result["retryable"], serde_json::json!(false));
             }
-            _ => panic!("wrong variant, expected Response::ToolResult"),
+            _ => panic!("wrong variant, expected Response::ToolResultResponse"),
         }
     }
 

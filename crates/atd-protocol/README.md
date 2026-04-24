@@ -27,7 +27,7 @@ let safety = ToolSafety {
 
 ## Related crates
 
-- [`atd-client`](https://crates.io/crates/atd-client) — client SDK for Rust agents
+- [`atd-sdk`](https://crates.io/crates/atd-sdk) — client SDK for Rust agents
 - [`atd-mcp-bridge`](https://crates.io/crates/atd-mcp-bridge) — MCP bridge binary
 
 ## License

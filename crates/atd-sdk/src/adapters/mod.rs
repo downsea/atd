@@ -1,10 +1,10 @@
 //! LLM-provider adapters.
 //!
 //! Feature-gated — none compile by default. Opt-in via:
-//!   cargo add atd-client --features adapters   (all three)
-//!   cargo add atd-client --features openai     (just OpenAI)
-//!   cargo add atd-client --features anthropic  (just Anthropic)
-//!   cargo add atd-client --features langchain  (just LangChain)
+//!   cargo add atd-sdk --features adapters   (all three)
+//!   cargo add atd-sdk --features openai     (just OpenAI)
+//!   cargo add atd-sdk --features anthropic  (just Anthropic)
+//!   cargo add atd-sdk --features langchain  (just LangChain)
 //!
 //! Adapters return `serde_json::Value` shaped for each provider's API.
 //! Callers feed the output directly into their provider SDK (typically

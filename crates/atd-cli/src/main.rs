@@ -43,7 +43,7 @@ async fn main() -> std::process::ExitCode {
         Command::Doctor(args) => {
             let endpoint = atd_cli::connect::resolve_endpoint(cli.sock);
             let sock = match &endpoint {
-                atd_client::Endpoint::UnixSocket(p) => p.clone(),
+                atd_sdk::Endpoint::UnixSocket(p) => p.clone(),
             };
             let mut out = std::io::stdout().lock();
             match atd_cli::doctor::run(sock, args, &mut out).await {

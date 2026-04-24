@@ -8,7 +8,7 @@
 //!
 //! Why no direct langchain-rust type dependency? langchain-rust is
 //! pre-1.0 and its public API surface changes across minor versions.
-//! Emitting plain JSON keeps `atd-client` stable.
+//! Emitting plain JSON keeps `atd-sdk` stable.
 //!
 //! `ToolSummary.input_schema` carries the JSON Schema when the server
 //! populates it. If absent, adapters fall back to an empty schema stub
