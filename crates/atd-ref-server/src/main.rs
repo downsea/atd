@@ -40,6 +40,12 @@ struct Args {
     /// with non-empty `required_capabilities` are unreachable.
     #[arg(long = "grant-capability", action = clap::ArgAction::Append)]
     grant_capabilities: Vec<String>,
+
+    /// Override a per-tier budget. Format: `<tier>=<key>=<value>`.
+    /// Tiers: hot | warm | cold. Keys: timeout_ms | max_output_bytes.
+    /// Repeatable. Example: `--tier-override hot=timeout_ms=300`.
+    #[arg(long = "tier-override", action = clap::ArgAction::Append)]
+    tier_overrides: Vec<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -58,7 +64,18 @@ async fn main() -> std::process::ExitCode {
     config.granted_capabilities = args.grant_capabilities;
 
     let registry = builtin_registry();
-    let server = Server::new(registry, config);
+    let mut server = Server::new(registry, config);
+
+    // Apply tier overrides before run() so they take effect before any
+    // connection is accepted. Malformed specs → exit 2 with a clear message.
+    let mut policy = atd_ref_server::tier::TierPolicy::defaults();
+    for spec in &args.tier_overrides {
+        if let Err(e) = policy.apply_override(spec) {
+            eprintln!("atd-ref-server: --tier-override '{spec}': {e}");
+            return std::process::ExitCode::from(2);
+        }
+    }
+    server.set_tier_policy(policy);
 
     match server.run().await {
         Ok(()) => std::process::ExitCode::SUCCESS,

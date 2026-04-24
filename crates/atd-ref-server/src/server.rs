@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use tokio::net::{UnixListener, UnixStream};
 
@@ -45,13 +45,27 @@ pub struct Server {
 pub(crate) struct ServerState {
     pub(crate) registry: Registry,
     pub(crate) config: ServerConfig,
+    pub(crate) tier_policy: crate::tier::TierPolicy,
 }
 
 impl Server {
     pub fn new(registry: Registry, config: ServerConfig) -> Self {
         Self {
-            state: Arc::new(ServerState { registry, config }),
+            state: Arc::new(ServerState {
+                registry,
+                config,
+                tier_policy: crate::tier::TierPolicy::defaults(),
+            }),
         }
+    }
+
+    /// Replace the tier policy. Valid only before `run()` — after the server
+    /// starts, `state` has already been handed to connection tasks and is
+    /// effectively immutable. Tests and CLI startup call this once.
+    pub fn set_tier_policy(&mut self, policy: crate::tier::TierPolicy) {
+        let state = Arc::get_mut(&mut self.state)
+            .expect("set_tier_policy must be called before run() hands out Arcs");
+        state.tier_policy = policy;
     }
 
     pub async fn run(self) -> std::io::Result<()> {
@@ -207,18 +221,22 @@ pub(crate) async fn dispatch(
                     })),
                 };
             }
+            // SP-12 Task 3: derive tier from the tool definition; TierPolicy
+            // maps each tier to deadline + max_output budgets. Tools without
+            // a tier field default to Warm (spec §8 Q5), preserving pre-SP-12
+            // behavior for the 9 built-in tools that never set tier.
+            let tier = tool.definition().tier.unwrap_or(crate::tier::ToolTier::Warm);
+            let tier_timeout = state.tier_policy.timeout(tier);
+            let tier_max_output = state.tier_policy.max_output(tier);
+
             let ctx = CallContext {
                 cwd: state.config.cwd.clone(),
-                max_output_bytes: state.config.max_output_bytes,
+                max_output_bytes: tier_max_output,
                 call_id: ulid::Ulid::new(),
-                deadline: Some(
-                    Instant::now() + Duration::from_millis(state.config.default_call_timeout_ms),
-                ),
+                deadline: Some(Instant::now() + tier_timeout),
                 read_tracker: Some(tracker.clone()),
-                // SP-12 Task 2: capabilities flow from the connection's Hello.
-                // Task 3 will derive tier from the tool definition.
                 capabilities: caps.clone(),
-                tier: crate::tier::ToolTier::Warm,
+                tier,
             };
             match tool.call(args, &ctx).await {
                 Ok(data) => Response::ToolResult {
@@ -283,6 +301,7 @@ mod tests {
                 default_call_timeout_ms: 60_000,
                 granted_capabilities: vec![],
             },
+            tier_policy: crate::tier::TierPolicy::defaults(),
         })
     }
 
@@ -525,6 +544,7 @@ mod tests {
                 default_call_timeout_ms: 1000,
                 granted_capabilities: vec![],
             },
+            tier_policy: crate::tier::TierPolicy::defaults(),
         })
     }
 
