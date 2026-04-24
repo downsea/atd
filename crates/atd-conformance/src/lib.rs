@@ -8,10 +8,11 @@
 //! See `docs/superpowers/specs/2026-04-24-sp8-conformance-suite-design.md`
 //! for the design.
 
-// Modules are populated in subsequent tasks:
-// pub mod case;      (Task 2)
-// pub mod runner;    (Tasks 3-5)
-// pub mod wire;      (Task 4)
-// pub mod report;    (Task 6)
+pub mod case;
 
-// run_conformance entry is added in Task 7.
+// Modules populated in subsequent tasks:
+// pub mod runner;   (Tasks 3-5)
+// pub mod wire;     (Task 4)
+// pub mod report;   (Task 6)
+
+// run_conformance entry added in Task 7.
