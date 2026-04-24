@@ -8,9 +8,9 @@ use tokio::net::{UnixListener, UnixStream};
 
 use crate::context::CallContext;
 use crate::error::ToolCallError;
-use crate::protocol::{Request, Response};
+use atd_protocol::messages::{Request, Response};
 use crate::registry::Registry;
-use crate::wire::{read_frame, write_frame};
+use atd_protocol::wire::{read_frame, write_frame};
 
 pub struct ServerConfig {
     pub socket_path: PathBuf,
@@ -164,12 +164,12 @@ pub(crate) async fn dispatch(
         }
         Request::ToolList => {
             let summaries = state.registry.summaries();
-            Response::ToolList {
+            Response::ToolListResponse {
                 tools: serde_json::to_value(&summaries).unwrap_or_else(|_| serde_json::json!([])),
             }
         }
         Request::ToolSchema { tool_id } => match state.registry.get(&tool_id) {
-            Some(entry) => Response::ToolSchema {
+            Some(entry) => Response::ToolSchemaResponse {
                 schema: serde_json::to_value(entry.definition())
                     .unwrap_or_else(|_| serde_json::json!({})),
             },
@@ -182,7 +182,7 @@ pub(crate) async fn dispatch(
         },
         Request::RunTool { tool_id, args, dry_run } => {
             if dry_run {
-                return Response::ToolResult {
+                return Response::ToolResultResponse {
                     tool_id: tool_id.clone(),
                     result: serde_json::json!({
                         "dry_run": true,
@@ -223,7 +223,7 @@ pub(crate) async fn dispatch(
                     message: format!(
                         "capability denied for {tool_id}: missing {missing_sorted:?}"
                     ),
-                    code: Some(crate::protocol::ERR_CAPABILITY_DENIED),
+                    code: Some(atd_protocol::messages::ERR_CAPABILITY_DENIED),
                     retryable: Some(false),
                     details: Some(serde_json::json!({
                         "required": required_sorted,
@@ -268,7 +268,7 @@ pub(crate) async fn dispatch(
                     for mw in &state.middleware {
                         mw.on_result(&tool_id, entry.definition(), &mut data);
                     }
-                    Response::ToolResult {
+                    Response::ToolResultResponse {
                         tool_id,
                         result: data,
                         success: true,
@@ -282,7 +282,7 @@ pub(crate) async fn dispatch(
                     details: None,
                 },
                 Err(ToolCallError::ExecutionFailed { code, message, retryable }) => {
-                    Response::ToolResult {
+                    Response::ToolResultResponse {
                         tool_id,
                         result: serde_json::json!({
                             "code": code,
@@ -348,7 +348,7 @@ mod tests {
         let s = test_state();
         let r = dispatch(&s, &fresh_tracker(), &mut fresh_caps(), Request::ToolList).await;
         match r {
-            Response::ToolList { tools } => {
+            Response::ToolListResponse { tools } => {
                 let arr = tools.as_array().unwrap();
                 // SP-12: +1 for ref:external.uname on unix.
                 #[cfg(unix)]
@@ -381,7 +381,7 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolSchema { schema } => {
+            Response::ToolSchemaResponse { schema } => {
                 assert_eq!(schema["id"], "ref:echo.say");
                 assert_eq!(schema["capability"]["domain"], "echo");
             }
@@ -422,7 +422,7 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResult { result, success, dry_run, .. } => {
+            Response::ToolResultResponse { result, success, dry_run, .. } => {
                 assert!(success);
                 assert!(!dry_run);
                 assert_eq!(result["echoed"]["k"], "v");
@@ -446,7 +446,7 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResult { result, success, dry_run, .. } => {
+            Response::ToolResultResponse { result, success, dry_run, .. } => {
                 assert!(success);
                 assert!(dry_run);
                 assert_eq!(result["dry_run"], serde_json::json!(true));
@@ -622,7 +622,7 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResult { result, success, dry_run, tool_id } => {
+            Response::ToolResultResponse { result, success, dry_run, tool_id } => {
                 assert!(!success);
                 assert!(!dry_run);
                 assert_eq!(tool_id, "test:exec");

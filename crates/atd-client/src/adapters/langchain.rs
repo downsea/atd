@@ -18,7 +18,7 @@
 use atd_protocol::ToolSummary;
 use serde_json::{json, Value};
 
-use crate::sanitize::sanitize_tool_name;
+use atd_protocol::sanitize::sanitize_tool_name;
 
 /// Convert ATD tool summaries to LangChain-compatible JSON (OpenAI shape).
 ///

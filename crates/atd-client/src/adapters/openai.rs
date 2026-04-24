@@ -24,7 +24,7 @@
 use atd_protocol::ToolSummary;
 use serde_json::{json, Value};
 
-use crate::sanitize::sanitize_tool_name;
+use atd_protocol::sanitize::sanitize_tool_name;
 
 /// Convert a list of ATD tool summaries to OpenAI function-calling tools.
 ///

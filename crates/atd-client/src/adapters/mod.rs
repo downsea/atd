@@ -26,7 +26,7 @@ use atd_protocol::ToolSummary;
 /// slice of `ToolSummary` (the common return type from `client.discover()`).
 pub fn resolve_sanitized_id<'a>(sanitized: &str, known: &'a [ToolSummary]) -> Option<&'a str> {
     let ids = known.iter().map(|t| t.id.as_str());
-    crate::sanitize::desanitize_tool_name(sanitized, ids)
+    atd_protocol::sanitize::desanitize_tool_name(sanitized, ids)
 }
 
 #[cfg(test)]
