@@ -199,3 +199,185 @@ skill returns to agent context with synthesised output
 ```
 
 Both examples traverse exactly the same ATD dispatch. The Skills runtime is an agent-side orchestrator; it does not modify ATD's dispatch.
+
+## 3. Schema Layer
+
+### 3.1 Definition
+
+The schema layer is the set of types and invariants that describe what a tool is — independent of any specific binding, transport, or agent framework. A valid ATD message — request or response — serializes to JSON shapes defined at this layer.
+
+The schema layer owns:
+
+- **Envelope types** — `ClientMessage` / `ServerMessage` (the wire messages)
+- **Tool types** — `ToolSummary` (discover response), `ToolDefinition` (describe response), `ToolResult` (call response)
+- **Structural types** — `ToolCapability`, `ToolBinding`, `ToolSafety`, `ToolResources`, `ToolTrust`
+- **Enums** — `SafetyLevel`, `ToolVisibility`, `TrustLevel`, `ToolTier`, `BindingProtocol`
+- **Error taxonomy** — `AtdError` (9 variants) with `is_retryable()` + `suggest_fix()` contracts
+- **Name sanitization** — `ref:fs.read` → `ref_fs_read` for LLM/MCP name slots
+
+The schema layer does NOT own: dispatch behavior, security enforcement, binding execution. Those are §4 and §5.
+
+### 3.2 Current state
+
+| Component | Source | Status | Tests | Notes |
+|---|---|---|---|---|
+| `ToolSummary` (incl. `input_schema`) | `crates/atd-types/src/summary.rs` | ✅ | types roundtrip tests | `input_schema` added in SP-10 Task 2.5 so LLM adapters emit real schemas |
+| `ToolDefinition` + sub-structs | `crates/atd-types/src/tool.rs` | ✅ | roundtrip tests | — |
+| `ToolResult` (Success/Error variants) | `crates/atd-types/src/result.rs` | ✅ | — | |
+| `AtdError` (9 variants + `is_retryable` + `suggest_fix`) | `crates/atd-types/src/error.rs` | ✅ | — | See [`docs/protocol/error-codes.md`](protocol/error-codes.md) for the reference table |
+| `SafetyLevel` / `ToolVisibility` / `TrustLevel` / `BindingProtocol` | `crates/atd-types/src/enums.rs` | ✅ | — | |
+| `ToolTier` enum (`Hot` / `Warm` / `Cold`) | `crates/atd-types/src/enums.rs` | ✅ | — | Runtime semantics in §4.2.2 |
+| `ToolResources.rate_limit_per_min` | `crates/atd-types/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
+| `ToolResources.max_concurrent` | same | 📜 | — | Same — declared, not enforced |
+| `ToolTrust.signature` | `crates/atd-types/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
+| `CapabilityToken` / UCAN types | — | 🚫 | — | See [§9.3](#9-non-goals-explicit) |
+| Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-client/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
+| Python schema mirror | `python/src/atd_client/types.py` | ✅ | — | Hand-ported; drift-prone |
+| **Machine-readable protocol schema** (`atd-protocol-schema.json`) | — | ❌ | — | Issue [`schema-protocol-machine-readable-missing`](issues/2026-04-24-schema-protocol-machine-readable-missing.md) |
+
+### 3.3 Target state
+
+The schema layer reaches full v1 when:
+
+1. A machine-readable `atd-protocol-schema.json` is generated from the Rust type definitions (via `schemars`), published in-repo, and validated against the [JSON Schema 2020-12 meta-schema](https://json-schema.org/draft/2020-12/schema). Tracked in issue [`schema-protocol-machine-readable-missing`](issues/2026-04-24-schema-protocol-machine-readable-missing.md).
+2. CI verifies schema ↔ Rust type drift on every push.
+3. External implementers (TypeScript, Go, Swift, ArkTS) consume the JSON schema directly instead of reading Rust source.
+
+Beyond v1: the schema layer accumulates optional additions as new capabilities land — session types, capability-token types — always additive, always backward-compatible per the 0.x semver contract.
+
+### 3.4 Gap → SP mapping
+
+| Gap | Next SP | Severity |
+|---|---|---|
+| No machine-readable schema | Proposed SP: schema generation via `schemars` | Medium — blocks non-Rust/Python SDK authoring |
+| `ToolTrust.signature` unverified | Deferred to Phase 2 per [§9.4](#9-non-goals-explicit) | Low for v1 |
+| `ToolResources.rate_limit_per_min` + `.max_concurrent` ignored | Covered in §5.5 (dispatch-enforcement problem, not schema) | — |
+
+### 3.5 See also
+
+- [`docs/protocol/wire-format.md`](protocol/wire-format.md) — the authoritative wire-level reference, including byte framing + full type tables
+- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — `AtdError` taxonomy + server-emitted error codes
+- [`docs/issues/2026-04-24-schema-protocol-machine-readable-missing.md`](issues/2026-04-24-schema-protocol-machine-readable-missing.md)
+- [`docs/issues/2026-04-24-security-trust-signature-unverified.md`](issues/2026-04-24-security-trust-signature-unverified.md)
+
+## 4. Dispatch Layer
+
+### 4.1 Core dispatch
+
+`discover` / `describe` / `call` — the three APIs that the Client SDK exposes and the server responds to. Length-prefixed JSON over a Unix socket.
+
+| Component | Source | Status | Tests | Notes |
+|---|---|---|---|---|
+| Wire framing (length-prefixed JSON, UTF-8) | `crates/atd-client/src/wire.rs` | ✅ | unit tests | See [`docs/protocol/wire-format.md`](protocol/wire-format.md) |
+| `ClientMessage::ToolList` / `ToolSchema` / `RunTool` | `crates/atd-client/src/protocol.rs` | ✅ | roundtrip tests | |
+| `Registry::dispatch()` (server-side routing) | `crates/atd-ref-server/src/registry.rs` | ✅ | integration tests | Tool id → `Arc<dyn Tool>` |
+| `Tool` trait + `CallContext` | `crates/atd-ref-server/src/registry.rs` + `context.rs` | ✅ | — | — |
+| `AtdClient::connect` / `discover` / `describe` / `call` / `ping` | `crates/atd-client/src/client.rs` | ✅ | 8 integration tests across workspace | — |
+| Python mirror (`AtdClient` + `AtdClientSync`) | `python/src/atd_client/` | ✅ | 45 pytest tests | — |
+
+### 4.2 Dispatch primitives (v1 — per SP-12 and follow-ups)
+
+Beyond core dispatch, the server layers four additional primitives that make the "ATD = agent-era POSIX" claim concrete. The primitives compose; each call flows:
+
+```
+accept connection → Hello handshake (capability gate) → receive RunTool
+  → registry.get(tool_id)
+  → capability check (refuse if required_capabilities ⊄ granted)
+  → tier-aware deadline resolution (timeout + max_output_bytes)
+  → binding.invoke(args, &ctx)
+  → result middleware pipeline
+  → serialize response
+```
+
+#### 4.2.1 Binding abstraction
+
+| Component | Source | Status | Tests | Notes |
+|---|---|---|---|---|
+| `Binding` trait | `crates/atd-ref-server/src/binding.rs` | ✅ (SP-12) | SP-12 unit tests | |
+| `NativeBinding` (delegates to `Tool` impl) | same | ✅ | — | Default for every registered built-in tool |
+| `CliBinding` (spawn subprocess, map JSON args to argv, honor deadlines) | same | ✅ | SP-12 tests | `ref:external.uname` is the demo tool |
+| `MCP` / `REST` / `AppFunction` bindings | — | 🚫 | — | See [§9.5](#9-non-goals-explicit). Trait designed to extend without breaking existing bindings. |
+
+The binding trait's contract: given `args: serde_json::Value` and a `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. The trait is the extension point for future invocation back-ends.
+
+#### 4.2.2 Tier-aware deadlines
+
+| Component | Source | Status | Notes |
+|---|---|---|---|
+| `Tier` type (`Hot` / `Warm` / `Cold`) | `crates/atd-ref-server/src/tier.rs` | ✅ (SP-12) | Resolution of per-call deadline + max_output_bytes based on the tool's declared tier, overridable via `--tier-override` CLI flag |
+| Default deadlines per tier | same | ✅ | `Hot` = 300ms, `Warm` = 5s, `Cold` = 60s at time of writing; verify against `crates/atd-ref-server/src/tier.rs` before quoting |
+| Tool-declared tier → dispatch honor | `crates/atd-ref-server/src/registry.rs` | ✅ | Existing built-in tools: most ship as `Warm`; ref:external.uname (CliBinding demo) uses `Warm`. Re-classification PRs welcome. |
+| Hot-tier warmup / Cold-tier lazy-load | — | 🚫 | See [§9.5](#9-non-goals-explicit). `Hot` / `Cold` today mean latency/cost class, not lifecycle policy. |
+
+#### 4.2.3 Capability gate
+
+| Component | Source | Status | Notes |
+|---|---|---|---|
+| `Hello` wire message (client → server on connect) | `crates/atd-client/src/protocol.rs` | ✅ (SP-12) | Client requests a subset of capabilities it plans to use |
+| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
+| `CapabilitySet` type + intersection logic | `crates/atd-ref-server/src/capability.rs` | ✅ | — |
+| Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-ref-server/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
+| Full UCAN-style tokens (delegation, revocation, signatures) | — | 🚫 | See [§9.3](#9-non-goals-explicit) |
+
+The v1 capability gate is connection-scoped and allow-list-based. Token-based per-call authorization is deferred; the allow-list closes the 80% case of "limit what an adopter's socket exposes" without the cryptographic complexity of full UCAN.
+
+#### 4.2.4 Result-middleware pipeline
+
+| Component | Source | Status | Notes |
+|---|---|---|---|
+| `Middleware` trait | `crates/atd-ref-server/src/middleware.rs` | ✅ (SP-12) | Runs on success before wire reply |
+| `Pipeline` composition | same | ✅ | Composed at startup via repeated `--middleware` CLI flags |
+| `RedactPathsMiddleware` (redact `$HOME` paths) | same | ✅ | Enabled by default; disable with `--middleware none` |
+| Additional builtins: `pii_redact`, `injection_detect`, `image_meta_strip`, `trim`, `format` | — | ❌ | Tracked for future SPs — see §10 |
+| Third-party middleware registration | — | ⚠️ | Trait is public; no crate boundary prevents a third party writing one. Discoverability is informal. |
+
+The pipeline's contract: each middleware receives the prior result + metadata; can rewrite or reject; chain short-circuits on rejection. Built-ins ship as examples; operators compose per deployment.
+
+#### 4.2.5 Sessions and cancellation
+
+| Component | Status | Notes |
+|---|---|---|
+| `session.start` / `session.end` wire messages | ❌ | Not shipped. Issue [`dispatch-session-cancel-not-implemented`](issues/2026-04-24-dispatch-session-cancel-not-implemented.md) |
+| `cancel(call_id)` | ❌ | Same issue |
+| Call-id correlation (client-visible mid-flight) | ❌ | Requires design |
+
+The session/cancel design surface is wide (state scope, wire mechanism, idempotency, concurrency). Deferring preserves the option to design against a concrete adopter's requirements rather than guessing.
+
+#### 4.2.6 Ergonomic aliases
+
+| Component | Status | Notes |
+|---|---|---|
+| SDK-side alias → canonical-id transform | ❌ | Planned SDK-only (client rewrites before sending). Server unaware. Rationale: v3 whitepaper Appendix J. |
+| Alias DSL grammar | ❌ | Not yet specified |
+| Built-in alias pack | ❌ | Not yet assembled |
+
+### 4.3 Target state
+
+v1 dispatch layer is complete when:
+- Core dispatch ✅ (done)
+- Binding abstraction ✅ (done — SP-12)
+- Tier-aware deadlines ✅ (done — SP-12)
+- Capability gate ✅ (done — SP-12)
+- Result middleware pipeline ✅ with at least one built-in (done — SP-12)
+- Ergonomic aliases (SDK-only) — planned
+- Sessions / cancellation — **intentionally not in v1**; see [§9.2](#9-non-goals-explicit)
+
+v2 dispatch extends with additional bindings, more built-in middleware, and potentially sessions if adopter demand materializes.
+
+### 4.4 Gap → SP mapping
+
+| Gap | Next SP | Status |
+|---|---|---|
+| Ergonomic aliases (SDK-side) | Proposed SP after SP-13 | ❌ |
+| Additional built-in middleware (pii_redact, etc.) | Proposed SP | ❌ |
+| Sessions / cancellation | — | 🚫 per [§9.2](#9-non-goals-explicit) |
+
+### 4.5 See also
+
+- [`docs/protocol/wire-format.md`](protocol/wire-format.md) — wire-level protocol, message definitions
+- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — error taxonomy
+- [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — SP-12 design spec for the four primitives
+- [`docs/issues/2026-04-24-dispatch-session-cancel-not-implemented.md`](issues/2026-04-24-dispatch-session-cancel-not-implemented.md)
+- [`docs/issues/2026-04-24-dispatch-tier-hardcoded-warm.md`](issues/2026-04-24-dispatch-tier-hardcoded-warm.md) — **note:** this issue described state *before* SP-12; verify with `git log` whether it's still open
+- [`docs/issues/2026-04-24-dispatch-binding-single-impl.md`](issues/2026-04-24-dispatch-binding-single-impl.md) — same note, pre-SP-12
+- [`docs/issues/2026-04-24-dispatch-preferred-binding-ignored.md`](issues/2026-04-24-dispatch-preferred-binding-ignored.md)
