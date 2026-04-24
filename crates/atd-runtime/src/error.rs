@@ -34,6 +34,16 @@ pub enum ToolCallError {
     /// Server-side bug or unexpected condition during tool invocation.
     #[error("internal error: {0}")]
     InternalError(String),
+
+    /// Dispatch refused the call because the tool's `max_concurrent`
+    /// semaphore is saturated. Emitted fail-fast — the tool never runs.
+    /// SP-operability-v1 C2.
+    #[error("rate limited ({tool_id}): max_concurrent={limit} in-flight")]
+    RateLimited {
+        tool_id: String,
+        limit: u32,
+        retry_after_ms: Option<u64>,
+    },
 }
 
 #[cfg(test)]
@@ -71,6 +81,7 @@ mod tests {
             ToolCallError::InvalidArgs(_) => {}
             ToolCallError::ExecutionFailed { .. } => {}
             ToolCallError::InternalError(_) => {}
+            ToolCallError::RateLimited { .. } => {}
         }
     }
 }

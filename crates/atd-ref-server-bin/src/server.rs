@@ -296,6 +296,38 @@ pub(crate) async fn dispatch(
                     })),
                 };
             }
+            // SP-operability-v1 C2: rate limit enforcement via per-tool
+            // Semaphore. Fail-fast (`try_acquire_owned`): a saturated tool
+            // returns 1002 immediately with `retryable: true` rather than
+            // queueing, keeping dispatch latency predictable.
+            //
+            // The returned `_permit` must remain in scope through the
+            // `binding.call(...).await` below — dropping it releases the
+            // slot regardless of which result arm runs (success, error,
+            // panic/future-drop).
+            let _permit = match entry.semaphore.clone().try_acquire_owned() {
+                Ok(p) => p,
+                Err(_) => {
+                    let max_conc = entry.tool.definition().resources.max_concurrent;
+                    emit(
+                        atd_runtime::Outcome::RateLimited {
+                            retry_after_ms: None,
+                        },
+                        tier,
+                    );
+                    return Response::Error {
+                        message: format!(
+                            "rate limited for {tool_id}: max_concurrent={max_conc} in-flight"
+                        ),
+                        code: Some(atd_protocol::ERR_RATE_LIMITED),
+                        retryable: Some(true),
+                        details: Some(serde_json::json!({
+                            "tool_id": tool_id,
+                            "limit": max_conc,
+                        })),
+                    };
+                }
+            };
             let tier_timeout = state.tier_policy.timeout(tier);
             let tier_max_output = state.tier_policy.max_output(tier);
 

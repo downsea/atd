@@ -33,10 +33,21 @@ pub trait Tool: Send + Sync {
 /// SP-12 Task 4: `Binding` sits between dispatch and the `Tool` impl so
 /// the same tool can be served via different execution strategies
 /// (in-process, CLI subprocess, future MCP / REST / AppFunction).
+///
+/// SP-operability-v1 C2: `semaphore` enforces `max_concurrent` at
+/// dispatch time via `try_acquire_owned` — saturation returns 1002
+/// before the tool runs. Sized from
+/// `tool.definition().resources.max_concurrent`: a positive value gives
+/// that many permits, `0` maps to `Semaphore::MAX_PERMITS` (effectively
+/// unlimited). `#[non_exhaustive]` is load-bearing — downstream code
+/// goes through `Registry::register*` so new fields can be added here
+/// without breaking external struct-literal callers.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct RegisteredTool {
     pub tool: Arc<dyn Tool>,
     pub binding: Arc<dyn crate::binding::Binding>,
+    pub semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 impl RegisteredTool {
@@ -77,7 +88,26 @@ impl Registry {
         if self.tools.contains_key(&id) {
             panic!("duplicate tool registration: {id}");
         }
-        self.tools.insert(id, RegisteredTool { tool, binding });
+        // SP-operability-v1 C2: pre-build the per-tool semaphore here
+        // (not lazily at dispatch) so the permit count is an invariant of
+        // registration, and so `RegisteredTool` stays cheaply `Clone`.
+        // `max_concurrent == 0` is treated as "unlimited" — MAX_PERMITS
+        // is the tokio-sanctioned sentinel for this.
+        let max = tool.definition().resources.max_concurrent;
+        let permits = if max == 0 {
+            tokio::sync::Semaphore::MAX_PERMITS
+        } else {
+            max as usize
+        };
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(permits));
+        self.tools.insert(
+            id,
+            RegisteredTool {
+                tool,
+                binding,
+                semaphore,
+            },
+        );
     }
 
     pub fn get(&self, tool_id: &str) -> Option<&RegisteredTool> {
@@ -201,5 +231,68 @@ mod tests {
         let r = Registry::new();
         assert_eq!(r.count(), 0);
         assert!(r.summaries().is_empty());
+    }
+
+    /// SP-operability-v1 C2. Verify that `register_with_binding` sizes
+    /// the per-tool semaphore from `resources.max_concurrent` — including
+    /// the `0 → MAX_PERMITS` unlimited-sentinel rule.
+    #[test]
+    fn semaphore_permits_match_max_concurrent() {
+        fn mk_tool(id: &str, max_concurrent: u32) -> Arc<dyn Tool> {
+            Arc::new(StubTool {
+                def: ToolDefinition {
+                    id: id.into(),
+                    name: id.into(),
+                    description: "t".into(),
+                    version: "0".into(),
+                    capability: ToolCapability {
+                        domain: "d".into(),
+                        actions: vec![],
+                        tags: vec![],
+                        intent_examples: vec![],
+                    },
+                    input_schema: serde_json::json!({}),
+                    output_schema: serde_json::json!({}),
+                    bindings: vec![ToolBinding {
+                        protocol: BindingProtocol::Cli,
+                        config: serde_json::json!({}),
+                    }],
+                    safety: ToolSafety {
+                        level: SafetyLevel::Read,
+                        dry_run: false,
+                        side_effects: vec![],
+                        data_sensitivity: None,
+                    },
+                    resources: ToolResources {
+                        timeout_ms: 100,
+                        max_concurrent,
+                        rate_limit_per_min: None,
+                        estimated_tokens: None,
+                    },
+                    trust: ToolTrust {
+                        publisher: "p".into(),
+                        trust_level: TrustLevel::L0Unverified,
+                        signature: None,
+                    },
+                    visibility: ToolVisibility::Read,
+                    required_capabilities: vec![],
+                    tier: None,
+                },
+            })
+        }
+
+        let mut reg = Registry::new();
+        reg.register(mk_tool("stub:a", 5));
+        reg.register(mk_tool("stub:b", 0));
+
+        let a = reg.get("stub:a").unwrap();
+        assert_eq!(a.semaphore.available_permits(), 5);
+
+        let b = reg.get("stub:b").unwrap();
+        assert_eq!(
+            b.semaphore.available_permits(),
+            tokio::sync::Semaphore::MAX_PERMITS,
+            "max_concurrent=0 should map to MAX_PERMITS"
+        );
     }
 }

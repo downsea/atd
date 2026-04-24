@@ -5,6 +5,11 @@ use serde::{Deserialize, Serialize};
 /// granted capability set. SP-12 Task 2.
 pub const ERR_CAPABILITY_DENIED: u16 = 1001;
 
+/// Wire value of `code` on `Response::Error` when dispatch refuses
+/// a call because the tool's `max_concurrent` semaphore is saturated.
+/// SP-operability-v1 C2.
+pub const ERR_RATE_LIMITED: u16 = 1002;
+
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
