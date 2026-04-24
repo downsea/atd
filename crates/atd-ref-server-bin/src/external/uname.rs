@@ -8,8 +8,8 @@
 //! smallest tool that exercises a non-native execution path.
 //!
 //! Linux CI runners (`ubuntu-latest`) ship `/usr/bin/uname`; macOS dev
-//! boxes have it at the same path. Windows is excluded at the `tools/mod.rs`
-//! `#[cfg(unix)]` gate.
+//! boxes have it at the same path. Windows is excluded at the `lib.rs`
+//! `#[cfg(unix)] pub mod external;` gate.
 
 use std::path::PathBuf;
 
