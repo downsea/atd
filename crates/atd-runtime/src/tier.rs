@@ -10,6 +10,16 @@ use std::time::Duration;
 
 pub use atd_protocol::ToolTier;
 
+/// Stable lower-case string label for a `ToolTier`. Used on the audit-event
+/// wire (`CallEvent::tier`) and anywhere a human-readable tier tag is needed.
+pub fn tier_as_str(tier: ToolTier) -> &'static str {
+    match tier {
+        ToolTier::Hot => "hot",
+        ToolTier::Warm => "warm",
+        ToolTier::Cold => "cold",
+    }
+}
+
 /// Per-tier budgets used when constructing `CallContext` for a tool call.
 /// `Warm` defaults match the pre-SP-12 server config (1 MiB / 60 s) to keep
 /// the 9 existing tools' behavior unchanged.

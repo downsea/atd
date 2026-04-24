@@ -111,6 +111,7 @@ async fn spawn(granted: Vec<String>) -> ServerHandle {
         max_output_bytes: 1_048_576,
         default_call_timeout_ms: 5_000,
         granted_capabilities: granted,
+        audit_sink: None,
     };
 
     let server = Server::new(registry, cfg);

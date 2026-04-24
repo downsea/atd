@@ -130,6 +130,7 @@ async fn spawn_with(registry: Registry, tier_policy: TierPolicy) -> ServerHandle
         // Outer fallback; tier-derived deadline should win.
         default_call_timeout_ms: 60_000,
         granted_capabilities: vec![],
+        audit_sink: None,
     };
 
     let mut server = Server::new(registry, cfg);

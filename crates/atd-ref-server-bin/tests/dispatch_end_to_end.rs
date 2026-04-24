@@ -124,6 +124,7 @@ async fn spawn() -> ServerHandle {
         max_output_bytes: 1_048_576,
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec!["exec".into(), "read".into()],
+        audit_sink: None,
     };
 
     // Hot tier overridden to 2 s so the cross-primitive test isn't flaky

@@ -130,15 +130,8 @@ mod tests {
     async fn oversized_args_return_truncation_marker() {
         let t = EchoTool::new();
         // Tiny budget so even a small payload overflows.
-        let ctx = CallContext {
-            cwd: std::path::PathBuf::from("."),
-            max_output_bytes: 32,
-            call_id: ulid::Ulid::new(),
-            deadline: None,
-            read_tracker: None,
-            capabilities: std::sync::Arc::new(atd_runtime::capability::CapabilitySet::empty()),
-            tier: atd_runtime::tier::ToolTier::Warm,
-        };
+        let mut ctx = CallContext::for_test();
+        ctx.max_output_bytes = 32;
         let big = "x".repeat(1_000);
         let args = serde_json::json!({"big": big});
         let r = t.call(args, &ctx).await.unwrap();

@@ -32,6 +32,7 @@ async fn spawn() -> ServerHandle {
         max_output_bytes: 1_048_576,
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec![],
+        audit_sink: None,
     };
     let server = Server::new(builtin_registry(false), cfg);
     let task = tokio::spawn(server.run());

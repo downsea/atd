@@ -23,6 +23,10 @@ pub struct ServerConfig {
     /// `required_capabilities != []` cannot be called — matching the fail-
     /// closed policy for SP-12.
     pub granted_capabilities: Vec<String>,
+    /// Optional audit sink for per-call observability. `None` (default)
+    /// disables audit entirely — no events are constructed, zero overhead.
+    /// SP-operability-v1 C1.
+    pub audit_sink: Option<Arc<dyn atd_runtime::AuditSink>>,
 }
 
 impl Default for ServerConfig {
@@ -34,6 +38,7 @@ impl Default for ServerConfig {
             max_output_bytes: 1_048_576,
             default_call_timeout_ms: 60_000,
             granted_capabilities: vec![],
+            audit_sink: None,
         }
     }
 }
@@ -123,13 +128,17 @@ async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::
     let tracker = Arc::new(atd_runtime::ReadTracker::new()); // per-connection
     // Per-connection capability set, replaced on `Hello`. Default: empty.
     let mut caps: Arc<atd_runtime::CapabilitySet> = Arc::new(atd_runtime::CapabilitySet::empty());
+    // Per-connection caller identity, populated from the Hello handshake's
+    // `client_id`. `None` until the first Hello; shared with every RunTool
+    // CallContext and stamped on audit events.
+    let mut caller_id: Option<String> = None;
     loop {
         let req: Request = match read_frame(&mut reader).await {
             Ok(r) => r,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(e),
         };
-        let resp = dispatch(&state, &tracker, &mut caps, req).await;
+        let resp = dispatch(&state, &tracker, &mut caps, &mut caller_id, req).await;
         write_frame(&mut writer, &resp).await?;
     }
 }
@@ -138,6 +147,7 @@ pub(crate) async fn dispatch(
     state: &Arc<ServerState>,
     tracker: &Arc<atd_runtime::ReadTracker>,
     caps: &mut Arc<atd_runtime::CapabilitySet>,
+    caller_id: &mut Option<String>,
     req: Request,
 ) -> Response {
     match req {
@@ -147,9 +157,13 @@ pub(crate) async fn dispatch(
         // the subset (not the full server set) lets clients discover what they
         // actually hold.
         Request::Hello {
-            client_id: _,
+            client_id,
             requested_capabilities,
         } => {
+            // Cache the caller identity for the lifetime of this connection.
+            // `None` client_id is preserved (SDK may omit it). Each subsequent
+            // Hello on the same connection overwrites the identity.
+            *caller_id = client_id;
             let allow = atd_runtime::CapabilitySet::from_iter(
                 state.config.granted_capabilities.iter().cloned(),
             );
@@ -184,7 +198,38 @@ pub(crate) async fn dispatch(
             args,
             dry_run,
         } => {
+            // SP-operability-v1 C1: per-call audit scaffolding. `start` measures
+            // wall-clock duration from dispatch entry; `audit_call_id` is the
+            // stable id put on `CallEvent` regardless of which return branch
+            // fires (on success/exec_failed/invalid_args branches it matches
+            // `ctx.call_id` — see the Ulid construction below). Emission is a
+            // no-op when `audit_sink` is None (the default).
+            let start = Instant::now();
+            let audit_call_id = ulid::Ulid::new();
+            let emit = |outcome: atd_runtime::Outcome, tier: atd_runtime::tier::ToolTier| {
+                if let Some(sink) = state.config.audit_sink.as_ref() {
+                    sink.on_call(&atd_runtime::CallEvent {
+                        ts: atd_runtime::audit::now_rfc3339(),
+                        call_id: audit_call_id.to_string(),
+                        tool_id: tool_id.clone(),
+                        caller_id: (*caller_id).clone(),
+                        granted_capabilities: caps.granted(),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                        outcome,
+                        tier: atd_runtime::tier_as_str(tier).to_string(),
+                        dry_run,
+                        schema_version: atd_runtime::SCHEMA_VERSION,
+                    });
+                }
+            };
+
             if dry_run {
+                // Dry-run short-circuits BEFORE tier derivation — use Warm as
+                // the placeholder tier for the audit event.
+                emit(
+                    atd_runtime::Outcome::Success,
+                    atd_runtime::tier::ToolTier::Warm,
+                );
                 return Response::ToolResultResponse {
                     tool_id: tool_id.clone(),
                     result: serde_json::json!({
@@ -199,6 +244,10 @@ pub(crate) async fn dispatch(
             let entry = match state.registry.get(&tool_id) {
                 Some(e) => e.clone(),
                 None => {
+                    emit(
+                        atd_runtime::Outcome::ToolNotFound,
+                        atd_runtime::tier::ToolTier::Warm,
+                    );
                     return Response::Error {
                         message: format!("tool not found: {tool_id}"),
                         code: None,
@@ -207,6 +256,14 @@ pub(crate) async fn dispatch(
                     };
                 }
             };
+            // SP-12 Task 3: derive tier from the tool definition; TierPolicy
+            // maps each tier to deadline + max_output budgets. Tools without
+            // a tier field default to Warm (spec §8 Q5), preserving pre-SP-12
+            // behavior for the 9 built-in tools that never set tier.
+            let tier = entry
+                .definition()
+                .tier
+                .unwrap_or(atd_runtime::tier::ToolTier::Warm);
             // SP-12 Task 2: capability enforcement. Refuse calls whose
             // required_capabilities are not a subset of the connection's
             // granted set. Sorted `missing` + `granted` keep the error shape
@@ -222,6 +279,12 @@ pub(crate) async fn dispatch(
                 required_sorted.sort();
                 let mut missing_sorted = missing.clone();
                 missing_sorted.sort();
+                emit(
+                    atd_runtime::Outcome::CapabilityDenied {
+                        missing: missing_sorted.clone(),
+                    },
+                    tier,
+                );
                 return Response::Error {
                     message: format!("capability denied for {tool_id}: missing {missing_sorted:?}"),
                     code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
@@ -233,26 +296,19 @@ pub(crate) async fn dispatch(
                     })),
                 };
             }
-            // SP-12 Task 3: derive tier from the tool definition; TierPolicy
-            // maps each tier to deadline + max_output budgets. Tools without
-            // a tier field default to Warm (spec §8 Q5), preserving pre-SP-12
-            // behavior for the 9 built-in tools that never set tier.
-            let tier = entry
-                .definition()
-                .tier
-                .unwrap_or(atd_runtime::tier::ToolTier::Warm);
             let tier_timeout = state.tier_policy.timeout(tier);
             let tier_max_output = state.tier_policy.max_output(tier);
 
-            let ctx = CallContext {
-                cwd: state.config.cwd.clone(),
-                max_output_bytes: tier_max_output,
-                call_id: ulid::Ulid::new(),
-                deadline: Some(Instant::now() + tier_timeout),
-                read_tracker: Some(tracker.clone()),
-                capabilities: caps.clone(),
+            let ctx = CallContext::new(
+                state.config.cwd.clone(),
+                tier_max_output,
+                audit_call_id,
+                Some(Instant::now() + tier_timeout),
+                Some(tracker.clone()),
+                caps.clone(),
                 tier,
-            };
+                (*caller_id).clone(),
+            );
             // SP-12 Task 4: dispatch through the binding. NativeBinding (the
             // default for `Registry::register`) simply calls back into
             // `Tool::call`; CliBinding spawns a subprocess. Same surface
@@ -265,6 +321,7 @@ pub(crate) async fn dispatch(
                     for mw in &state.middleware {
                         mw.on_result(&tool_id, entry.definition(), &mut data);
                     }
+                    emit(atd_runtime::Outcome::Success, tier);
                     Response::ToolResultResponse {
                         tool_id,
                         result: data,
@@ -272,38 +329,73 @@ pub(crate) async fn dispatch(
                         dry_run: false,
                     }
                 }
-                Err(ToolCallError::InvalidArgs(msg)) => Response::Error {
-                    message: format!("invalid args for {tool_id}: {msg}"),
-                    code: None,
-                    retryable: Some(false),
-                    details: None,
-                },
+                Err(ToolCallError::InvalidArgs(msg)) => {
+                    emit(
+                        atd_runtime::Outcome::InvalidArgs {
+                            message: msg.clone(),
+                        },
+                        tier,
+                    );
+                    Response::Error {
+                        message: format!("invalid args for {tool_id}: {msg}"),
+                        code: None,
+                        retryable: Some(false),
+                        details: None,
+                    }
+                }
                 Err(ToolCallError::ExecutionFailed {
                     code,
                     message,
                     retryable,
-                }) => Response::ToolResultResponse {
-                    tool_id,
-                    result: serde_json::json!({
-                        "code": code,
-                        "message": message,
-                        "retryable": retryable,
-                    }),
-                    success: false,
-                    dry_run: false,
-                },
-                Err(ToolCallError::InternalError(msg)) => Response::Error {
-                    message: format!("internal error in {tool_id}: {msg}"),
-                    code: None,
-                    retryable: Some(false),
-                    details: None,
-                },
-                Err(other) => Response::Error {
-                    message: format!("unhandled tool error in {tool_id}: {other}"),
-                    code: Some(1999),
-                    retryable: Some(false),
-                    details: None,
-                },
+                }) => {
+                    emit(
+                        atd_runtime::Outcome::ExecutionFailed {
+                            code: code.clone(),
+                            retryable,
+                        },
+                        tier,
+                    );
+                    Response::ToolResultResponse {
+                        tool_id,
+                        result: serde_json::json!({
+                            "code": code,
+                            "message": message,
+                            "retryable": retryable,
+                        }),
+                        success: false,
+                        dry_run: false,
+                    }
+                }
+                Err(ToolCallError::InternalError(msg)) => {
+                    emit(
+                        atd_runtime::Outcome::ExecutionFailed {
+                            code: "INTERNAL".into(),
+                            retryable: false,
+                        },
+                        tier,
+                    );
+                    Response::Error {
+                        message: format!("internal error in {tool_id}: {msg}"),
+                        code: None,
+                        retryable: Some(false),
+                        details: None,
+                    }
+                }
+                Err(other) => {
+                    emit(
+                        atd_runtime::Outcome::ExecutionFailed {
+                            code: "UNHANDLED".into(),
+                            retryable: false,
+                        },
+                        tier,
+                    );
+                    Response::Error {
+                        message: format!("unhandled tool error in {tool_id}: {other}"),
+                        code: Some(1999),
+                        retryable: Some(false),
+                        details: None,
+                    }
+                }
             }
         }
     }
@@ -335,6 +427,7 @@ mod tests {
                 max_output_bytes: 1_048_576,
                 default_call_timeout_ms: 60_000,
                 granted_capabilities: vec![],
+                audit_sink: None,
             },
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
@@ -344,14 +437,28 @@ mod tests {
     #[tokio::test]
     async fn ping_returns_pong() {
         let s = test_state();
-        let r = dispatch(&s, &fresh_tracker(), &mut fresh_caps(), Request::Ping).await;
+        let r = dispatch(
+            &s,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::Ping,
+        )
+        .await;
         assert!(matches!(r, Response::Pong));
     }
 
     #[tokio::test]
     async fn tool_list_returns_registered_summaries() {
         let s = test_state();
-        let r = dispatch(&s, &fresh_tracker(), &mut fresh_caps(), Request::ToolList).await;
+        let r = dispatch(
+            &s,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::ToolList,
+        )
+        .await;
         match r {
             Response::ToolListResponse { tools } => {
                 let arr = tools.as_array().unwrap();
@@ -382,6 +489,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::ToolSchema {
                 tool_id: "ref:echo.say".into(),
             },
@@ -403,6 +511,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::ToolSchema {
                 tool_id: "ref:missing".into(),
             },
@@ -423,6 +532,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"k": "v"}),
@@ -452,6 +562,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"x": 1}),
@@ -483,6 +594,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "ref:missing".into(),
                 args: serde_json::json!({}),
@@ -593,6 +705,7 @@ mod tests {
                 max_output_bytes: 1024,
                 default_call_timeout_ms: 1000,
                 granted_capabilities: vec![],
+                audit_sink: None,
             },
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
@@ -606,6 +719,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "test:invalid".into(),
                 args: serde_json::json!({}),
@@ -629,6 +743,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "test:exec".into(),
                 args: serde_json::json!({}),
@@ -661,6 +776,7 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
+            &mut None,
             Request::RunTool {
                 tool_id: "test:internal".into(),
                 args: serde_json::json!({}),

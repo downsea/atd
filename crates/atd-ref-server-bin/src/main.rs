@@ -64,11 +64,40 @@ struct Args {
     /// (code 1001) wire path. NOT for production use.
     #[arg(long, default_value_t = false)]
     enable_conformance_tool: bool,
+
+    /// Path or keyword for audit log sink. Values: "stdout", "stderr",
+    /// or a file path. If omitted, audit logging is disabled (zero
+    /// overhead — no events are constructed). SP-operability-v1 C1.
+    #[arg(long)]
+    audit_log: Option<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> std::process::ExitCode {
     let args = Args::parse();
+
+    // SP-operability-v1 C1: install optional audit sink at startup, before
+    // Server::new, so Server::new sees the configured sink via ServerConfig.
+    // "stdout" and "stderr" are recognized keywords; anything else is a
+    // filesystem path opened for append. Failure to open the file is fatal
+    // (exit 2) — silent fallback would be dangerous for audit pipelines.
+    let audit_sink: Option<std::sync::Arc<dyn atd_runtime::AuditSink>> =
+        match args.audit_log.as_deref() {
+            None => None,
+            Some("stdout") => Some(std::sync::Arc::new(
+                atd_runtime::JsonLinesAuditSink::stdout(),
+            )),
+            Some("stderr") => Some(std::sync::Arc::new(
+                atd_runtime::JsonLinesAuditSink::stderr(),
+            )),
+            Some(path) => match atd_runtime::JsonLinesAuditSink::file(std::path::Path::new(path)) {
+                Ok(s) => Some(std::sync::Arc::new(s)),
+                Err(e) => {
+                    eprintln!("atd-ref-server: cannot open audit log {path}: {e}");
+                    return std::process::ExitCode::from(2);
+                }
+            },
+        };
 
     let mut config = ServerConfig::default();
     if let Some(p) = args.sock {
@@ -80,6 +109,7 @@ async fn main() -> std::process::ExitCode {
     config.max_output_bytes = args.max_output_bytes;
     config.default_call_timeout_ms = args.timeout_ms;
     config.granted_capabilities = args.grant_capabilities;
+    config.audit_sink = audit_sink;
 
     let registry = builtin_registry(args.enable_conformance_tool);
     let mut server = Server::new(registry, config);

@@ -112,6 +112,7 @@ async fn spawn_with_middleware(
         max_output_bytes: 1_048_576,
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec![],
+        audit_sink: None,
     };
     let mut server = Server::new(registry, cfg);
     server.set_middleware(middleware);

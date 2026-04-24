@@ -8,6 +8,7 @@ use crate::capability::CapabilitySet;
 use crate::tier::ToolTier;
 use crate::tracker::ReadTracker;
 
+#[non_exhaustive]
 pub struct CallContext {
     /// Working directory for relative-path tools (Read / Bash / Glob / ...).
     pub cwd: PathBuf,
@@ -31,9 +32,41 @@ pub struct CallContext {
     /// Tier the current call resolved to. Informational for tools; dispatch
     /// uses the tier to pick the deadline / max_output budget above.
     pub tier: ToolTier,
+    /// Optional per-call agent identity. Populated from the `Hello.client_id`
+    /// handshake; `None` for unit tests and in-process dispatch with no
+    /// client-id source. Audit events copy this field into `CallEvent.caller_id`.
+    pub caller_id: Option<String>,
 }
 
 impl CallContext {
+    /// Construct a `CallContext` from its required fields. This is the
+    /// stable constructor across crate boundaries — the type is
+    /// `#[non_exhaustive]`, so adding new fields in the future means
+    /// callers migrate through `CallContext::new(...)` (or a future
+    /// `CallContextBuilder`), not via struct-literal breakage.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        cwd: PathBuf,
+        max_output_bytes: usize,
+        call_id: ulid::Ulid,
+        deadline: Option<Instant>,
+        read_tracker: Option<Arc<ReadTracker>>,
+        capabilities: Arc<CapabilitySet>,
+        tier: ToolTier,
+        caller_id: Option<String>,
+    ) -> Self {
+        Self {
+            cwd,
+            max_output_bytes,
+            call_id,
+            deadline,
+            read_tracker,
+            capabilities,
+            tier,
+            caller_id,
+        }
+    }
+
     pub fn remaining_time(&self) -> Option<Duration> {
         self.deadline
             .map(|d| d.saturating_duration_since(Instant::now()))
@@ -54,6 +87,7 @@ impl CallContext {
             read_tracker: None,
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
+            caller_id: None,
         }
     }
 
@@ -69,6 +103,7 @@ impl CallContext {
             read_tracker: Some(tracker.clone()),
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
+            caller_id: None,
         };
         (ctx, tracker)
     }
@@ -111,6 +146,7 @@ mod tests {
             read_tracker: None,
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
+            caller_id: None,
         };
         let r = ctx.remaining_time().unwrap();
         assert!(r <= Duration::from_secs(5));
@@ -127,6 +163,7 @@ mod tests {
             read_tracker: None,
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
+            caller_id: None,
         };
         assert_eq!(ctx.remaining_time().unwrap(), Duration::ZERO);
     }
