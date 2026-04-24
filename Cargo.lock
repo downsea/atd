@@ -147,22 +147,18 @@ version = "0.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
+ "atd-tools-echo",
+ "atd-tools-fs",
+ "atd-tools-shell",
+ "atd-tools-web",
  "clap",
- "globset",
- "grep-regex",
- "grep-searcher",
- "htmd",
- "ignore",
  "libc",
- "regex",
- "reqwest",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror",
  "tokio",
  "ulid",
- "url",
 ]
 
 [[package]]
@@ -199,6 +195,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "ulid",
 ]
 
 [[package]]
@@ -207,9 +204,16 @@ version = "0.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
+ "globset",
+ "grep-regex",
+ "grep-searcher",
+ "ignore",
+ "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
+ "ulid",
 ]
 
 [[package]]
@@ -218,8 +222,11 @@ version = "0.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
+ "libc",
  "serde",
  "serde_json",
+ "tempfile",
+ "thiserror",
  "tokio",
 ]
 
@@ -229,9 +236,12 @@ version = "0.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
+ "htmd",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]

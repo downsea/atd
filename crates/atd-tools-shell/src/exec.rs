@@ -11,7 +11,7 @@ use atd_protocol::{
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::tools::shell::shared::{run, RunError, RunRequest};
+use crate::shared::{run, RunError, RunRequest};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
