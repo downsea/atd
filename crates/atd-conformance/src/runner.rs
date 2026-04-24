@@ -47,10 +47,10 @@ pub async fn run_case(case: &ConformanceCase, target: &atd_sdk::Endpoint) -> Cas
             let path = target_to_path(target);
             crate::wire::run_wire_case(w, &path).await
         }
-        // Behavior path implemented in Task 5:
-        ConformanceCase::Behavior(_) => Outcome::Skip {
-            why: "behavior runner not yet implemented (Task 5)".into(),
-        },
+        ConformanceCase::Behavior(b) => {
+            let path = target_to_path(target);
+            crate::wire::run_behavior_case(b, &path).await
+        }
     };
 
     CaseResult {

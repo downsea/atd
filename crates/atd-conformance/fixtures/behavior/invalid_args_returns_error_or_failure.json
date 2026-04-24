@@ -1,0 +1,19 @@
+{
+  "category": "behavior",
+  "name": "invalid_args_returns_error_or_failure",
+  "description": "Calling a tool with invalid args (missing required 'path' for ref:fs.read) returns either a Response::Error OR a tool_result with success=false.",
+  "setup": {
+    "kind": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": ["read"]
+  },
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:fs.read",
+    "args": {},
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "error"
+  }
+}

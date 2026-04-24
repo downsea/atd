@@ -1,0 +1,15 @@
+{
+  "category": "behavior",
+  "name": "hello_granted_subset",
+  "description": "Hello returns granted_capabilities as a subset of what was requested. Requesting 'read' when server grants 'read' yields ['read'].",
+  "setup": null,
+  "send": {
+    "type": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": ["read"]
+  },
+  "expect_response_matches": {
+    "type": "hello_ack",
+    "granted_capabilities": ["read"]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "category": "behavior",
+  "name": "capability_denied_returns_code_1001",
+  "description": "Calling a tool whose required_capabilities isn't a subset of the granted set returns Error{code:1001, retryable:false}.",
+  "setup": {
+    "kind": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": ["conformance.denied"]
+  },
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:fs.read",
+    "args": { "path": "Cargo.toml" },
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "error",
+    "code": 1001,
+    "retryable": false
+  }
+}

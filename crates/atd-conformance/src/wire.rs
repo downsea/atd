@@ -1,6 +1,6 @@
 //! Thin shim over atd-protocol::wire plus deep-subset JSON matching.
 
-use crate::case::{SetupStep, WireCase};
+use crate::case::{BehaviorCase, SetupStep, WireCase};
 use crate::runner::Outcome;
 use atd_protocol::wire;
 use serde_json::Value;
@@ -85,6 +85,31 @@ pub async fn run_wire_case(case: &WireCase, target: &Path) -> Outcome {
         },
         Err(_elapsed) => Outcome::Fail {
             reason: format!("wire timeout after {:?}", WIRE_TIMEOUT),
+        },
+    }
+}
+
+/// Run a behavior case. Behavior ≈ wire with required
+/// expect_response_matches and (typically) a Hello setup.
+pub async fn run_behavior_case(case: &BehaviorCase, target: &Path) -> Outcome {
+    let res = tokio::time::timeout(WIRE_TIMEOUT, async {
+        let mut stream = open_and_setup(target, &case.setup).await?;
+        wire::write_frame(&mut stream, &case.send).await?;
+        let response: Value = wire::read_frame(&mut stream).await?;
+        if let Err(reason) = json_matches_subset(&case.expect_response_matches, &response) {
+            return Ok::<Outcome, io::Error>(Outcome::Fail { reason });
+        }
+        Ok(Outcome::Pass)
+    })
+    .await;
+
+    match res {
+        Ok(Ok(outcome)) => outcome,
+        Ok(Err(io_err)) => Outcome::Fail {
+            reason: format!("io error: {}", io_err),
+        },
+        Err(_elapsed) => Outcome::Fail {
+            reason: format!("behavior timeout after {:?}", WIRE_TIMEOUT),
         },
     }
 }

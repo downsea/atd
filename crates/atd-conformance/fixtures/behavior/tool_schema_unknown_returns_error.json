@@ -1,0 +1,13 @@
+{
+  "category": "behavior",
+  "name": "tool_schema_unknown_returns_error",
+  "description": "Requesting the schema of a tool that doesn't exist returns a Response::Error.",
+  "setup": null,
+  "send": {
+    "type": "tool_schema",
+    "tool_id": "completely:unknown.tool"
+  },
+  "expect_response_matches": {
+    "type": "error"
+  }
+}

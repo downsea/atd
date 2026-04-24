@@ -1,0 +1,17 @@
+{
+  "category": "behavior",
+  "name": "dry_run_echo_preserves_dry_run_flag",
+  "description": "A dry-run call to ref:echo.say preserves dry_run=true in the response and does not produce a different result shape.",
+  "setup": null,
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:echo.say",
+    "args": { "text": "dry-run-test" },
+    "dry_run": true
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "tool_id": "ref:echo.say",
+    "dry_run": true
+  }
+}

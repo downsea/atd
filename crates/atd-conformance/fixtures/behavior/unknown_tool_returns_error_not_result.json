@@ -1,0 +1,15 @@
+{
+  "category": "behavior",
+  "name": "unknown_tool_returns_error_not_result",
+  "description": "Calling a tool id the server doesn't register returns a Response::Error (type=error), NOT a tool_result with success=false.",
+  "setup": null,
+  "send": {
+    "type": "run_tool",
+    "tool_id": "completely:unknown.tool",
+    "args": {},
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "error"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "category": "behavior",
+  "name": "echo_preserves_args_verbatim",
+  "description": "ref:echo.say returns the exact args under data.echoed, no transformation (this is the 'test anchor' property of echo).",
+  "setup": null,
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:echo.say",
+    "args": { "text": "unique-canary-value-12345" },
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "success": true,
+    "data": { "echoed": { "text": "unique-canary-value-12345" } }
+  }
+}

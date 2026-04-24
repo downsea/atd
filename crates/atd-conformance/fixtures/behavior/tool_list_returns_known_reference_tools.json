@@ -1,0 +1,11 @@
+{
+  "category": "behavior",
+  "name": "tool_list_returns_known_reference_tools",
+  "description": "Tool list from the reference server includes ref:echo.say. This case is reference-server-specific — third-party servers may skip it or substitute their own known tool.",
+  "setup": null,
+  "send": { "type": "tool_list" },
+  "expect_response_matches": {
+    "type": "tool_list",
+    "tools": "*"
+  }
+}

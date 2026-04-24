@@ -1,0 +1,20 @@
+{
+  "category": "behavior",
+  "name": "capability_granted_allows_call",
+  "description": "After Hello grants a capability, the tool requiring it runs successfully.",
+  "setup": {
+    "kind": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": ["read"]
+  },
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:fs.read",
+    "args": { "path": "Cargo.toml" },
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "success": true
+  }
+}

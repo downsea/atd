@@ -1,0 +1,15 @@
+{
+  "category": "behavior",
+  "name": "hello_requested_superset_yields_only_granted",
+  "description": "Requesting capabilities the server doesn't grant yields only the ones the server actually grants — granted is a subset of requested.",
+  "setup": null,
+  "send": {
+    "type": "hello",
+    "client_id": "conformance",
+    "requested_capabilities": ["read", "conformance.denied"]
+  },
+  "expect_response_matches": {
+    "type": "hello_ack",
+    "granted_capabilities": ["read"]
+  }
+}
