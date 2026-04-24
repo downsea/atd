@@ -192,11 +192,7 @@ mod tests {
         fn definition(&self) -> &ToolDefinition {
             &self.def
         }
-        fn call<'a>(
-            &'a self,
-            _args: serde_json::Value,
-            _ctx: &'a CallContext,
-        ) -> CallFuture<'a> {
+        fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
             Box::pin(async { Ok(serde_json::json!({"native": true})) })
         }
     }
@@ -248,7 +244,9 @@ mod tests {
             .await
             .unwrap_err();
         match err {
-            ToolCallError::ExecutionFailed { code, retryable, .. } => {
+            ToolCallError::ExecutionFailed {
+                code, retryable, ..
+            } => {
                 assert!(code.starts_with("EXIT_"));
                 assert!(!retryable);
             }

@@ -10,13 +10,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_runtime::middleware::RedactPathsMiddleware;
-use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_ref_server_bin::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
+use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_runtime::middleware::RedactPathsMiddleware;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -172,13 +172,16 @@ async fn middleware_redacts_home_path_on_wire() {
     )
     .await;
     assert_eq!(r["success"], serde_json::json!(true));
-    assert_eq!(r["result"]["leaked_path"], "<redacted:home>/secret/config.toml");
     assert_eq!(
-        r["result"]["unrelated"],
-        "this string has no home in it"
+        r["result"]["leaked_path"],
+        "<redacted:home>/secret/config.toml"
     );
+    assert_eq!(r["result"]["unrelated"], "this string has no home in it");
     // Nested fields also get redacted.
-    assert_eq!(r["result"]["nested"]["also_leaked"], "<redacted:home>/another");
+    assert_eq!(
+        r["result"]["nested"]["also_leaked"],
+        "<redacted:home>/another"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

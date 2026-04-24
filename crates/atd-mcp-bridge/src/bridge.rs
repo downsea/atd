@@ -35,11 +35,19 @@ impl Bridge {
             "initialize" => Some(self.handle_initialize(id, req.params)),
             "tools/list" => Some(self.handle_tools_list(id).await),
             "tools/call" => Some(self.handle_tools_call(id, req.params).await),
-            _ => Some(Response::err(id, -32601, format!("method not found: {}", req.method))),
+            _ => Some(Response::err(
+                id,
+                -32601,
+                format!("method not found: {}", req.method),
+            )),
         }
     }
 
-    fn handle_initialize(&self, id: serde_json::Value, params: Option<serde_json::Value>) -> Response {
+    fn handle_initialize(
+        &self,
+        id: serde_json::Value,
+        params: Option<serde_json::Value>,
+    ) -> Response {
         // Echo the client's protocolVersion if supported; otherwise send ours.
         // We currently accept anything of the form YYYY-MM-DD and echo it back
         // (MCP clients often downgrade gracefully if they don't recognize ours).
@@ -63,11 +71,7 @@ impl Bridge {
     }
 
     async fn handle_tools_list(&self, id: serde_json::Value) -> Response {
-        let summaries = match self
-            .client
-            .discover(None, DiscoverFilter::default())
-            .await
-        {
+        let summaries = match self.client.discover(None, DiscoverFilter::default()).await {
             Ok(s) => s,
             Err(e) => return Response::err(id, -32000, format!("discover failed: {e}")),
         };
@@ -93,7 +97,11 @@ impl Bridge {
         Response::ok(id, serde_json::to_value(ToolsListResult { tools }).unwrap())
     }
 
-    async fn handle_tools_call(&self, id: serde_json::Value, params: Option<serde_json::Value>) -> Response {
+    async fn handle_tools_call(
+        &self,
+        id: serde_json::Value,
+        params: Option<serde_json::Value>,
+    ) -> Response {
         let params: ToolsCallParams = match params.and_then(|p| serde_json::from_value(p).ok()) {
             Some(p) => p,
             None => return Response::err(id, -32602, "invalid params for tools/call"),
@@ -102,11 +110,7 @@ impl Bridge {
         // Resolve the MCP-sanitized name back to an ATD tool id by consulting
         // the live tool list. This avoids hardcoded namespace prefixes and
         // stays correct as new namespaces are registered.
-        let summaries = match self
-            .client
-            .discover(None, DiscoverFilter::default())
-            .await
-        {
+        let summaries = match self.client.discover(None, DiscoverFilter::default()).await {
             Ok(s) => s,
             Err(e) => return Response::err(id, -32000, format!("discover failed: {e}")),
         };
@@ -114,11 +118,7 @@ impl Bridge {
         let atd_id = match desanitize_tool_name(&params.name, known_ids.iter().copied()) {
             Some(id_str) => id_str.to_string(),
             None => {
-                return Response::err(
-                    id,
-                    -32602,
-                    format!("unknown tool name: {}", params.name),
-                )
+                return Response::err(id, -32602, format!("unknown tool name: {}", params.name));
             }
         };
         let result = self
@@ -163,7 +163,9 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixListener;
 
-    async fn spawn_fake_atd_server(reply: fn(serde_json::Value) -> serde_json::Value) -> std::path::PathBuf {
+    async fn spawn_fake_atd_server(
+        reply: fn(serde_json::Value) -> serde_json::Value,
+    ) -> std::path::PathBuf {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("s.sock");
         let listener = UnixListener::bind(&path).unwrap();
@@ -176,15 +178,26 @@ mod tests {
                     let (mut r, mut w) = stream.into_split();
                     loop {
                         let mut lb = [0u8; 4];
-                        if r.read_exact(&mut lb).await.is_err() { return; }
+                        if r.read_exact(&mut lb).await.is_err() {
+                            return;
+                        }
                         let n = u32::from_be_bytes(lb) as usize;
                         let mut buf = vec![0u8; n];
-                        if r.read_exact(&mut buf).await.is_err() { return; }
+                        if r.read_exact(&mut buf).await.is_err() {
+                            return;
+                        }
                         let req: serde_json::Value = serde_json::from_slice(&buf).unwrap();
                         let resp_json = reply(req);
                         let body = serde_json::to_vec(&resp_json).unwrap();
-                        if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() { return; }
-                        if w.write_all(&body).await.is_err() { return; }
+                        if w.write_all(&(body.len() as u32).to_be_bytes())
+                            .await
+                            .is_err()
+                        {
+                            return;
+                        }
+                        if w.write_all(&body).await.is_err() {
+                            return;
+                        }
                         let _ = w.flush().await;
                     }
                 });
@@ -197,11 +210,9 @@ mod tests {
 
     #[tokio::test]
     async fn initialize_echoes_protocol_version() {
-        let sock = spawn_fake_atd_server(|req| {
-            match req["type"].as_str() {
-                Some("ping") => json!({"type":"pong"}),
-                _ => json!({"type":"error","message":"unexpected"}),
-            }
+        let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
+            Some("ping") => json!({"type":"pong"}),
+            _ => json!({"type":"error","message":"unexpected"}),
         })
         .await;
 
@@ -211,7 +222,9 @@ mod tests {
             jsonrpc: "2.0".into(),
             id: Some(json!(1)),
             method: "initialize".into(),
-            params: Some(json!({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"0"}})),
+            params: Some(
+                json!({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"0"}}),
+            ),
         };
         let resp = bridge.handle(req).await.unwrap();
         let j = serde_json::to_string(&resp).unwrap();
@@ -251,7 +264,10 @@ mod tests {
         let tools = v["result"]["tools"].as_array().unwrap();
         for tool in tools {
             let name = tool["name"].as_str().unwrap();
-            assert!(!name.contains(':'), "MCP tool name must not contain `:`: {name}");
+            assert!(
+                !name.contains(':'),
+                "MCP tool name must not contain `:`: {name}"
+            );
         }
     }
 
@@ -284,7 +300,10 @@ mod tests {
         let resp = bridge.handle(req).await.unwrap();
         let j = serde_json::to_string(&resp).unwrap();
         assert!(j.contains("\"type\":\"text\""));
-        assert!(j.contains("hi"), "content should include the tool result payload, got: {j}");
+        assert!(
+            j.contains("hi"),
+            "content should include the tool result payload, got: {j}"
+        );
         assert!(!j.contains("\"isError\":true"));
     }
 

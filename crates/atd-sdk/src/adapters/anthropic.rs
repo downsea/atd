@@ -18,7 +18,7 @@
 //! `client.describe(id)` to get the `ToolDefinition`.
 
 use atd_protocol::ToolSummary;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use atd_protocol::sanitize::sanitize_tool_name;
 
@@ -31,9 +31,10 @@ pub fn as_anthropic_tools(summaries: &[ToolSummary]) -> Vec<Value> {
     summaries
         .iter()
         .map(|t| {
-            let input_schema = t.input_schema.clone().unwrap_or_else(
-                || serde_json::json!({"type": "object", "properties": {}}),
-            );
+            let input_schema = t
+                .input_schema
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
             json!({
                 "name": sanitize_tool_name(&t.id),
                 "description": t.description,
@@ -79,7 +80,10 @@ mod tests {
         assert_eq!(out[0]["name"], "ref_fs_read");
         assert_eq!(out[0]["description"], "read a file");
         assert!(out[0]["input_schema"].is_object());
-        assert_eq!(out[0]["input_schema"]["properties"]["text"]["type"], "string");
+        assert_eq!(
+            out[0]["input_schema"]["properties"]["text"]["type"],
+            "string"
+        );
         assert!(out[0].get("function").is_none());
         assert!(out[0].get("type").is_none());
     }
@@ -95,6 +99,9 @@ mod tests {
         let mut s = fake_summary("ref:no.schema", "no schema");
         s.input_schema = None;
         let out = as_anthropic_tools(&[s]);
-        assert_eq!(out[0]["input_schema"], serde_json::json!({"type": "object", "properties": {}}));
+        assert_eq!(
+            out[0]["input_schema"],
+            serde_json::json!({"type": "object", "properties": {}})
+        );
     }
 }

@@ -5,8 +5,8 @@ use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 
 use crate::endpoint::Endpoint;
-use atd_protocol::{Request, Response};
 use atd_protocol::wire::{read_frame, write_frame};
+use atd_protocol::{Request, Response};
 
 /// Async ATD client.
 ///
@@ -87,7 +87,10 @@ impl AtdClient {
             requested_capabilities: requested,
         };
         match self.request(&req).await {
-            Ok(Response::HelloAck { granted_capabilities, .. }) => Ok(granted_capabilities),
+            Ok(Response::HelloAck {
+                granted_capabilities,
+                ..
+            }) => Ok(granted_capabilities),
             // Pre-SP-12 server: it doesn't know `hello`; it may reply with
             // a generic error. Demote to "no caps granted" rather than
             // failing — the caller can still call tools that declare no
@@ -197,10 +200,7 @@ impl AtdClient {
         Ok(out)
     }
 
-    pub async fn describe(
-        &self,
-        tool_id: &str,
-    ) -> Result<atd_protocol::ToolDefinition, AtdError> {
+    pub async fn describe(&self, tool_id: &str) -> Result<atd_protocol::ToolDefinition, AtdError> {
         let resp = self
             .request(&Request::ToolSchema {
                 tool_id: tool_id.to_string(),
@@ -295,7 +295,9 @@ impl AtdClient {
                     granted,
                 })
             }
-            Response::Error { message, retryable, .. } => Err(AtdError::ToolExecutionFailed {
+            Response::Error {
+                message, retryable, ..
+            } => Err(AtdError::ToolExecutionFailed {
                 tool_id: tool_id.to_string(),
                 inner: Box::new(std::io::Error::other(format!(
                     "{message} (retryable={})",
@@ -558,7 +560,11 @@ mod tests {
     async fn call_success_returns_tool_result_success() {
         let (client_end, server_end) = duplex(16_384);
         spin_server(server_end, |req| match req {
-            Request::RunTool { tool_id, args, dry_run } => {
+            Request::RunTool {
+                tool_id,
+                args,
+                dry_run,
+            } => {
                 assert_eq!(tool_id, "anos:fs.read");
                 assert_eq!(args["path"], "/tmp/x");
                 assert!(!dry_run);
@@ -638,13 +644,24 @@ mod tests {
             .await
             .unwrap();
         match r {
-            atd_protocol::ToolResult::Error { code, message, reason, retryable } => {
+            atd_protocol::ToolResult::Error {
+                code,
+                message,
+                reason,
+                retryable,
+            } => {
                 assert_eq!(code, "UNKNOWN"); // defaults used for structured extraction
                 assert_eq!(message, "tool call failed");
                 assert!(!retryable);
                 let reason = reason.expect("reason must carry the raw payload");
-                assert!(reason.contains("\"quota exceeded\""), "reason should preserve hint, got: {reason}");
-                assert!(reason.contains("\"unexpected\""), "reason should preserve unknown keys, got: {reason}");
+                assert!(
+                    reason.contains("\"quota exceeded\""),
+                    "reason should preserve hint, got: {reason}"
+                );
+                assert!(
+                    reason.contains("\"unexpected\""),
+                    "reason should preserve unknown keys, got: {reason}"
+                );
             }
             _ => panic!("expected error variant"),
         }

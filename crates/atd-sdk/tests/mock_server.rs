@@ -109,9 +109,15 @@ async fn spawn_mock_server() -> PathBuf {
                         },
                         ServerReq::ToolSchema { tool_id } => {
                             assert_eq!(tool_id, "mock:echo.say");
-                            ServerResp::ToolSchema { schema: sample_tool() }
+                            ServerResp::ToolSchema {
+                                schema: sample_tool(),
+                            }
                         }
-                        ServerReq::RunTool { tool_id, args, dry_run } => ServerResp::ToolResult {
+                        ServerReq::RunTool {
+                            tool_id,
+                            args,
+                            dry_run,
+                        } => ServerResp::ToolResult {
                             tool_id,
                             result: serde_json::json!({"echo": args}),
                             success: true,

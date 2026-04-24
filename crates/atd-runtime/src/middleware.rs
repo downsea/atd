@@ -16,12 +16,7 @@ use atd_protocol::ToolDefinition;
 pub trait Middleware: Send + Sync {
     fn name(&self) -> &'static str;
 
-    fn on_result(
-        &self,
-        tool_id: &str,
-        tool_def: &ToolDefinition,
-        result: &mut serde_json::Value,
-    );
+    fn on_result(&self, tool_id: &str, tool_def: &ToolDefinition, result: &mut serde_json::Value);
 }
 
 /// Walk a JSON value, applying `f` to every string leaf (including strings

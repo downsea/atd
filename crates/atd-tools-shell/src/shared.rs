@@ -132,12 +132,10 @@ pub async fn run(req: RunRequest<'_>) -> Result<RunOutput, RunError> {
     };
 
     // Process finished; harvest the readers.
-    let (stdout_bytes, stdout_truncated) = stdout_task
-        .await
-        .unwrap_or_else(|_| (Vec::new(), false));
-    let (stderr_bytes, stderr_truncated) = stderr_task
-        .await
-        .unwrap_or_else(|_| (Vec::new(), false));
+    let (stdout_bytes, stdout_truncated) =
+        stdout_task.await.unwrap_or_else(|_| (Vec::new(), false));
+    let (stderr_bytes, stderr_truncated) =
+        stderr_task.await.unwrap_or_else(|_| (Vec::new(), false));
 
     Ok(RunOutput {
         exit_code: status.code(),
@@ -296,7 +294,10 @@ mod tests {
             _ => panic!("expected TimedOut, got {err:?}"),
         }
         // Should have killed within ~deadline + grace, certainly less than the 10s sleep.
-        assert!(elapsed < Duration::from_secs(2), "took too long: {elapsed:?}");
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "took too long: {elapsed:?}"
+        );
     }
 
     #[tokio::test]

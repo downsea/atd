@@ -18,5 +18,5 @@ pub use context::CallContext;
 pub use error::ToolCallError;
 pub use middleware::{Middleware, RedactPathsMiddleware};
 pub use registry::{RegisteredTool, Registry, Tool};
-pub use tier::{tier_from_opt_str, TierPolicy};
+pub use tier::{TierPolicy, tier_from_opt_str};
 pub use tracker::{ReadTracker, ReadTrackerError};

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
@@ -214,8 +214,14 @@ async fn e2e_mcp_tools_list_returns_ref_server_tools() {
     // sanitized forms liberally. The bridge's mapping is stable for these:
     // `ref:echo.say` → `ref_echo_say` etc. We accept either.
     let has = |candidates: &[&str]| candidates.iter().any(|c| names.contains(*c));
-    assert!(has(&["ref:echo.say", "ref_echo_say"]), "echo missing: {names:?}");
-    assert!(has(&["ref:fs.read", "ref_fs_read"]), "fs.read missing: {names:?}");
+    assert!(
+        has(&["ref:echo.say", "ref_echo_say"]),
+        "echo missing: {names:?}"
+    );
+    assert!(
+        has(&["ref:fs.read", "ref_fs_read"]),
+        "fs.read missing: {names:?}"
+    );
     assert!(
         has(&["ref:shell.exec", "ref_shell_exec"]),
         "shell.exec missing: {names:?}"
@@ -254,7 +260,10 @@ async fn e2e_mcp_tools_call_echo_success() {
     assert!(r.get("error").is_none(), "unexpected tools/call error: {r}");
     let result = &r["result"];
     // MCP tools/call returns content array. isError should be falsy.
-    let is_error = result.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
+    let is_error = result
+        .get("isError")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     assert!(!is_error, "tools/call echo reported isError=true: {r}");
     let content_text = serde_json::to_string(&result["content"]).unwrap_or_default();
     assert!(

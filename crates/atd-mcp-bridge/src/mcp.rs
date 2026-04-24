@@ -114,19 +114,26 @@ mod tests {
     #[test]
     fn tools_call_result_content_is_text_tagged() {
         let r = ToolsCallResult {
-            content: vec![ContentBlock::Text { text: "hello".into() }],
+            content: vec![ContentBlock::Text {
+                text: "hello".into(),
+            }],
             is_error: false,
         };
         let j = serde_json::to_string(&r).unwrap();
         assert!(j.contains("\"type\":\"text\""));
         assert!(j.contains("\"text\":\"hello\""));
-        assert!(!j.contains("isError"), "isError should be suppressed when false, got: {j}");
+        assert!(
+            !j.contains("isError"),
+            "isError should be suppressed when false, got: {j}"
+        );
     }
 
     #[test]
     fn tools_call_result_error_flag_emitted_when_true() {
         let r = ToolsCallResult {
-            content: vec![ContentBlock::Text { text: "fail".into() }],
+            content: vec![ContentBlock::Text {
+                text: "fail".into(),
+            }],
             is_error: true,
         };
         let j = serde_json::to_string(&r).unwrap();

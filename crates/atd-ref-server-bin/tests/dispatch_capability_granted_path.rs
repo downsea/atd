@@ -9,13 +9,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_runtime::error::ToolCallError;
-use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_ref_server_bin::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
+use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -128,10 +128,7 @@ async fn spawn(granted: Vec<String>) -> ServerHandle {
     panic!("server did not create socket within 5s at {sock:?}");
 }
 
-async fn send_on_stream(
-    stream: &mut UnixStream,
-    req: serde_json::Value,
-) -> serde_json::Value {
+async fn send_on_stream(stream: &mut UnixStream, req: serde_json::Value) -> serde_json::Value {
     let body = serde_json::to_vec(&req).unwrap();
     stream
         .write_all(&(body.len() as u32).to_be_bytes())

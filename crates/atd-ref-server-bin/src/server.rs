@@ -6,11 +6,11 @@ use std::time::Instant;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use atd_protocol::wire::{read_frame, write_frame};
+use atd_protocol::{Request, Response};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
-use atd_protocol::{Request, Response};
 use atd_runtime::registry::Registry;
-use atd_protocol::wire::{read_frame, write_frame};
 
 pub struct ServerConfig {
     pub socket_path: PathBuf,
@@ -120,10 +120,9 @@ impl Server {
 
 async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::io::Result<()> {
     let (mut reader, mut writer) = stream.into_split();
-    let tracker = Arc::new(atd_runtime::ReadTracker::new());  // per-connection
+    let tracker = Arc::new(atd_runtime::ReadTracker::new()); // per-connection
     // Per-connection capability set, replaced on `Hello`. Default: empty.
-    let mut caps: Arc<atd_runtime::CapabilitySet> =
-        Arc::new(atd_runtime::CapabilitySet::empty());
+    let mut caps: Arc<atd_runtime::CapabilitySet> = Arc::new(atd_runtime::CapabilitySet::empty());
     loop {
         let req: Request = match read_frame(&mut reader).await {
             Ok(r) => r,
@@ -180,7 +179,11 @@ pub(crate) async fn dispatch(
                 details: None,
             },
         },
-        Request::RunTool { tool_id, args, dry_run } => {
+        Request::RunTool {
+            tool_id,
+            args,
+            dry_run,
+        } => {
             if dry_run {
                 return Response::ToolResultResponse {
                     tool_id: tool_id.clone(),
@@ -220,9 +223,7 @@ pub(crate) async fn dispatch(
                 let mut missing_sorted = missing.clone();
                 missing_sorted.sort();
                 return Response::Error {
-                    message: format!(
-                        "capability denied for {tool_id}: missing {missing_sorted:?}"
-                    ),
+                    message: format!("capability denied for {tool_id}: missing {missing_sorted:?}"),
                     code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
                     retryable: Some(false),
                     details: Some(serde_json::json!({
@@ -256,11 +257,7 @@ pub(crate) async fn dispatch(
             // default for `Registry::register`) simply calls back into
             // `Tool::call`; CliBinding spawns a subprocess. Same surface
             // either way.
-            match entry
-                .binding
-                .call(entry.definition(), args, &ctx)
-                .await
-            {
+            match entry.binding.call(entry.definition(), args, &ctx).await {
                 Ok(mut data) => {
                     // SP-12 Task 5: result-middleware chain runs on success
                     // only (spec §8 Q4). Order is the order set via
@@ -281,18 +278,20 @@ pub(crate) async fn dispatch(
                     retryable: Some(false),
                     details: None,
                 },
-                Err(ToolCallError::ExecutionFailed { code, message, retryable }) => {
-                    Response::ToolResultResponse {
-                        tool_id,
-                        result: serde_json::json!({
-                            "code": code,
-                            "message": message,
-                            "retryable": retryable,
-                        }),
-                        success: false,
-                        dry_run: false,
-                    }
-                }
+                Err(ToolCallError::ExecutionFailed {
+                    code,
+                    message,
+                    retryable,
+                }) => Response::ToolResultResponse {
+                    tool_id,
+                    result: serde_json::json!({
+                        "code": code,
+                        "message": message,
+                        "retryable": retryable,
+                    }),
+                    success: false,
+                    dry_run: false,
+                },
                 Err(ToolCallError::InternalError(msg)) => Response::Error {
                     message: format!("internal error in {tool_id}: {msg}"),
                     code: None,
@@ -383,7 +382,9 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
-            Request::ToolSchema { tool_id: "ref:echo.say".into() },
+            Request::ToolSchema {
+                tool_id: "ref:echo.say".into(),
+            },
         )
         .await;
         match r {
@@ -402,7 +403,9 @@ mod tests {
             &s,
             &fresh_tracker(),
             &mut fresh_caps(),
-            Request::ToolSchema { tool_id: "ref:missing".into() },
+            Request::ToolSchema {
+                tool_id: "ref:missing".into(),
+            },
         )
         .await;
         match r {
@@ -428,7 +431,12 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResultResponse { result, success, dry_run, .. } => {
+            Response::ToolResultResponse {
+                result,
+                success,
+                dry_run,
+                ..
+            } => {
                 assert!(success);
                 assert!(!dry_run);
                 assert_eq!(result["echoed"]["k"], "v");
@@ -452,7 +460,12 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResultResponse { result, success, dry_run, .. } => {
+            Response::ToolResultResponse {
+                result,
+                success,
+                dry_run,
+                ..
+            } => {
                 assert!(success);
                 assert!(dry_run);
                 assert_eq!(result["dry_run"], serde_json::json!(true));
@@ -553,11 +566,7 @@ mod tests {
         fn definition(&self) -> &atd_protocol::ToolDefinition {
             &self.def
         }
-        fn call<'a>(
-            &'a self,
-            _args: serde_json::Value,
-            _ctx: &'a CallContext,
-        ) -> CallFuture<'a> {
+        fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
             let mode = self.mode;
             Box::pin(async move {
                 match mode {
@@ -628,7 +637,12 @@ mod tests {
         )
         .await;
         match r {
-            Response::ToolResultResponse { result, success, dry_run, tool_id } => {
+            Response::ToolResultResponse {
+                result,
+                success,
+                dry_run,
+                tool_id,
+            } => {
                 assert!(!success);
                 assert!(!dry_run);
                 assert_eq!(tool_id, "test:exec");

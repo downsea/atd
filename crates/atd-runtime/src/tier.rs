@@ -61,9 +61,7 @@ impl TierPolicy {
     pub fn apply_override(&mut self, spec: &str) -> Result<(), String> {
         let parts: Vec<&str> = spec.splitn(3, '=').collect();
         if parts.len() != 3 {
-            return Err(format!(
-                "expected '<tier>=<key>=<value>', got '{spec}'"
-            ));
+            return Err(format!("expected '<tier>=<key>=<value>', got '{spec}'"));
         }
         let tier = match parts[0] {
             "hot" => ToolTier::Hot,

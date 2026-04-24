@@ -35,7 +35,8 @@ pub struct CallContext {
 
 impl CallContext {
     pub fn remaining_time(&self) -> Option<Duration> {
-        self.deadline.map(|d| d.saturating_duration_since(Instant::now()))
+        self.deadline
+            .map(|d| d.saturating_duration_since(Instant::now()))
     }
 }
 

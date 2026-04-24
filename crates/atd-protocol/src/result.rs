@@ -64,7 +64,13 @@ impl ToolResult {
     }
 
     pub fn is_retryable(&self) -> bool {
-        matches!(self, ToolResult::Error { retryable: true, .. })
+        matches!(
+            self,
+            ToolResult::Error {
+                retryable: true,
+                ..
+            }
+        )
     }
 
     pub fn data(&self) -> Option<&serde_json::Value> {

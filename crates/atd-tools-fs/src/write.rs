@@ -7,10 +7,10 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
+use crate::shared::{atomic_write, resolve_path};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::shared::{atomic_write, resolve_path};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
@@ -94,21 +94,19 @@ impl Tool for FsWriteTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             let args: WriteArgs = serde_json::from_value(args)
                 .map_err(|e| ToolCallError::InvalidArgs(e.to_string()))?;
 
             let resolved = resolve_path(&ctx.cwd, &args.path);
-            let parent = resolved.parent().ok_or_else(|| ToolCallError::ExecutionFailed {
-                code: "NO_PARENT".into(),
-                message: format!("path has no parent: {}", resolved.display()),
-                retryable: false,
-            })?;
+            let parent = resolved
+                .parent()
+                .ok_or_else(|| ToolCallError::ExecutionFailed {
+                    code: "NO_PARENT".into(),
+                    message: format!("path has no parent: {}", resolved.display()),
+                    retryable: false,
+                })?;
             if !parent.exists() {
                 return Err(ToolCallError::ExecutionFailed {
                     code: "NO_PARENT".into(),

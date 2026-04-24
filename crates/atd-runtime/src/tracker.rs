@@ -55,10 +55,14 @@ impl ReadTracker {
     ) -> Result<(), ReadTrackerError> {
         let g = self.entries.lock().expect("tracker mutex poisoned");
         match g.get(path) {
-            None => Err(ReadTrackerError::NotRead { path: path.to_path_buf() }),
+            None => Err(ReadTrackerError::NotRead {
+                path: path.to_path_buf(),
+            }),
             Some(rec) => {
                 if rec.mtime != current_mtime || rec.size != current_size {
-                    Err(ReadTrackerError::Modified { path: path.to_path_buf() })
+                    Err(ReadTrackerError::Modified {
+                        path: path.to_path_buf(),
+                    })
                 } else {
                     Ok(())
                 }

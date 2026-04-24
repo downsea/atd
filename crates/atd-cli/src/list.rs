@@ -1,16 +1,12 @@
 //! `atd list` — discover tools and print them, filtered by flags.
 
-use atd_sdk::{AtdClient, DiscoverFilter};
 use atd_protocol::{AtdError, ToolTier, ToolVisibility};
+use atd_sdk::{AtdClient, DiscoverFilter};
 use std::io::Write;
 
 use crate::cli::ListArgs;
 
-pub async fn run(
-    client: &AtdClient,
-    args: ListArgs,
-    out: &mut impl Write,
-) -> Result<(), AtdError> {
+pub async fn run(client: &AtdClient, args: ListArgs, out: &mut impl Write) -> Result<(), AtdError> {
     let filter = DiscoverFilter {
         tier: args.tier.as_deref().and_then(parse_tier),
         visibility: args.visibility.as_deref().and_then(parse_visibility),
@@ -21,11 +17,10 @@ pub async fn run(
     let summaries = client.discover(args.query.as_deref(), filter).await?;
 
     if args.json {
-        serde_json::to_writer(&mut *out, &summaries)
-            .map_err(|e| AtdError::ProtocolError {
-                expected: "serializable ToolSummary list".into(),
-                got: format!("serde error: {e}"),
-            })?;
+        serde_json::to_writer(&mut *out, &summaries).map_err(|e| AtdError::ProtocolError {
+            expected: "serializable ToolSummary list".into(),
+            got: format!("serde error: {e}"),
+        })?;
         writeln!(out).ok();
         return Ok(());
     }
@@ -121,10 +116,14 @@ mod tests {
                     let (mut r, mut w) = stream.into_split();
                     loop {
                         let mut lb = [0u8; 4];
-                        if r.read_exact(&mut lb).await.is_err() { return; }
+                        if r.read_exact(&mut lb).await.is_err() {
+                            return;
+                        }
                         let n = u32::from_be_bytes(lb) as usize;
                         let mut buf = vec![0u8; n];
-                        if r.read_exact(&mut buf).await.is_err() { return; }
+                        if r.read_exact(&mut buf).await.is_err() {
+                            return;
+                        }
                         let req: serde_json::Value = serde_json::from_slice(&buf).unwrap();
                         let reply: serde_json::Value = match req["type"].as_str() {
                             Some("ping") => serde_json::json!({"type":"pong"}),
@@ -138,8 +137,15 @@ mod tests {
                             _ => serde_json::json!({"type":"error","message":"no"}),
                         };
                         let body = serde_json::to_vec(&reply).unwrap();
-                        if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() { return; }
-                        if w.write_all(&body).await.is_err() { return; }
+                        if w.write_all(&(body.len() as u32).to_be_bytes())
+                            .await
+                            .is_err()
+                        {
+                            return;
+                        }
+                        if w.write_all(&body).await.is_err() {
+                            return;
+                        }
                         let _ = w.flush().await;
                     }
                 });
@@ -156,7 +162,14 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         run(
             &client,
-            ListArgs { query: None, domain: None, tier: None, visibility: None, limit: None, json: false },
+            ListArgs {
+                query: None,
+                domain: None,
+                tier: None,
+                visibility: None,
+                limit: None,
+                json: false,
+            },
             &mut out,
         )
         .await
@@ -175,7 +188,14 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         run(
             &client,
-            ListArgs { query: None, domain: None, tier: None, visibility: None, limit: None, json: true },
+            ListArgs {
+                query: None,
+                domain: None,
+                tier: None,
+                visibility: None,
+                limit: None,
+                json: true,
+            },
             &mut out,
         )
         .await
@@ -193,7 +213,14 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         run(
             &client,
-            ListArgs { query: None, domain: None, tier: None, visibility: None, limit: Some(1), json: false },
+            ListArgs {
+                query: None,
+                domain: None,
+                tier: None,
+                visibility: None,
+                limit: Some(1),
+                json: false,
+            },
             &mut out,
         )
         .await

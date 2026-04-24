@@ -162,6 +162,9 @@ mod tests {
     #[test]
     fn tier_omitted_when_none() {
         let j = serde_json::to_string(&sample()).unwrap();
-        assert!(!j.contains("\"tier\""), "tier should be skipped when None: {j}");
+        assert!(
+            !j.contains("\"tier\""),
+            "tier should be skipped when None: {j}"
+        );
     }
 }

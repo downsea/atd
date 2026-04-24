@@ -99,7 +99,8 @@ mod tests {
 
     #[test]
     fn read_request_parses_single_line() {
-        let mut cursor = Cursor::new(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n".to_vec());
+        let mut cursor =
+            Cursor::new(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n".to_vec());
         let req = read_request(&mut cursor).unwrap().unwrap();
         assert_eq!(req.method, "ping");
         assert_eq!(req.jsonrpc, "2.0");
@@ -114,7 +115,8 @@ mod tests {
 
     #[test]
     fn read_request_skips_blank_lines() {
-        let mut cursor = Cursor::new(b"\n\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"x\"}\n".to_vec());
+        let mut cursor =
+            Cursor::new(b"\n\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"x\"}\n".to_vec());
         let req = read_request(&mut cursor).unwrap().unwrap();
         assert_eq!(req.method, "x");
     }
@@ -138,7 +140,11 @@ mod tests {
     #[test]
     fn error_response_has_error_field() {
         let mut buf: Vec<u8> = Vec::new();
-        write_response(&mut buf, &Response::err(serde_json::json!(7), -32601, "method not found")).unwrap();
+        write_response(
+            &mut buf,
+            &Response::err(serde_json::json!(7), -32601, "method not found"),
+        )
+        .unwrap();
         let s = String::from_utf8(buf).unwrap();
         assert!(s.contains("\"error\""));
         assert!(s.contains("\"code\":-32601"));

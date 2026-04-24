@@ -37,12 +37,12 @@ async fn send_one_request(
     Ok(serde_json::from_slice(&buf).unwrap())
 }
 
-async fn send_on_stream(
-    stream: &mut UnixStream,
-    req: serde_json::Value,
-) -> serde_json::Value {
+async fn send_on_stream(stream: &mut UnixStream, req: serde_json::Value) -> serde_json::Value {
     let body = serde_json::to_vec(&req).unwrap();
-    stream.write_all(&(body.len() as u32).to_be_bytes()).await.unwrap();
+    stream
+        .write_all(&(body.len() as u32).to_be_bytes())
+        .await
+        .unwrap();
     stream.write_all(&body).await.unwrap();
     stream.flush().await.unwrap();
     let mut header = [0u8; 4];
@@ -79,7 +79,11 @@ async fn spawn_server() -> ServerHandle {
         if sock.exists() {
             // Give the listener a tick to be accept()-ready.
             tokio::time::sleep(Duration::from_millis(20)).await;
-            return ServerHandle { child, sock, tempdir: dir };
+            return ServerHandle {
+                child,
+                sock,
+                tempdir: dir,
+            };
         }
         if let Ok(Some(status)) = child.try_wait() {
             panic!("server exited before creating socket: status {status:?}");
@@ -197,12 +201,12 @@ async fn e2e_multiple_requests_on_one_connection() {
     // Open ONE stream, send two requests in sequence, read two responses.
     let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
 
-    async fn one(
-        stream: &mut UnixStream,
-        req: serde_json::Value,
-    ) -> serde_json::Value {
+    async fn one(stream: &mut UnixStream, req: serde_json::Value) -> serde_json::Value {
         let body = serde_json::to_vec(&req).unwrap();
-        stream.write_all(&(body.len() as u32).to_be_bytes()).await.unwrap();
+        stream
+            .write_all(&(body.len() as u32).to_be_bytes())
+            .await
+            .unwrap();
         stream.write_all(&body).await.unwrap();
         stream.flush().await.unwrap();
 
@@ -255,7 +259,12 @@ async fn e2e_fs_write_then_read_roundtrip() {
     .unwrap();
     assert_eq!(r["success"], serde_json::json!(true));
     assert_eq!(r["result"]["line_count"], 2);
-    assert!(r["result"]["content"].as_str().unwrap().contains("   1\thello"));
+    assert!(
+        r["result"]["content"]
+            .as_str()
+            .unwrap()
+            .contains("   1\thello")
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -633,8 +642,7 @@ async fn e2e_fs_glob_returns_paths() {
     .unwrap();
     assert_eq!(r["type"], "tool_result");
     assert_eq!(r["success"], serde_json::json!(true));
-    let paths: Vec<String> =
-        serde_json::from_value(r["result"]["paths"].clone()).unwrap();
+    let paths: Vec<String> = serde_json::from_value(r["result"]["paths"].clone()).unwrap();
     assert_eq!(paths, vec!["a.rs".to_string(), "b.rs".to_string()]);
     assert_eq!(r["result"]["truncated"], false);
 }
@@ -767,7 +775,10 @@ async fn e2e_web_fetch_localhost_happy() {
     assert_eq!(r["result"]["status"], 200);
     assert_eq!(r["result"]["binary"], false);
     let content = r["result"]["content"].as_str().unwrap();
-    assert!(content.contains("Hello"), "content should contain 'Hello': {content:?}");
+    assert!(
+        content.contains("Hello"),
+        "content should contain 'Hello': {content:?}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

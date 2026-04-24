@@ -101,7 +101,9 @@ mod tests {
         let j = serde_json::to_string(&r).unwrap();
         let back: Request = serde_json::from_str(&j).unwrap();
         match back {
-            Request::RunTool { tool_id, dry_run, .. } => {
+            Request::RunTool {
+                tool_id, dry_run, ..
+            } => {
                 assert_eq!(tool_id, "anos:fs.read");
                 assert!(!dry_run);
             }
@@ -130,7 +132,12 @@ mod tests {
         let j = r#"{"type":"error","message":"boom"}"#;
         let back: Response = serde_json::from_str(j).unwrap();
         match back {
-            Response::Error { message, code, retryable, details } => {
+            Response::Error {
+                message,
+                code,
+                retryable,
+                details,
+            } => {
                 assert_eq!(message, "boom");
                 assert!(code.is_none());
                 assert!(retryable.is_none());

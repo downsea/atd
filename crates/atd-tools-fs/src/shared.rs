@@ -97,9 +97,9 @@ pub struct AtomicWriteResult {
 /// doesn't exist.
 pub async fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<AtomicWriteResult> {
     use std::io::ErrorKind;
-    let parent = path.parent().ok_or_else(|| {
-        std::io::Error::new(ErrorKind::InvalidInput, "path has no parent")
-    })?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| std::io::Error::new(ErrorKind::InvalidInput, "path has no parent"))?;
 
     let created = !path.exists();
     let tmp_name = format!(".atd-ref-write-{}.tmp", ulid::Ulid::new());
@@ -126,13 +126,19 @@ mod tests {
     #[test]
     fn resolve_absolute_path_unchanged() {
         let cwd = Path::new("/home/u");
-        assert_eq!(resolve_path(cwd, "/etc/hostname"), PathBuf::from("/etc/hostname"));
+        assert_eq!(
+            resolve_path(cwd, "/etc/hostname"),
+            PathBuf::from("/etc/hostname")
+        );
     }
 
     #[test]
     fn resolve_relative_path_joined_to_cwd() {
         let cwd = Path::new("/home/u");
-        assert_eq!(resolve_path(cwd, "proj/foo.txt"), PathBuf::from("/home/u/proj/foo.txt"));
+        assert_eq!(
+            resolve_path(cwd, "proj/foo.txt"),
+            PathBuf::from("/home/u/proj/foo.txt")
+        );
     }
 
     #[test]
@@ -209,6 +215,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("no_such_dir").join("f.txt");
         let err = atomic_write(&path, b"x").await.unwrap_err();
-        assert!(err.kind() == std::io::ErrorKind::NotFound || err.kind() == std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.kind() == std::io::ErrorKind::NotFound
+                || err.kind() == std::io::ErrorKind::InvalidInput
+        );
     }
 }

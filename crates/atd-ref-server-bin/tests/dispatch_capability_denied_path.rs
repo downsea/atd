@@ -12,13 +12,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_runtime::error::ToolCallError;
-use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_ref_server_bin::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
+use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -169,20 +169,14 @@ async fn run_tool_denied_when_no_hello_and_required_cap_missing() {
     assert_eq!(r["code"], 1001);
     assert_eq!(r["retryable"], serde_json::json!(false));
     assert!(
-        r["message"]
-            .as_str()
-            .unwrap()
-            .contains("capability denied"),
+        r["message"].as_str().unwrap().contains("capability denied"),
         "message should mention capability denial: {}",
         r["message"]
     );
     let details = &r["details"];
-    let required: Vec<String> =
-        serde_json::from_value(details["required"].clone()).unwrap();
-    let granted: Vec<String> =
-        serde_json::from_value(details["granted"].clone()).unwrap();
-    let missing: Vec<String> =
-        serde_json::from_value(details["missing"].clone()).unwrap();
+    let required: Vec<String> = serde_json::from_value(details["required"].clone()).unwrap();
+    let granted: Vec<String> = serde_json::from_value(details["granted"].clone()).unwrap();
+    let missing: Vec<String> = serde_json::from_value(details["missing"].clone()).unwrap();
     assert_eq!(required, vec!["exec"]);
     assert!(granted.is_empty());
     assert_eq!(missing, vec!["exec"]);
@@ -199,10 +193,7 @@ async fn run_tool_denied_when_hello_asks_for_cap_not_granted_by_server() {
     // per-connection capability state survives between requests.
     let mut stream = UnixStream::connect(&srv.sock).await.unwrap();
 
-    async fn one(
-        stream: &mut UnixStream,
-        req: serde_json::Value,
-    ) -> serde_json::Value {
+    async fn one(stream: &mut UnixStream, req: serde_json::Value) -> serde_json::Value {
         let body = serde_json::to_vec(&req).unwrap();
         stream
             .write_all(&(body.len() as u32).to_be_bytes())

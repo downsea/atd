@@ -7,10 +7,10 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
+use crate::shared::{format_with_line_numbers, resolve_path};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::shared::{format_with_line_numbers, resolve_path};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
@@ -103,11 +103,7 @@ impl Tool for FsReadTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             let args: ReadArgs = serde_json::from_value(args)
                 .map_err(|e| ToolCallError::InvalidArgs(e.to_string()))?;
@@ -135,11 +131,13 @@ impl Tool for FsReadTool {
                 });
             }
             let size = meta.len();
-            let mtime = meta.modified().map_err(|e| ToolCallError::ExecutionFailed {
-                code: "IO".into(),
-                message: format!("mtime: {e}"),
-                retryable: true,
-            })?;
+            let mtime = meta
+                .modified()
+                .map_err(|e| ToolCallError::ExecutionFailed {
+                    code: "IO".into(),
+                    message: format!("mtime: {e}"),
+                    retryable: true,
+                })?;
 
             let bytes = match tokio::fs::read(&canonical).await {
                 Ok(b) => b,
@@ -157,7 +155,8 @@ impl Tool for FsReadTool {
             };
 
             let offset = args.offset.unwrap_or(1);
-            let formatted = format_with_line_numbers(&text, offset, args.limit, ctx.max_output_bytes);
+            let formatted =
+                format_with_line_numbers(&text, offset, args.limit, ctx.max_output_bytes);
 
             // Record in tracker (if any).
             if let Some(tracker) = &ctx.read_tracker {
@@ -206,10 +205,7 @@ mod tests {
         let t = FsReadTool::new();
         let (ctx, _tr) = CallContext::for_test_with_tracker();
         let r = t
-            .call(
-                serde_json::json!({"path": path.to_string_lossy()}),
-                &ctx,
-            )
+            .call(serde_json::json!({"path": path.to_string_lossy()}), &ctx)
             .await
             .unwrap();
         assert_eq!(r["line_count"], 2);
@@ -320,10 +316,7 @@ mod tests {
         let t = FsReadTool::new();
         let ctx = CallContext::for_test();
         let err = t
-            .call(
-                serde_json::json!({"path": path.to_string_lossy()}),
-                &ctx,
-            )
+            .call(serde_json::json!({"path": path.to_string_lossy()}), &ctx)
             .await
             .unwrap_err();
         match err {
@@ -354,12 +347,9 @@ mod tests {
         let (_dir, path) = write_tmp("one\n").await;
         let t = FsReadTool::new();
         let (ctx, tr) = CallContext::for_test_with_tracker();
-        t.call(
-            serde_json::json!({"path": path.to_string_lossy()}),
-            &ctx,
-        )
-        .await
-        .unwrap();
+        t.call(serde_json::json!({"path": path.to_string_lossy()}), &ctx)
+            .await
+            .unwrap();
         // After Read, tracker.check with current stat should succeed.
         let canonical = tokio::fs::canonicalize(&path).await.unwrap();
         let meta = tokio::fs::metadata(&canonical).await.unwrap();
@@ -376,10 +366,7 @@ mod tests {
         let mut ctx = CallContext::for_test();
         ctx.max_output_bytes = 220;
         let r = t
-            .call(
-                serde_json::json!({"path": path.to_string_lossy()}),
-                &ctx,
-            )
+            .call(serde_json::json!({"path": path.to_string_lossy()}), &ctx)
             .await
             .unwrap();
         assert_eq!(r["truncated"], serde_json::json!(true));

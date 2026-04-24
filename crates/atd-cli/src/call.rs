@@ -1,16 +1,12 @@
 //! `atd call` — invoke a tool with JSON args and print the result.
 
-use atd_sdk::{AtdClient, CallOptions};
 use atd_protocol::{AtdError, ToolResult};
+use atd_sdk::{AtdClient, CallOptions};
 use std::io::Write;
 
 use crate::cli::CallArgs;
 
-pub async fn run(
-    client: &AtdClient,
-    args: CallArgs,
-    out: &mut impl Write,
-) -> Result<(), AtdError> {
+pub async fn run(client: &AtdClient, args: CallArgs, out: &mut impl Write) -> Result<(), AtdError> {
     let call_args: serde_json::Value =
         serde_json::from_str(&args.args).map_err(|e| AtdError::InvalidArguments {
             tool_id: args.tool_id.clone(),
@@ -30,11 +26,10 @@ pub async fn run(
         .await?;
 
     if args.json {
-        let v = serde_json::to_string(&result)
-            .map_err(|e| AtdError::ProtocolError {
-                expected: "serializable ToolResult".into(),
-                got: format!("serde error: {e}"),
-            })?;
+        let v = serde_json::to_string(&result).map_err(|e| AtdError::ProtocolError {
+            expected: "serializable ToolResult".into(),
+            got: format!("serde error: {e}"),
+        })?;
         writeln!(out, "{v}").ok();
         return Ok(());
     }
@@ -46,16 +41,22 @@ pub async fn run(
             writeln!(out, "{pretty}").ok();
             Ok(())
         }
-        ToolResult::Error { code, message, reason, retryable } => {
-            Err(AtdError::ToolExecutionFailed {
-                tool_id: args.tool_id.clone(),
-                inner: Box::new(std::io::Error::other(format!(
-                    "[{code}] {message}{}{}",
-                    if retryable { " (retryable)" } else { "" },
-                    reason.as_deref().map(|r| format!(" — raw: {r}")).unwrap_or_default()
-                ))),
-            })
-        }
+        ToolResult::Error {
+            code,
+            message,
+            reason,
+            retryable,
+        } => Err(AtdError::ToolExecutionFailed {
+            tool_id: args.tool_id.clone(),
+            inner: Box::new(std::io::Error::other(format!(
+                "[{code}] {message}{}{}",
+                if retryable { " (retryable)" } else { "" },
+                reason
+                    .as_deref()
+                    .map(|r| format!(" — raw: {r}"))
+                    .unwrap_or_default()
+            ))),
+        }),
     }
 }
 
@@ -81,18 +82,29 @@ mod tests {
                     let (mut r, mut w) = stream.into_split();
                     loop {
                         let mut lb = [0u8; 4];
-                        if r.read_exact(&mut lb).await.is_err() { return; }
+                        if r.read_exact(&mut lb).await.is_err() {
+                            return;
+                        }
                         let n = u32::from_be_bytes(lb) as usize;
                         let mut buf = vec![0u8; n];
-                        if r.read_exact(&mut buf).await.is_err() { return; }
+                        if r.read_exact(&mut buf).await.is_err() {
+                            return;
+                        }
                         let req: serde_json::Value = serde_json::from_slice(&buf).unwrap();
                         let reply = match req["type"].as_str() {
                             Some("ping") => serde_json::json!({"type":"pong"}),
                             _ => handler(req),
                         };
                         let body = serde_json::to_vec(&reply).unwrap();
-                        if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() { return; }
-                        if w.write_all(&body).await.is_err() { return; }
+                        if w.write_all(&(body.len() as u32).to_be_bytes())
+                            .await
+                            .is_err()
+                        {
+                            return;
+                        }
+                        if w.write_all(&body).await.is_err() {
+                            return;
+                        }
                         let _ = w.flush().await;
                     }
                 });

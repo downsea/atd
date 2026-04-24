@@ -117,9 +117,7 @@ pub struct UnameStub {
 
 impl UnameStub {
     pub fn new() -> Self {
-        Self {
-            def: definition(),
-        }
+        Self { def: definition() }
     }
 }
 
@@ -133,11 +131,7 @@ impl Tool for UnameStub {
     fn definition(&self) -> &ToolDefinition {
         &self.def
     }
-    fn call<'a>(
-        &'a self,
-        _args: serde_json::Value,
-        _ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async {
             Err(ToolCallError::InternalError(
                 "ref:external.uname must be dispatched through CliBinding, not NativeBinding"
@@ -158,10 +152,7 @@ mod tests {
 
     #[test]
     fn args_mapper_passes_flag_through() {
-        assert_eq!(
-            args_mapper(&serde_json::json!({"flag": "-m"})),
-            vec!["-m"]
-        );
+        assert_eq!(args_mapper(&serde_json::json!({"flag": "-m"})), vec!["-m"]);
     }
 
     #[test]

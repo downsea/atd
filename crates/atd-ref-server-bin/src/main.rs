@@ -90,8 +90,7 @@ async fn main() -> std::process::ExitCode {
 
     // Resolve middleware names → trait objects. `none` is a sentinel that
     // skips all middleware (useful for debugging). Unknown names exit 2.
-    let mut middleware: Vec<std::sync::Arc<dyn atd_runtime::Middleware>> =
-        Vec::new();
+    let mut middleware: Vec<std::sync::Arc<dyn atd_runtime::Middleware>> = Vec::new();
     for name in &args.middleware {
         match name.as_str() {
             "none" => { /* explicit opt-out */ }
@@ -101,7 +100,9 @@ async fn main() -> std::process::ExitCode {
                 ));
             }
             other => {
-                eprintln!("atd-ref-server: --middleware '{other}': unknown (known: redact_paths, none)");
+                eprintln!(
+                    "atd-ref-server: --middleware '{other}': unknown (known: redact_paths, none)"
+                );
                 return std::process::ExitCode::from(2);
             }
         }

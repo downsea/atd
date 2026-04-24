@@ -26,11 +26,7 @@ pub trait Tool: Send + Sync {
     fn definition(&self) -> &ToolDefinition;
 
     /// Invoke the tool. Args are the deserialized JSON from the wire.
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a>;
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a>;
 }
 
 /// One registered tool plus the binding dispatch uses to execute it.
@@ -55,7 +51,9 @@ pub struct Registry {
 
 impl Registry {
     pub fn new() -> Self {
-        Self { tools: HashMap::new() }
+        Self {
+            tools: HashMap::new(),
+        }
     }
 
     /// Register a tool with the default `NativeBinding` — dispatch will call
@@ -165,11 +163,7 @@ mod tests {
         fn definition(&self) -> &ToolDefinition {
             &self.def
         }
-        fn call<'a>(
-            &'a self,
-            _args: serde_json::Value,
-            _ctx: &'a CallContext,
-        ) -> CallFuture<'a> {
+        fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
             Box::pin(async move { Ok(serde_json::json!({})) })
         }
     }

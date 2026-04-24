@@ -258,8 +258,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "*.rs"}), &ctx)
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert_eq!(paths, vec!["a.rs".to_string(), "b.rs".to_string()]);
         assert_eq!(r["truncated"], false);
     }
@@ -276,8 +275,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "**/*.rs"}), &ctx)
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert_eq!(paths.len(), 2);
         assert!(paths.iter().any(|p| p.ends_with("main.rs")));
         assert!(paths.iter().any(|p| p.ends_with("util.rs")));
@@ -295,8 +293,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "**/*.rs"}), &ctx)
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert!(paths.iter().any(|p| p.ends_with("main.rs")));
         assert!(
             !paths.iter().any(|p| p.contains("target")),
@@ -315,8 +312,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "**/*.rs"}), &ctx)
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert_eq!(paths, vec!["visible.rs".to_string()]);
     }
 
@@ -335,8 +331,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert_eq!(paths.len(), 10);
         assert_eq!(r["truncated"], true);
     }
@@ -349,14 +344,10 @@ mod tests {
         let ctx = ctx_for(dir.path());
         let t = FsGlobTool::new();
         let r = t
-            .call(
-                serde_json::json!({"pattern": "*.rs", "path": "sub"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"pattern": "*.rs", "path": "sub"}), &ctx)
             .await
             .unwrap();
-        let paths: Vec<String> =
-            serde_json::from_value(r["paths"].clone()).unwrap();
+        let paths: Vec<String> = serde_json::from_value(r["paths"].clone()).unwrap();
         assert_eq!(paths, vec!["inside.rs".to_string()]);
     }
 

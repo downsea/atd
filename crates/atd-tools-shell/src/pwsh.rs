@@ -12,10 +12,10 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
+use crate::shared::{RunError, RunRequest, run};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::shared::{run, RunError, RunRequest};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
@@ -118,11 +118,7 @@ impl Tool for ShellPwshTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             let args: PwshArgs = serde_json::from_value(args)
                 .map_err(|e| ToolCallError::InvalidArgs(e.to_string()))?;
@@ -132,9 +128,9 @@ impl Tool for ShellPwshTool {
                 ));
             }
 
-            let deadline = ctx.deadline.or_else(|| {
-                Some(Instant::now() + Duration::from_secs(60))
-            });
+            let deadline = ctx
+                .deadline
+                .or_else(|| Some(Instant::now() + Duration::from_secs(60)));
             let half = ctx.max_output_bytes / 2;
             let grace_ms = args.grace_ms.unwrap_or(1000);
 
@@ -220,10 +216,7 @@ mod tests {
         let t = ShellPwshTool::new();
         let ctx = CallContext::for_test();
         let r = t
-            .call(
-                serde_json::json!({"command": "Write-Output 'hi'"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"command": "Write-Output 'hi'"}), &ctx)
             .await
             .unwrap();
         assert_eq!(r["exit_code"], 0);
@@ -238,10 +231,7 @@ mod tests {
         let t = ShellPwshTool::new();
         let ctx = CallContext::for_test();
         let r = t
-            .call(
-                serde_json::json!({"command": "exit 5"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"command": "exit 5"}), &ctx)
             .await
             .unwrap();
         assert_eq!(r["exit_code"], 5);
@@ -257,14 +247,13 @@ mod tests {
         let t = ShellPwshTool::new();
         let ctx = CallContext::for_test();
         let err = t
-            .call(
-                serde_json::json!({"command": "Write-Output 'hi'"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"command": "Write-Output 'hi'"}), &ctx)
             .await
             .unwrap_err();
         match err {
-            ToolCallError::ExecutionFailed { code, retryable, .. } => {
+            ToolCallError::ExecutionFailed {
+                code, retryable, ..
+            } => {
                 assert_eq!(code, "NOT_AVAILABLE");
                 assert!(!retryable);
             }

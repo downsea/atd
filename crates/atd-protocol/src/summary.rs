@@ -114,7 +114,10 @@ mod tests {
             input_schema: None,
         };
         let j = serde_json::to_string(&s).unwrap();
-        assert!(!j.contains("input_schema"), "field should be absent when None: {j}");
+        assert!(
+            !j.contains("input_schema"),
+            "field should be absent when None: {j}"
+        );
     }
 
     #[test]

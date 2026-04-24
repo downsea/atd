@@ -14,6 +14,6 @@ pub use client::AtdClient;
 pub use endpoint::Endpoint;
 pub use options::{CallOptions, DiscoverFilter};
 
-pub use atd_protocol::{desanitize_tool_name, sanitize_tool_name};
 pub use atd_protocol::sanitize;
 pub use atd_protocol::wire;
+pub use atd_protocol::{desanitize_tool_name, sanitize_tool_name};

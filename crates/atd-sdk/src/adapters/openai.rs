@@ -22,7 +22,7 @@
 //! `client.describe(id)` to get the `ToolDefinition`.
 
 use atd_protocol::ToolSummary;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use atd_protocol::sanitize::sanitize_tool_name;
 
@@ -35,9 +35,10 @@ pub fn as_openai_tools(summaries: &[ToolSummary]) -> Vec<Value> {
     summaries
         .iter()
         .map(|t| {
-            let parameters = t.input_schema.clone().unwrap_or_else(
-                || serde_json::json!({"type": "object", "properties": {}}),
-            );
+            let parameters = t
+                .input_schema
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}}));
             json!({
                 "type": "function",
                 "function": {
@@ -85,7 +86,10 @@ mod tests {
         assert_eq!(out[0]["function"]["name"], "ref_echo_say");
         assert_eq!(out[0]["function"]["description"], "echo test");
         assert!(out[0]["function"]["parameters"].is_object());
-        assert_eq!(out[0]["function"]["parameters"]["properties"]["text"]["type"], "string");
+        assert_eq!(
+            out[0]["function"]["parameters"]["properties"]["text"]["type"],
+            "string"
+        );
     }
 
     #[test]
@@ -99,6 +103,9 @@ mod tests {
         let mut s = fake_summary("ref:no.schema", "no schema");
         s.input_schema = None;
         let out = as_openai_tools(&[s]);
-        assert_eq!(out[0]["function"]["parameters"], serde_json::json!({"type": "object", "properties": {}}));
+        assert_eq!(
+            out[0]["function"]["parameters"],
+            serde_json::json!({"type": "object", "properties": {}})
+        );
     }
 }

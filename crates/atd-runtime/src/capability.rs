@@ -77,7 +77,8 @@ mod tests {
     #[test]
     fn granted_returns_sorted_deterministic_order() {
         // Insert in reverse; output must be sorted.
-        let s = CapabilitySet::from_iter(["zeta".to_string(), "alpha".to_string(), "mu".to_string()]);
+        let s =
+            CapabilitySet::from_iter(["zeta".to_string(), "alpha".to_string(), "mu".to_string()]);
         assert_eq!(s.granted(), vec!["alpha", "mu", "zeta"]);
     }
 

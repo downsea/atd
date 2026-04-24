@@ -7,10 +7,10 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
+use crate::shared::{atomic_write, resolve_path};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::shared::{atomic_write, resolve_path};
 use atd_runtime::tracker::ReadTrackerError;
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
@@ -100,11 +100,7 @@ impl Tool for FsEditTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             let args: EditArgs = serde_json::from_value(args)
                 .map_err(|e| ToolCallError::InvalidArgs(e.to_string()))?;
@@ -136,11 +132,13 @@ impl Tool for FsEditTool {
                 }
             })?;
             let size = meta.len();
-            let mtime = meta.modified().map_err(|e| ToolCallError::ExecutionFailed {
-                code: "IO".into(),
-                message: format!("mtime: {e}"),
-                retryable: true,
-            })?;
+            let mtime = meta
+                .modified()
+                .map_err(|e| ToolCallError::ExecutionFailed {
+                    code: "IO".into(),
+                    message: format!("mtime: {e}"),
+                    retryable: true,
+                })?;
 
             // Must-read-before-edit + unchanged-since-read checks.
             match tracker.check(&canonical, mtime, size) {
@@ -148,10 +146,7 @@ impl Tool for FsEditTool {
                 Err(ReadTrackerError::NotRead { .. }) => {
                     return Err(ToolCallError::ExecutionFailed {
                         code: "NOT_READ".into(),
-                        message: format!(
-                            "call ref:fs.read on {} first",
-                            canonical.display()
-                        ),
+                        message: format!("call ref:fs.read on {} first", canonical.display()),
                         retryable: false,
                     });
                 }
@@ -168,13 +163,14 @@ impl Tool for FsEditTool {
             }
 
             // Read current contents.
-            let bytes = tokio::fs::read(&canonical).await.map_err(|e| {
-                ToolCallError::ExecutionFailed {
-                    code: "IO".into(),
-                    message: format!("read: {e}"),
-                    retryable: true,
-                }
-            })?;
+            let bytes =
+                tokio::fs::read(&canonical)
+                    .await
+                    .map_err(|e| ToolCallError::ExecutionFailed {
+                        code: "IO".into(),
+                        message: format!("read: {e}"),
+                        retryable: true,
+                    })?;
             let text = std::str::from_utf8(&bytes).map_err(|e| ToolCallError::ExecutionFailed {
                 code: "ENCODING".into(),
                 message: format!("not valid UTF-8 at byte {}", e.valid_up_to()),
@@ -220,11 +216,13 @@ impl Tool for FsEditTool {
                     retryable: true,
                 }
             })?;
-            let new_mtime = new_meta.modified().map_err(|e| ToolCallError::ExecutionFailed {
-                code: "IO".into(),
-                message: format!("post-write mtime: {e}"),
-                retryable: true,
-            })?;
+            let new_mtime = new_meta
+                .modified()
+                .map_err(|e| ToolCallError::ExecutionFailed {
+                    code: "IO".into(),
+                    message: format!("post-write mtime: {e}"),
+                    retryable: true,
+                })?;
             tracker.record(canonical.clone(), new_mtime, new_meta.len());
 
             Ok(serde_json::json!({
@@ -247,7 +245,12 @@ mod tests {
         (dir, path)
     }
 
-    async fn ctx_with_read(path: &std::path::Path) -> (CallContext, std::sync::Arc<atd_runtime::tracker::ReadTracker>) {
+    async fn ctx_with_read(
+        path: &std::path::Path,
+    ) -> (
+        CallContext,
+        std::sync::Arc<atd_runtime::tracker::ReadTracker>,
+    ) {
         let (ctx, tr) = CallContext::for_test_with_tracker();
         let canonical = tokio::fs::canonicalize(path).await.unwrap();
         let meta = tokio::fs::metadata(&canonical).await.unwrap();
@@ -496,7 +499,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "BEGIN middle end\n");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "BEGIN middle end\n"
+        );
     }
 
     #[tokio::test]
@@ -514,7 +520,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "start middle FINISH");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "start middle FINISH"
+        );
     }
 
     #[tokio::test]

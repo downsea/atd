@@ -5,9 +5,9 @@
 //!
 //! Speaks MCP (JSON-RPC 2.0) on stdin/stdout, logs to stderr.
 
-use atd_sdk::{AtdClient, Endpoint};
 use atd_mcp_bridge::bridge::Bridge;
-use atd_mcp_bridge::jsonrpc::{read_request, write_response, Response};
+use atd_mcp_bridge::jsonrpc::{Response, read_request, write_response};
+use atd_sdk::{AtdClient, Endpoint};
 use std::io::{BufReader, BufWriter};
 
 #[tokio::main(flavor = "current_thread")]
@@ -21,7 +21,9 @@ async fn main() {
                 sock_path = args.next().map(std::path::PathBuf::from);
             }
             "-h" | "--help" => {
-                eprintln!("usage: atd-mcp-bridge [--sock PATH]\n\nOne of --sock PATH or ATD_SOCK env var is required.\nPoints the bridge at an ATD-speaking Unix socket.");
+                eprintln!(
+                    "usage: atd-mcp-bridge [--sock PATH]\n\nOne of --sock PATH or ATD_SOCK env var is required.\nPoints the bridge at an ATD-speaking Unix socket."
+                );
                 std::process::exit(0);
             }
             other => {
@@ -31,13 +33,12 @@ async fn main() {
         }
     }
 
-    let sock = sock_path
-        .or_else(|| {
-            std::env::var("ATD_SOCK")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .map(std::path::PathBuf::from)
-        });
+    let sock = sock_path.or_else(|| {
+        std::env::var("ATD_SOCK")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+    });
 
     let sock = match sock {
         Some(p) => p,
@@ -93,7 +94,8 @@ async fn main() {
                 eprintln!("atd-mcp-bridge: parse error: {e}");
                 // Per JSON-RPC 2.0, send a parse error if we could recover an id,
                 // but since parsing failed we can't — just log and exit.
-                let err = Response::err(serde_json::Value::Null, -32700, format!("parse error: {e}"));
+                let err =
+                    Response::err(serde_json::Value::Null, -32700, format!("parse error: {e}"));
                 let _ = write_response(&mut writer, &err);
                 return;
             }

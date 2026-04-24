@@ -6,8 +6,8 @@
 //! Run:
 //!   cargo run --example hello_langchain -p atd-examples --features langchain
 
-use atd_sdk::adapters::langchain::as_langchain_tools;
 use atd_protocol::ToolSummary;
+use atd_sdk::adapters::langchain::as_langchain_tools;
 use serde_json::json;
 
 fn main() {
@@ -20,10 +20,7 @@ fn main() {
     ];
 
     let tools = as_langchain_tools(&summaries);
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&tools).unwrap()
-    );
+    println!("{}", serde_json::to_string_pretty(&tools).unwrap());
 }
 
 fn fake_summary(id: &str, desc: &str) -> ToolSummary {

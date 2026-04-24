@@ -1,7 +1,7 @@
 //! `atd schema` — describe a tool and pretty-print its ToolDefinition.
 
-use atd_sdk::AtdClient;
 use atd_protocol::AtdError;
+use atd_sdk::AtdClient;
 use std::io::Write;
 
 use crate::cli::SchemaArgs;
@@ -63,10 +63,14 @@ mod tests {
                     let (mut r, mut w) = stream.into_split();
                     loop {
                         let mut lb = [0u8; 4];
-                        if r.read_exact(&mut lb).await.is_err() { return; }
+                        if r.read_exact(&mut lb).await.is_err() {
+                            return;
+                        }
                         let n = u32::from_be_bytes(lb) as usize;
                         let mut buf = vec![0u8; n];
-                        if r.read_exact(&mut buf).await.is_err() { return; }
+                        if r.read_exact(&mut buf).await.is_err() {
+                            return;
+                        }
                         let req: serde_json::Value = serde_json::from_slice(&buf).unwrap();
                         let reply: serde_json::Value = match req["type"].as_str() {
                             Some("ping") => serde_json::json!({"type":"pong"}),
@@ -76,8 +80,15 @@ mod tests {
                             _ => serde_json::json!({"type":"error","message":"no"}),
                         };
                         let body = serde_json::to_vec(&reply).unwrap();
-                        if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() { return; }
-                        if w.write_all(&body).await.is_err() { return; }
+                        if w.write_all(&(body.len() as u32).to_be_bytes())
+                            .await
+                            .is_err()
+                        {
+                            return;
+                        }
+                        if w.write_all(&body).await.is_err() {
+                            return;
+                        }
                         let _ = w.flush().await;
                     }
                 });
@@ -94,14 +105,20 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         run(
             &client,
-            SchemaArgs { tool_id: "anos:fs.read".into(), json: false },
+            SchemaArgs {
+                tool_id: "anos:fs.read".into(),
+                json: false,
+            },
             &mut out,
         )
         .await
         .unwrap();
         let s = String::from_utf8(out).unwrap();
         assert!(s.contains("\n"));
-        assert!(s.contains("  \"id\""), "pretty output should have indented keys");
+        assert!(
+            s.contains("  \"id\""),
+            "pretty output should have indented keys"
+        );
         assert!(s.contains("anos:fs.read"));
     }
 
@@ -112,14 +129,20 @@ mod tests {
         let mut out: Vec<u8> = Vec::new();
         run(
             &client,
-            SchemaArgs { tool_id: "anos:fs.read".into(), json: true },
+            SchemaArgs {
+                tool_id: "anos:fs.read".into(),
+                json: true,
+            },
             &mut out,
         )
         .await
         .unwrap();
         let s = String::from_utf8(out).unwrap();
         let trimmed = s.trim_end_matches('\n');
-        assert!(!trimmed.contains('\n'), "json output should be one line, got: {s}");
+        assert!(
+            !trimmed.contains('\n'),
+            "json output should be one line, got: {s}"
+        );
         let v: serde_json::Value = serde_json::from_str(trimmed).unwrap();
         assert_eq!(v["id"], "anos:fs.read");
     }

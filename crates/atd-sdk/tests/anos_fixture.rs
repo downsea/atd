@@ -47,7 +47,10 @@ async fn spawn_replay_server(tool_list: String, tool_schema: String) -> PathBuf 
                         other => panic!("replay server got unexpected request type: {:?}", other),
                     };
                     let body = reply.as_bytes();
-                    if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() {
+                    if w.write_all(&(body.len() as u32).to_be_bytes())
+                        .await
+                        .is_err()
+                    {
                         return;
                     }
                     if w.write_all(body).await.is_err() {
@@ -90,7 +93,10 @@ async fn discover_against_real_anos_tool_list_fixture() {
         .find(|s| s.id == "anos:fs.read")
         .expect("fixture must contain anos:fs.read");
     assert_eq!(fs_read.domain, "fs");
-    assert!(!fs_read.name.is_empty(), "name must be filled from description or id");
+    assert!(
+        !fs_read.name.is_empty(),
+        "name must be filled from description or id"
+    );
 }
 
 #[tokio::test]

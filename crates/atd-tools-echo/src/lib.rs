@@ -86,11 +86,7 @@ impl Tool for EchoTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             // Estimate output size: serialized length of `{"echoed": <args>}`.
             let serialized = serde_json::to_vec(&args)

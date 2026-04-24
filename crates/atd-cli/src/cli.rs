@@ -90,10 +90,8 @@ mod tests {
 
     #[test]
     fn cli_parses_list_with_flags() {
-        let cli = Cli::try_parse_from([
-            "atd", "list", "--query", "fs", "--limit", "5", "--json",
-        ])
-        .unwrap();
+        let cli = Cli::try_parse_from(["atd", "list", "--query", "fs", "--limit", "5", "--json"])
+            .unwrap();
         match cli.command {
             Command::List(args) => {
                 assert_eq!(args.query.as_deref(), Some("fs"));
@@ -116,8 +114,11 @@ mod tests {
     #[test]
     fn cli_parses_call_with_args_and_dry_run() {
         let cli = Cli::try_parse_from([
-            "atd", "call", "anos:fs.read",
-            "--args", r#"{"path":"/tmp/x"}"#,
+            "atd",
+            "call",
+            "anos:fs.read",
+            "--args",
+            r#"{"path":"/tmp/x"}"#,
             "--dry-run",
         ])
         .unwrap();
@@ -133,19 +134,23 @@ mod tests {
 
     #[test]
     fn sock_flag_is_global_and_parses_before_subcommand() {
-        let cli = Cli::try_parse_from([
-            "atd", "--sock", "/tmp/x.sock", "list",
-        ])
-        .unwrap();
-        assert_eq!(cli.sock.as_deref().map(|p| p.to_string_lossy().into_owned()),
-                   Some("/tmp/x.sock".to_string()));
+        let cli = Cli::try_parse_from(["atd", "--sock", "/tmp/x.sock", "list"]).unwrap();
+        assert_eq!(
+            cli.sock
+                .as_deref()
+                .map(|p| p.to_string_lossy().into_owned()),
+            Some("/tmp/x.sock".to_string())
+        );
     }
 
     #[test]
     fn invalid_tier_value_is_rejected() {
         let err = Cli::try_parse_from(["atd", "list", "--tier", "lukewarm"]).unwrap_err();
         let s = err.to_string();
-        assert!(s.contains("lukewarm"), "error should mention bad value, got: {s}");
+        assert!(
+            s.contains("lukewarm"),
+            "error should mention bad value, got: {s}"
+        );
     }
 
     #[test]

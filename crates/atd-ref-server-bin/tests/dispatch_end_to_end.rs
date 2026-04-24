@@ -17,14 +17,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_runtime::middleware::RedactPathsMiddleware;
-use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_ref_server_bin::server::{Server, ServerConfig};
-use atd_runtime::tier::TierPolicy;
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
 };
+use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_runtime::middleware::RedactPathsMiddleware;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
+use atd_runtime::tier::TierPolicy;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -154,10 +154,7 @@ async fn spawn() -> ServerHandle {
     panic!("server did not create socket within 5s at {sock:?}");
 }
 
-async fn send_on_stream(
-    stream: &mut UnixStream,
-    req: serde_json::Value,
-) -> serde_json::Value {
+async fn send_on_stream(stream: &mut UnixStream, req: serde_json::Value) -> serde_json::Value {
     let body = serde_json::to_vec(&req).unwrap();
     stream
         .write_all(&(body.len() as u32).to_be_bytes())
@@ -224,7 +221,10 @@ async fn all_four_primitives_participate_in_one_call() {
         serde_json::from_value(call["result"]["caps_observed"].clone()).unwrap();
     assert_eq!(caps_seen, vec!["exec"]);
     // Middleware: the $HOME leak in the result got rewritten.
-    assert_eq!(call["result"]["leaked_path"], "<redacted:home>/secrets/a.key");
+    assert_eq!(
+        call["result"]["leaked_path"],
+        "<redacted:home>/secrets/a.key"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -249,10 +249,8 @@ async fn client_that_skips_hello_is_denied_even_with_full_chain_configured() {
     assert_eq!(r["type"], "error");
     assert_eq!(r["code"], 1001);
     let details = &r["details"];
-    let required: Vec<String> =
-        serde_json::from_value(details["required"].clone()).unwrap();
-    let granted: Vec<String> =
-        serde_json::from_value(details["granted"].clone()).unwrap();
+    let required: Vec<String> = serde_json::from_value(details["required"].clone()).unwrap();
+    let granted: Vec<String> = serde_json::from_value(details["granted"].clone()).unwrap();
     assert_eq!(required, vec!["exec"]);
     assert!(granted.is_empty());
 }

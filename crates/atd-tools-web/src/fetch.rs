@@ -253,9 +253,8 @@ fn build_headers(
                 "header `{k}` must be a string"
             )));
         };
-        let val = HeaderValue::from_str(s).map_err(|e| {
-            ToolCallError::InvalidArgs(format!("bad header value for `{k}`: {e}"))
-        })?;
+        let val = HeaderValue::from_str(s)
+            .map_err(|e| ToolCallError::InvalidArgs(format!("bad header value for `{k}`: {e}")))?;
         hm.insert(name, val);
     }
     Ok(hm)
@@ -416,8 +415,9 @@ impl Tool for WebFetchTool {
                 .unwrap_or("")
                 .to_string();
 
-            let (body_bytes, truncated) =
-                read_body_capped(resp, max_bytes).await.map_err(map_reqwest_error)?;
+            let (body_bytes, truncated) = read_body_capped(resp, max_bytes)
+                .await
+                .map_err(map_reqwest_error)?;
             let content_length = body_bytes.len();
             let kind = classify_content_type(&content_type);
             let (content, binary) = match kind {
@@ -426,9 +426,7 @@ impl Tool for WebFetchTool {
                     let md = html_to_markdown(&text);
                     (md, false)
                 }
-                ContentKind::Text => {
-                    (String::from_utf8_lossy(&body_bytes).into_owned(), false)
-                }
+                ContentKind::Text => (String::from_utf8_lossy(&body_bytes).into_owned(), false),
                 ContentKind::Binary => (String::new(), true),
             };
             let duration_ms = start.elapsed().as_millis() as u64;
@@ -471,11 +469,12 @@ fn map_reqwest_error(e: reqwest::Error) -> ToolCallError {
         // We infer TLS failure from the formatted error string. This is fragile
         // but is the best available option without vendoring hyper-rustls or
         // mapping from private reqwest types.
-        let code = if msg.to_lowercase().contains("tls") || msg.to_lowercase().contains("certificate") {
-            "TLS_FAILED"
-        } else {
-            "IO"
-        };
+        let code =
+            if msg.to_lowercase().contains("tls") || msg.to_lowercase().contains("certificate") {
+                "TLS_FAILED"
+            } else {
+                "IO"
+            };
         ToolCallError::ExecutionFailed {
             code: code.into(),
             message: msg,
@@ -571,10 +570,7 @@ mod tests {
         let t = WebFetchTool::new();
         let ctx = CallContext::for_test();
         let err = t
-            .call(
-                serde_json::json!({"url": "http://127.0.0.1:9"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"url": "http://127.0.0.1:9"}), &ctx)
             .await
             .unwrap_err();
         match err {
@@ -635,8 +631,7 @@ mod tests {
 
     #[tokio::test]
     async fn accepts_allowed_request_header() {
-        let (port, captured) =
-            spawn_capturing(http_ok("text/plain", b"ok")).await;
+        let (port, captured) = spawn_capturing(http_ok("text/plain", b"ok")).await;
         let t = WebFetchTool::new();
         let ctx = CallContext::for_test();
         let _ = t
@@ -701,7 +696,10 @@ mod tests {
             .await
             .unwrap();
         let content = r["content"].as_str().unwrap();
-        assert!(content.contains("Title"), "content should contain Title: {content:?}");
+        assert!(
+            content.contains("Title"),
+            "content should contain Title: {content:?}"
+        );
         assert!(
             !content.to_lowercase().contains("evil()"),
             "script body should be stripped: {content:?}"
@@ -750,10 +748,7 @@ mod tests {
         let t = WebFetchTool::new();
         let ctx = CallContext::for_test();
         let err = t
-            .call(
-                serde_json::json!({"url": "http://192.0.2.1:80"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"url": "http://192.0.2.1:80"}), &ctx)
             .await
             .unwrap_err();
         match err {

@@ -8,10 +8,10 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
+use crate::shared::{RunError, RunRequest, run};
 use atd_runtime::context::CallContext;
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Tool};
-use crate::shared::{run, RunError, RunRequest};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
@@ -102,11 +102,7 @@ impl Tool for ShellExecTool {
         definition()
     }
 
-    fn call<'a>(
-        &'a self,
-        args: serde_json::Value,
-        ctx: &'a CallContext,
-    ) -> CallFuture<'a> {
+    fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
         Box::pin(async move {
             let args: ExecArgs = serde_json::from_value(args)
                 .map_err(|e| ToolCallError::InvalidArgs(e.to_string()))?;
@@ -219,7 +215,9 @@ mod tests {
             .await
             .unwrap_err();
         match err {
-            ToolCallError::ExecutionFailed { code, retryable, .. } => {
+            ToolCallError::ExecutionFailed {
+                code, retryable, ..
+            } => {
                 assert_eq!(code, "TIMEOUT");
                 assert!(retryable);
             }

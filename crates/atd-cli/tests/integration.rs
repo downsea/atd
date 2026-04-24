@@ -25,10 +25,14 @@ async fn spawn_3_tool_mock() -> PathBuf {
                 let (mut r, mut w) = stream.into_split();
                 loop {
                     let mut lb = [0u8; 4];
-                    if r.read_exact(&mut lb).await.is_err() { return; }
+                    if r.read_exact(&mut lb).await.is_err() {
+                        return;
+                    }
                     let n = u32::from_be_bytes(lb) as usize;
                     let mut buf = vec![0u8; n];
-                    if r.read_exact(&mut buf).await.is_err() { return; }
+                    if r.read_exact(&mut buf).await.is_err() {
+                        return;
+                    }
                     let req: serde_json::Value = serde_json::from_slice(&buf).unwrap();
                     let reply: serde_json::Value = match req["type"].as_str() {
                         Some("ping") => serde_json::json!({"type":"pong"}),
@@ -43,8 +47,15 @@ async fn spawn_3_tool_mock() -> PathBuf {
                         _ => serde_json::json!({"type":"error","message":"unexpected"}),
                     };
                     let body = serde_json::to_vec(&reply).unwrap();
-                    if w.write_all(&(body.len() as u32).to_be_bytes()).await.is_err() { return; }
-                    if w.write_all(&body).await.is_err() { return; }
+                    if w.write_all(&(body.len() as u32).to_be_bytes())
+                        .await
+                        .is_err()
+                    {
+                        return;
+                    }
+                    if w.write_all(&body).await.is_err() {
+                        return;
+                    }
                     let _ = w.flush().await;
                 }
             });
@@ -67,7 +78,11 @@ async fn atd_list_against_mock_prints_table() {
     })
     .await
     .unwrap();
-    assert!(output.status.success(), "non-zero exit, stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "non-zero exit, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("anos:fs.read"));
     assert!(stdout.contains("anos:web.search"));
@@ -126,7 +141,13 @@ async fn atd_exits_nonzero_when_sock_missing() {
     })
     .await
     .unwrap();
-    assert!(!output.status.success(), "expected non-zero exit when socket missing");
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit when socket missing"
+    );
     let stderr = String::from_utf8(output.stderr).unwrap();
-    assert!(stderr.contains("atd:"), "stderr should start with 'atd:' prefix, got: {stderr}");
+    assert!(
+        stderr.contains("atd:"),
+        "stderr should start with 'atd:' prefix, got: {stderr}"
+    );
 }

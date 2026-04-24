@@ -49,10 +49,7 @@ mod tests {
 
     #[test]
     fn resolve_known_id_returns_original() {
-        let summaries = vec![
-            make_summary("ref:fs.read"),
-            make_summary("ref:shell.exec"),
-        ];
+        let summaries = vec![make_summary("ref:fs.read"), make_summary("ref:shell.exec")];
         assert_eq!(
             resolve_sanitized_id("ref_fs_read", &summaries),
             Some("ref:fs.read")

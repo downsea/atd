@@ -163,9 +163,9 @@ fn build_optional_globset(glob: Option<&str>) -> Result<Option<GlobSet>, ToolCal
                 .map_err(|e| ToolCallError::InvalidArgs(format!("invalid glob `{g}`: {e}")))?;
             let mut b = GlobSetBuilder::new();
             b.add(glob);
-            let set = b.build().map_err(|e| {
-                ToolCallError::InvalidArgs(format!("glob build failed: {e}"))
-            })?;
+            let set = b
+                .build()
+                .map_err(|e| ToolCallError::InvalidArgs(format!("glob build failed: {e}")))?;
             Ok(Some(set))
         }
     }
@@ -197,7 +197,10 @@ impl<'a> Sink for CollectSink<'a> {
         }
         let line = mat.line_number().unwrap_or(0);
         let raw = String::from_utf8_lossy(mat.bytes());
-        let text = raw.trim_end_matches('\n').trim_end_matches('\r').to_string();
+        let text = raw
+            .trim_end_matches('\n')
+            .trim_end_matches('\r')
+            .to_string();
         let cost = self.rel_path.len() + text.len() + 40; // rough JSON overhead
         if cost > *self.remaining_bytes {
             *self.truncated = true;
@@ -301,10 +304,7 @@ impl Tool for FsGrepTool {
                 .case_insensitive(case_insensitive)
                 .build(&args.pattern)
                 .map_err(|e| {
-                    ToolCallError::InvalidArgs(format!(
-                        "invalid regex `{}`: {e}",
-                        args.pattern
-                    ))
+                    ToolCallError::InvalidArgs(format!("invalid regex `{}`: {e}", args.pattern))
                 })?;
             let glob_set = build_optional_globset(args.glob.as_deref())?;
             let max_matches = args.max_matches.unwrap_or(DEFAULT_MAX_MATCHES).max(1);
@@ -379,14 +379,10 @@ mod tests {
         let ctx = ctx_for(dir.path());
         let t = FsGrepTool::new();
         let r = t
-            .call(
-                serde_json::json!({"pattern": "fn\\s+\\w+"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"pattern": "fn\\s+\\w+"}), &ctx)
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0]["path"], "src/main.rs");
         assert_eq!(matches[0]["line"], 2);
@@ -407,8 +403,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 2);
     }
 
@@ -420,14 +415,10 @@ mod tests {
         let ctx = ctx_for(dir.path());
         let t = FsGrepTool::new();
         let r = t
-            .call(
-                serde_json::json!({"pattern": "TODO", "glob": "*.rs"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"pattern": "TODO", "glob": "*.rs"}), &ctx)
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0]["path"], "main.rs");
     }
@@ -445,8 +436,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "matches"}), &ctx)
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 0, "binary file should be skipped");
     }
 
@@ -457,14 +447,10 @@ mod tests {
         let ctx = ctx_for(dir.path());
         let t = FsGrepTool::new();
         let r = t
-            .call(
-                serde_json::json!({"pattern": "zzzzzz_not_present"}),
-                &ctx,
-            )
+            .call(serde_json::json!({"pattern": "zzzzzz_not_present"}), &ctx)
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert!(matches.is_empty());
         assert_eq!(r["truncated"], false);
     }
@@ -487,8 +473,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 10);
         assert_eq!(r["truncated"], true);
     }
@@ -503,8 +488,7 @@ mod tests {
             .call(serde_json::json!({"pattern": "hit"}), &ctx)
             .await
             .unwrap();
-        let matches: Vec<serde_json::Value> =
-            serde_json::from_value(r["matches"].clone()).unwrap();
+        let matches: Vec<serde_json::Value> = serde_json::from_value(r["matches"].clone()).unwrap();
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0]["line"], 1, "first line is line 1, not line 0");
     }

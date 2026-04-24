@@ -22,7 +22,13 @@
 pub fn sanitize_tool_name(tool_id: &str) -> String {
     tool_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -56,10 +62,7 @@ where
     for id in ids {
         groups.entry(sanitize_tool_name(id)).or_default().push(id);
     }
-    groups
-        .into_iter()
-        .filter(|(_, v)| v.len() > 1)
-        .collect()
+    groups.into_iter().filter(|(_, v)| v.len() > 1).collect()
 }
 
 #[cfg(test)]
@@ -75,7 +78,10 @@ mod tests {
     #[test]
     fn colon_and_dot_become_underscore() {
         assert_eq!(sanitize_tool_name("ref:fs.read"), "ref_fs_read");
-        assert_eq!(sanitize_tool_name("xiaomi:light.toggle"), "xiaomi_light_toggle");
+        assert_eq!(
+            sanitize_tool_name("xiaomi:light.toggle"),
+            "xiaomi_light_toggle"
+        );
     }
 
     #[test]

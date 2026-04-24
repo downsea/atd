@@ -44,10 +44,8 @@ async fn wait_for_socket(sock: &std::path::Path) -> bool {
 /// temp socket. Returns (child_process, tempdir_guard, socket_path). The
 /// tempdir_guard keeps the temp directory alive — drop it and the socket
 /// file is cleaned up.
-async fn acquire_server() -> Result<
-    (Option<Child>, Option<tempfile::TempDir>, PathBuf),
-    Box<dyn std::error::Error>,
-> {
+async fn acquire_server()
+-> Result<(Option<Child>, Option<tempfile::TempDir>, PathBuf), Box<dyn std::error::Error>> {
     if let Ok(override_sock) = std::env::var("ATD_SOCK") {
         let sock = PathBuf::from(override_sock);
         println!("[atd] using ATD_SOCK override → {}", sock.display());
@@ -66,10 +64,7 @@ async fn acquire_server() -> Result<
 
     let tmp = tempfile::tempdir()?;
     let sock = tmp.path().join("demo.sock");
-    println!(
-        "[atd] auto-spawning atd-ref-server → {}",
-        sock.display()
-    );
+    println!("[atd] auto-spawning atd-ref-server → {}", sock.display());
     let child = Command::new(&binary)
         .arg("--sock")
         .arg(&sock)
@@ -93,9 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let client = AtdClient::connect(Endpoint::unix(sock.clone())).await?;
         println!("[atd] connected");
 
-        let all = client
-            .discover(None, DiscoverFilter::default())
-            .await?;
+        let all = client.discover(None, DiscoverFilter::default()).await?;
         println!("[atd] {} tools registered", all.len());
 
         // 1/3 — echo.say
@@ -185,7 +178,12 @@ fn print_glob_result(r: atd_protocol::ToolResult) -> Result<(), Box<dyn std::err
             } else {
                 String::new()
             };
-            println!("      → {} paths: {}{}", paths.len(), preview.join(", "), suffix);
+            println!(
+                "      → {} paths: {}{}",
+                paths.len(),
+                preview.join(", "),
+                suffix
+            );
         }
         atd_protocol::ToolResult::Error { code, message, .. } => {
             println!("      ✗ {code}: {message}");
