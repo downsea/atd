@@ -113,6 +113,10 @@ Two evidence docs prove the independence and cross-vendor claims:
 - [Wire format](docs/protocol/wire-format.md) — length-prefixed JSON framing, message types, server bindings, full type definitions
 - [Error codes](docs/protocol/error-codes.md) — `AtdError` taxonomy, server error codes, retry strategy
 
+### Known gaps + issues
+
+- [docs/issues/](docs/issues/) — honest gap tracking: 10 open items across schema, dispatch, and security layers. Each issue explains current state, impact, and proposed fix or deferral rationale.
+
 ## Project status
 
 This is v0.1.0. Under the SemVer 0.x contract, breaking changes are
