@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_ref_server::middleware::RedactPathsMiddleware;
-use atd_ref_server::registry::{CallFuture, Registry, Tool};
+use atd_runtime::middleware::RedactPathsMiddleware;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_ref_server::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
@@ -76,7 +76,7 @@ impl Tool for EmitHomePathTool {
     fn call<'a>(
         &'a self,
         _args: serde_json::Value,
-        _ctx: &'a atd_ref_server::context::CallContext,
+        _ctx: &'a atd_runtime::context::CallContext,
     ) -> CallFuture<'a> {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
         Box::pin(async move {
@@ -98,7 +98,7 @@ struct ServerHandle {
 }
 
 async fn spawn_with_middleware(
-    middleware: Vec<Arc<dyn atd_ref_server::middleware::Middleware>>,
+    middleware: Vec<Arc<dyn atd_runtime::middleware::Middleware>>,
 ) -> ServerHandle {
     let dir = tempfile::tempdir().unwrap();
     let sock = dir.path().join("server.sock");
@@ -157,7 +157,7 @@ async fn middleware_redacts_home_path_on_wire() {
         std::env::set_var("HOME", "/tmp/sp12-test-home");
     }
 
-    let mw: Arc<dyn atd_ref_server::middleware::Middleware> =
+    let mw: Arc<dyn atd_runtime::middleware::Middleware> =
         Arc::new(RedactPathsMiddleware::with_home_default());
     let srv = spawn_with_middleware(vec![mw]).await;
 

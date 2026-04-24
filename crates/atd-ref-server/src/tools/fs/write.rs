@@ -7,9 +7,9 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
-use crate::context::CallContext;
-use crate::error::ToolCallError;
-use crate::registry::{CallFuture, Tool};
+use atd_runtime::context::CallContext;
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Tool};
 use crate::tools::fs::shared::{atomic_write, resolve_path};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
@@ -262,7 +262,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            crate::tracker::ReadTrackerError::NotRead { .. }
+            atd_runtime::tracker::ReadTrackerError::NotRead { .. }
         ));
     }
 

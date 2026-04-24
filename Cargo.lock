@@ -146,6 +146,7 @@ name = "atd-ref-server"
 version = "0.1.0"
 dependencies = [
  "atd-protocol",
+ "atd-runtime",
  "clap",
  "globset",
  "grep-regex",
@@ -169,10 +170,12 @@ name = "atd-runtime"
 version = "0.1.0"
 dependencies = [
  "atd-protocol",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
+ "ulid",
 ]
 
 [[package]]

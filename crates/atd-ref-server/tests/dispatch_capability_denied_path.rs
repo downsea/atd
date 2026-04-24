@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_ref_server::error::ToolCallError;
-use atd_ref_server::registry::{CallFuture, Registry, Tool};
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_ref_server::server::{Server, ServerConfig};
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
@@ -80,7 +80,7 @@ impl Tool for GatedTool {
     fn call<'a>(
         &'a self,
         _args: serde_json::Value,
-        _ctx: &'a atd_ref_server::context::CallContext,
+        _ctx: &'a atd_runtime::context::CallContext,
     ) -> CallFuture<'a> {
         Box::pin(async {
             Err(ToolCallError::InternalError(

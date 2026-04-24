@@ -6,10 +6,10 @@ use std::time::Instant;
 
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::context::CallContext;
-use crate::error::ToolCallError;
+use atd_runtime::context::CallContext;
+use atd_runtime::error::ToolCallError;
 use atd_protocol::{Request, Response};
-use crate::registry::Registry;
+use atd_runtime::registry::Registry;
 use atd_protocol::wire::{read_frame, write_frame};
 
 pub struct ServerConfig {
@@ -45,8 +45,8 @@ pub struct Server {
 pub(crate) struct ServerState {
     pub(crate) registry: Registry,
     pub(crate) config: ServerConfig,
-    pub(crate) tier_policy: crate::tier::TierPolicy,
-    pub(crate) middleware: Vec<Arc<dyn crate::middleware::Middleware>>,
+    pub(crate) tier_policy: atd_runtime::tier::TierPolicy,
+    pub(crate) middleware: Vec<Arc<dyn atd_runtime::middleware::Middleware>>,
 }
 
 impl Server {
@@ -55,7 +55,7 @@ impl Server {
             state: Arc::new(ServerState {
                 registry,
                 config,
-                tier_policy: crate::tier::TierPolicy::defaults(),
+                tier_policy: atd_runtime::tier::TierPolicy::defaults(),
                 middleware: Vec::new(),
             }),
         }
@@ -64,7 +64,7 @@ impl Server {
     /// Replace the tier policy. Valid only before `run()` — after the server
     /// starts, `state` has already been handed to connection tasks and is
     /// effectively immutable. Tests and CLI startup call this once.
-    pub fn set_tier_policy(&mut self, policy: crate::tier::TierPolicy) {
+    pub fn set_tier_policy(&mut self, policy: atd_runtime::tier::TierPolicy) {
         let state = Arc::get_mut(&mut self.state)
             .expect("set_tier_policy must be called before run() hands out Arcs");
         state.tier_policy = policy;
@@ -73,7 +73,7 @@ impl Server {
     /// Install the result-middleware chain. Order matters: first registered
     /// runs first. Must be called before `run()` for the same reason as
     /// `set_tier_policy` — `state` becomes shared when connections spawn.
-    pub fn set_middleware(&mut self, middleware: Vec<Arc<dyn crate::middleware::Middleware>>) {
+    pub fn set_middleware(&mut self, middleware: Vec<Arc<dyn atd_runtime::middleware::Middleware>>) {
         let state = Arc::get_mut(&mut self.state)
             .expect("set_middleware must be called before run() hands out Arcs");
         state.middleware = middleware;
@@ -120,10 +120,10 @@ impl Server {
 
 async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::io::Result<()> {
     let (mut reader, mut writer) = stream.into_split();
-    let tracker = Arc::new(crate::tracker::ReadTracker::new());  // per-connection
+    let tracker = Arc::new(atd_runtime::tracker::ReadTracker::new());  // per-connection
     // Per-connection capability set, replaced on `Hello`. Default: empty.
-    let mut caps: Arc<crate::capability::CapabilitySet> =
-        Arc::new(crate::capability::CapabilitySet::empty());
+    let mut caps: Arc<atd_runtime::capability::CapabilitySet> =
+        Arc::new(atd_runtime::capability::CapabilitySet::empty());
     loop {
         let req: Request = match read_frame(&mut reader).await {
             Ok(r) => r,
@@ -137,8 +137,8 @@ async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::
 
 pub(crate) async fn dispatch(
     state: &Arc<ServerState>,
-    tracker: &Arc<crate::tracker::ReadTracker>,
-    caps: &mut Arc<crate::capability::CapabilitySet>,
+    tracker: &Arc<atd_runtime::tracker::ReadTracker>,
+    caps: &mut Arc<atd_runtime::capability::CapabilitySet>,
     req: Request,
 ) -> Response {
     match req {
@@ -151,11 +151,11 @@ pub(crate) async fn dispatch(
             client_id: _,
             requested_capabilities,
         } => {
-            let allow = crate::capability::CapabilitySet::from_iter(
+            let allow = atd_runtime::capability::CapabilitySet::from_iter(
                 state.config.granted_capabilities.iter().cloned(),
             );
             let (granted, _denied) = allow.intersect(&requested_capabilities);
-            *caps = Arc::new(crate::capability::CapabilitySet::from_iter(granted.clone()));
+            *caps = Arc::new(atd_runtime::capability::CapabilitySet::from_iter(granted.clone()));
             Response::HelloAck {
                 granted_capabilities: granted,
                 server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
@@ -239,7 +239,7 @@ pub(crate) async fn dispatch(
             let tier = entry
                 .definition()
                 .tier
-                .unwrap_or(crate::tier::ToolTier::Warm);
+                .unwrap_or(atd_runtime::tier::ToolTier::Warm);
             let tier_timeout = state.tier_policy.timeout(tier);
             let tier_max_output = state.tier_policy.max_output(tier);
 
@@ -299,6 +299,12 @@ pub(crate) async fn dispatch(
                     retryable: Some(false),
                     details: None,
                 },
+                Err(other) => Response::Error {
+                    message: format!("internal error in {tool_id}: {other}"),
+                    code: None,
+                    retryable: Some(false),
+                    details: None,
+                },
             }
         }
     }
@@ -308,17 +314,17 @@ pub(crate) async fn dispatch(
 mod tests {
     use super::*;
     use crate::builtin::builtin_registry;
-    use crate::registry::{CallFuture, Tool};
+    use atd_runtime::registry::{CallFuture, Tool};
 
-    fn fresh_tracker() -> Arc<crate::tracker::ReadTracker> {
-        Arc::new(crate::tracker::ReadTracker::new())
+    fn fresh_tracker() -> Arc<atd_runtime::tracker::ReadTracker> {
+        Arc::new(atd_runtime::tracker::ReadTracker::new())
     }
 
     /// Empty capability set, wrapped in `Arc`. Used by dispatch tests that
     /// don't exercise the capability gate; callers that do should build a
     /// populated one directly.
-    fn fresh_caps() -> Arc<crate::capability::CapabilitySet> {
-        Arc::new(crate::capability::CapabilitySet::empty())
+    fn fresh_caps() -> Arc<atd_runtime::capability::CapabilitySet> {
+        Arc::new(atd_runtime::capability::CapabilitySet::empty())
     }
 
     fn test_state() -> Arc<ServerState> {
@@ -331,7 +337,7 @@ mod tests {
                 default_call_timeout_ms: 60_000,
                 granted_capabilities: vec![],
             },
-            tier_policy: crate::tier::TierPolicy::defaults(),
+            tier_policy: atd_runtime::tier::TierPolicy::defaults(),
             middleware: vec![],
         })
     }
@@ -579,7 +585,7 @@ mod tests {
                 default_call_timeout_ms: 1000,
                 granted_capabilities: vec![],
             },
-            tier_policy: crate::tier::TierPolicy::defaults(),
+            tier_policy: atd_runtime::tier::TierPolicy::defaults(),
             middleware: vec![],
         })
     }

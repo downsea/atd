@@ -17,10 +17,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_ref_server::middleware::RedactPathsMiddleware;
-use atd_ref_server::registry::{CallFuture, Registry, Tool};
+use atd_runtime::middleware::RedactPathsMiddleware;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_ref_server::server::{Server, ServerConfig};
-use atd_ref_server::tier::TierPolicy;
+use atd_runtime::tier::TierPolicy;
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
@@ -89,7 +89,7 @@ impl Tool for FullstackTool {
     fn call<'a>(
         &'a self,
         _args: serde_json::Value,
-        ctx: &'a atd_ref_server::context::CallContext,
+        ctx: &'a atd_runtime::context::CallContext,
     ) -> CallFuture<'a> {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
         let caps = ctx.capabilities.granted();

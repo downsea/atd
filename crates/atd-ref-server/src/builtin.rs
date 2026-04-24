@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use crate::registry::Registry;
+use atd_runtime::registry::Registry;
 use crate::tools::echo::EchoTool;
 use crate::tools::fs::{
     edit::FsEditTool, glob::FsGlobTool, grep::FsGrepTool, read::FsReadTool, write::FsWriteTool,

@@ -11,10 +11,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use atd_ref_server::error::ToolCallError;
-use atd_ref_server::registry::{CallFuture, Registry, Tool};
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_ref_server::server::{Server, ServerConfig};
-use atd_ref_server::tier::TierPolicy;
+use atd_runtime::tier::TierPolicy;
 use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
@@ -82,7 +82,7 @@ impl Tool for SleepTool {
     fn call<'a>(
         &'a self,
         _args: serde_json::Value,
-        ctx: &'a atd_ref_server::context::CallContext,
+        ctx: &'a atd_runtime::context::CallContext,
     ) -> CallFuture<'a> {
         let sleep = self.sleep;
         let budget = ctx.remaining_time();

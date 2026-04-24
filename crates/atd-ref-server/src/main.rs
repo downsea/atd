@@ -79,7 +79,7 @@ async fn main() -> std::process::ExitCode {
 
     // Apply tier overrides before run() so they take effect before any
     // connection is accepted. Malformed specs → exit 2 with a clear message.
-    let mut policy = atd_ref_server::tier::TierPolicy::defaults();
+    let mut policy = atd_runtime::tier::TierPolicy::defaults();
     for spec in &args.tier_overrides {
         if let Err(e) = policy.apply_override(spec) {
             eprintln!("atd-ref-server: --tier-override '{spec}': {e}");
@@ -90,14 +90,14 @@ async fn main() -> std::process::ExitCode {
 
     // Resolve middleware names → trait objects. `none` is a sentinel that
     // skips all middleware (useful for debugging). Unknown names exit 2.
-    let mut middleware: Vec<std::sync::Arc<dyn atd_ref_server::middleware::Middleware>> =
+    let mut middleware: Vec<std::sync::Arc<dyn atd_runtime::middleware::Middleware>> =
         Vec::new();
     for name in &args.middleware {
         match name.as_str() {
             "none" => { /* explicit opt-out */ }
             "redact_paths" => {
                 middleware.push(std::sync::Arc::new(
-                    atd_ref_server::middleware::RedactPathsMiddleware::with_home_default(),
+                    atd_runtime::middleware::RedactPathsMiddleware::with_home_default(),
                 ));
             }
             other => {

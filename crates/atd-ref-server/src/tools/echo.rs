@@ -10,9 +10,9 @@ use atd_protocol::{
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
 
-use crate::context::CallContext;
-use crate::error::ToolCallError;
-use crate::registry::{CallFuture, Tool};
+use atd_runtime::context::CallContext;
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Tool};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
@@ -140,8 +140,8 @@ mod tests {
             call_id: ulid::Ulid::new(),
             deadline: None,
             read_tracker: None,
-            capabilities: std::sync::Arc::new(crate::capability::CapabilitySet::empty()),
-            tier: crate::tier::ToolTier::Warm,
+            capabilities: std::sync::Arc::new(atd_runtime::capability::CapabilitySet::empty()),
+            tier: atd_runtime::tier::ToolTier::Warm,
         };
         let big = "x".repeat(1_000);
         let args = serde_json::json!({"big": big});

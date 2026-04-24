@@ -13,9 +13,9 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{BinaryDetection, SearcherBuilder, Sink, SinkMatch};
 use ignore::WalkBuilder;
 
-use crate::context::CallContext;
-use crate::error::ToolCallError;
-use crate::registry::{CallFuture, Tool};
+use atd_runtime::context::CallContext;
+use atd_runtime::error::ToolCallError;
+use atd_runtime::registry::{CallFuture, Tool};
 
 static DEFINITION: OnceLock<ToolDefinition> = OnceLock::new();
 
