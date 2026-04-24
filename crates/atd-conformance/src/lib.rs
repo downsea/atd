@@ -9,10 +9,8 @@
 //! for the design.
 
 pub mod case;
+pub mod report;
 pub mod runner;
 pub mod wire;
-
-// Modules populated in subsequent tasks:
-// pub mod report;   (Task 6)
 
 // run_conformance entry added in Task 7.
