@@ -42,12 +42,9 @@ pub fn desanitize_tool_name<'a, I>(sanitized: &str, known: I) -> Option<&'a str>
 where
     I: IntoIterator<Item = &'a str>,
 {
-    for id in known {
-        if sanitize_tool_name(id) == sanitized {
-            return Some(id);
-        }
-    }
-    None
+    known
+        .into_iter()
+        .find(|id| sanitize_tool_name(id) == sanitized)
 }
 
 /// Check whether sanitization would cause a collision within the given

@@ -156,8 +156,7 @@ fn resolve_root(ctx: &CallContext, path: Option<&str>) -> Result<PathBuf, ToolCa
 
 fn build_optional_globset(glob: Option<&str>) -> Result<Option<GlobSet>, ToolCallError> {
     match glob {
-        None => Ok(None),
-        Some(g) if g.is_empty() => Ok(None),
+        None | Some("") => Ok(None),
         Some(g) => {
             let glob = Glob::new(g)
                 .map_err(|e| ToolCallError::InvalidArgs(format!("invalid glob `{g}`: {e}")))?;

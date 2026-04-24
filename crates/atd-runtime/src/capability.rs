@@ -22,12 +22,6 @@ impl CapabilitySet {
         Self::default()
     }
 
-    pub fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
-        Self {
-            granted: iter.into_iter().collect(),
-        }
-    }
-
     pub fn contains(&self, cap: &str) -> bool {
         self.granted.contains(cap)
     }
@@ -52,6 +46,14 @@ impl CapabilitySet {
             }
         }
         (granted, denied)
+    }
+}
+
+impl FromIterator<String> for CapabilitySet {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        Self {
+            granted: iter.into_iter().collect(),
+        }
     }
 }
 

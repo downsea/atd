@@ -357,13 +357,11 @@ impl Tool for WebFetchTool {
             let max_bytes = args
                 .max_bytes
                 .unwrap_or(DEFAULT_MAX_BYTES)
-                .min(ctx.max_output_bytes)
-                .max(1);
+                .clamp(1, ctx.max_output_bytes);
             let timeout_ms = args
                 .timeout_ms
                 .unwrap_or(DEFAULT_TIMEOUT_MS)
-                .min(MAX_TIMEOUT_MS)
-                .max(1);
+                .clamp(1, MAX_TIMEOUT_MS);
 
             let redirect_chain: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
                 std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
