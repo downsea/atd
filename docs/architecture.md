@@ -574,3 +574,236 @@ A third-party implementer asking "what can I extend without forking the referenc
 - [`crates/atd-ref-server/src/middleware.rs`](../crates/atd-ref-server/src/middleware.rs) — `Middleware` trait definition
 - [`crates/atd-ref-server/src/registry.rs`](../crates/atd-ref-server/src/registry.rs) — `Tool` trait and registration
 - [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — origin of the `Binding` / `Middleware` traits
+
+## 7. Skills Layer (adjacent)
+
+The Skills layer (SKILL.md files + `atd-tools:` dependency declarations + progressive-disclosure skill bodies) is drawn as a stack layer in the ATD v3 brief. From a protocol standpoint, Skills is an **upstream consumer** of ATD — not part of ATD itself.
+
+### 7.1 Division of concern
+
+| Concern | Owner |
+|---|---|
+| SKILL.md authoring, validation, install | Skills runtime (Anthropic Skills, OpenClaw ClawHub, third parties) |
+| Progressive disclosure into agent context | Skills runtime |
+| `atd-tools:` dependency declarations | SKILL.md format (owned by Skills spec); ATD's contribution is stable tool IDs |
+| Invoking ATD tools from a skill body | Skills runtime calls ATD client (`atd_client.call(...)`) like any other agent |
+| The `discover` / `describe` / `call` API the skill body relies on | ATD (this project) |
+
+### 7.2 ATD's commitments toward Skills
+
+- Stable `discover` / `describe` / `call` semantics
+- Stable `AtdError` taxonomy
+- Stable tool-id conventions (namespace + dot segments; sanitization rules documented in §3)
+
+### 7.3 ATD's non-commitments
+
+- ATD does not parse SKILL.md
+- ATD does not manage skill installation
+- ATD does not store skill state across calls
+
+### 7.4 Two consumption patterns
+
+1. **Direct agent → ATD** (one-shot) — agent LLM decides `tool_id` + `args`; see [§2.4 Example A](#24-two-pager-call-graph-examples)
+2. **Skill body → ATD** (multi-step, orchestrated) — skill runtime loads a skill body into agent context; body calls ATD tools in sequence; see [§2.4 Example B](#24-two-pager-call-graph-examples)
+
+Both patterns traverse identical ATD dispatch. Skills adds orchestration on top; it does not modify dispatch.
+
+### 7.5 Future: SKILL.md generation from ATD tools
+
+A future SP (proposed) adds `atd skills --target skillmd` to generate SKILL.md stubs from registered tools — enabling the 26+ SKILL.md-compatible platforms (Claude Code, Cursor, OpenClaw, VS Code Copilot, …) to consume ATD-hosted tool catalogs. This is an ATD-side generator; the Skills runtime side is unchanged.
+
+### 7.6 See also
+
+- [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/atd-v3-skills-architecture-brief.md) — the v3 brief defining the Skills layer positioning
+- [`docs/integrations/openclaw.md`](integrations/openclaw.md) — interim MCP-bridge workaround until SKILL.md generation lands
+
+## 8. Component / crate map
+
+### 8.1 Principle
+
+A clean logical decomposition of the reference implementation has three core components + satellites:
+
+- **Protocol** (the spec): types, wire format, sanitization rules. Shared between SDK and runtime; depends on neither.
+- **SDK** (the client side): how agents and framework integrations call ATD. Depends on Protocol.
+- **Runtime** (the server side): how tools get invoked. Depends on Protocol, not on SDK.
+- **Tools**: concrete tool implementations. Logically separate from Runtime; in v1 they share a crate for convenience.
+- **Bridges**: protocol translators (MCP ⇄ ATD is the only one shipped). Consume SDK; speak an external protocol outward.
+- **Binaries**: end-user artifacts (`atd` CLI, `atd-ref-server` binary). Thin wrappers.
+
+### 8.2 Current → target mapping
+
+The current crate layout lumps some of these together. The table below names each logical component and its current home, with a suggested target for a future structural refactor.
+
+| Logical component | Current crate | Status | Notes for future refactor |
+|---|---|---|---|
+| **Protocol** (types, wire, sanitize) | `atd-types` + `atd-client::wire` + `atd-client::protocol` + `atd-client::sanitize` | ⚠️ split across crates | Sanitize was moved to client in SP-10 to fix a reverse-dep; wire + protocol are in client because the client did both sides initially. Future refactor: consolidate into a single `atd-protocol` crate. |
+| **Rust SDK** | `atd-client` | ✅ | Includes sanitize + adapters; feature-gated. |
+| **Python SDK** | `python/src/atd_client/` | ✅ | Hand-ported mirror |
+| **Runtime** (`Tool` trait, `Registry`, dispatch, context, tracker, binding, middleware, tier, capability) | `atd-ref-server/src/` (outside `tools/`) | ⚠️ lumped with tools + binary | Future refactor: `atd-runtime` crate as a library; ref-server binary becomes a thin wrapper. |
+| **Built-in tools** (echo, fs, shell, web) | `atd-ref-server/src/tools/` | ⚠️ lumped | Future refactor: per-domain `atd-tools-*` crates (fs, shell, web, echo); each registers against runtime |
+| **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
+| **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
+| **Examples** | `examples/` (not a published crate) | ✅ | |
+| **Conformance suite** (future) | not yet | ❌ | Future SP |
+
+### 8.3 Dependency graph (current)
+
+```
+atd-types
+   ▲
+   ├── atd-client (+ sanitize, adapters, wire, protocol)
+   │       ▲
+   │       ├── atd-mcp-bridge (depends on client)
+   │       └── atd-cli (depends on client)
+   │
+   └── atd-ref-server (+ runtime + tools + binary)
+           ▲
+           └── atd-examples (hello_atd, hello_langchain)
+```
+
+Python SDK (`python/src/atd_client/`) mirrors `atd-types` + `atd-client` as a standalone Python package, with its own sanitize + adapters.
+
+### 8.4 Target-state graph (if/when refactor lands)
+
+```
+atd-protocol (types + wire + sanitize + ready-to-generate JSON schema)
+   ▲
+   ├── atd-sdk (Rust client, adapters)
+   │       ▲
+   │       ├── atd-mcp-bridge
+   │       └── atd-cli
+   │
+   ├── atd-runtime (Tool/Binding/Middleware traits, Registry, dispatch)
+   │       ▲
+   │       ├── atd-tools-fs
+   │       ├── atd-tools-shell
+   │       ├── atd-tools-web
+   │       ├── atd-tools-echo
+   │       └── atd-ref-server-bin (wires runtime + tools into a binary)
+   │
+   ├── atd-conformance (cross-impl tests — future)
+   └── atd-sdk-py (Python mirror)
+```
+
+### 8.5 When to refactor
+
+The refactor itself is a separate, yet-to-be-brainstormed project. This architecture doc names the target structure so refactor SPs have a concrete destination; it does not commit to a timeline. Triggering condition: either (a) a third-party server implementer asks for `atd-runtime` as a reusable library, or (b) multiple independent tool crates want to coexist.
+
+Until then, the current lumping is acceptable — functionally correct, just not architecturally clean.
+
+### 8.6 See also
+
+- A future refactor brainstorm, yet to be written, will live at `docs/superpowers/specs/YYYY-MM-DD-atd-refactor-design.md`
+- [`docs/design.md`](design.md) — the original Phase 0 spec that established the current crate names
+
+## 9. Non-goals (explicit)
+
+These are intentional exclusions for v1.x. Each entry states: what the non-goal is, why it's out of scope, and what event would re-open it.
+
+### 9.1 Multi-device routing
+
+**What:** The v3 whitepaper's device-class routing (phone / watch / earbuds / tablet / pc / car / tv) with per-device-class binding selection.
+
+**Why deferred:** Requires a device registry, device-availability probing, binding fallback logic, and hardware to validate against. No adopter yet depends on this in the reference implementation.
+
+**Re-opens when:** A device-vendor adopter (HarmonyOS, Apple, Google) commits to implementing an ATD server exposing device-scoped tools.
+
+### 9.2 Distributed sessions (migrate / fork / handoff)
+
+**What:** Cross-device session migration, forking, handoff as described in v3 §2.6.
+
+**Why deferred:** Strictly depends on multi-device routing (§9.1). Without multiple devices to route between, the distributed-session primitives have no use case.
+
+**Re-opens when:** Multi-device routing lands AND an adopter has a cross-device agent use case (e.g., start on watch, finish on phone).
+
+### 9.3 Full UCAN capability tokens
+
+**What:** Cryptographically signed, delegation-tree-based, revocable capability tokens per the UCAN spec.
+
+**Why deferred:** The v1 connection-scoped allow-list (§4.2.3) closes the single-tenant use case. Full UCAN's complexity is justified only when multi-tenant deployments with agent-to-agent delegation actually exist. Implementing UCAN before the use case risks wrong primitives.
+
+**Interim workaround:** Run multiple ATD sockets per access tier (dev / prod / read-only). Each socket grants a different `--grant-capability` allow-list. Documented in [`docs/integrations/overview.md`](integrations/overview.md).
+
+**Re-opens when:** A multi-tenant deployment needs per-agent authorization finer than per-socket.
+
+### 9.4 Tool signature verification
+
+**What:** Cryptographic signatures on `ToolDefinition.publisher` + `trust_level` with verification at discovery time.
+
+**Why deferred:** Requires a signing ceremony, a key distribution story, and at least one non-reference publisher. None exist. See [§5.1](#51-classification-taxonomy) + issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md).
+
+**Re-opens when:** A tool marketplace with multiple publishers exists AND an adopter demands verification. Likely sigstore-based.
+
+### 9.5 REST, AppFunction, and distributed bindings
+
+**What:** Additional binding back-ends named by `BindingProtocol` but not yet implemented.
+
+**Why deferred:** `NativeBinding` + `CliBinding` cover all current tools. REST would enable cloud-hosted tools; AppFunction would enable mobile-native tools; distributed would enable cross-machine tools. Each requires a real adopter to inform the contract.
+
+**Re-opens when:** A concrete tool (or tool author) surfaces a binding need and is willing to co-design the contract.
+
+### 9.6 Native Skills-layer support
+
+**What:** ATD becoming aware of SKILL.md / progressive disclosure / skill state management.
+
+**Why deferred:** Wrong layer. Skills is an orchestrator above ATD ([§7](#7-skills-layer-adjacent)). Merging them would couple two projects with different adopters and different evolution cadences.
+
+**Re-opens when:** Never, likely. ATD and Skills are designed to coexist, not merge.
+
+### 9.7 HTTP transport for the wire protocol
+
+**What:** Running the ATD wire protocol over HTTP/JSON (as opposed to Unix socket + stdio).
+
+**Why deferred:** HTTP is a Phase 2 goal per `docs/design.md`. Requires: routing / auth / TLS / path structure / streaming decisions. No current adopter needs it; MCP bridge covers most remote-reach cases.
+
+**Re-opens when:** A cloud-hosted ATD deployment surfaces a real need. Meanwhile, wrap ATD in an HTTP service if needed — the Unix socket is still beneath.
+
+## 10. Evolution path
+
+A directional roadmap — **not a commitment calendar**. Each row states the item, the layer it touches, its status (from the status vocabulary), the proposed or expected SP number, a rough quarter, and the gating condition.
+
+| Item | Layer | Status | Target SP | Rough window | Gate |
+|---|---|---|---|---|---|
+| Audit logging (structured per-call events) | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
+| Rate limiting + `max_concurrent` enforcement | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
+| Dry-run consistency across tools | Security | ❌ | post-SP-13 small SP | Q2 2026 | No adopter gate |
+| Per-call agent identity tracking | Security | ❌ | bundled with audit | Q2 2026 | Prerequisite for audit and UCAN tokens |
+| Machine-readable `atd-protocol-schema.json` | Schema | ❌ | proposed SP | Q2 2026 | No adopter gate |
+| Conformance suite (SP-8 original) | Cross-cutting | ❌ | SP to be planned | Q2-Q3 2026 | Benefits from protocol schema being shipped first |
+| Ergonomic aliases DSL (SDK-only) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate; low priority |
+| Additional built-in middleware (pii_redact, injection_detect, image_meta_strip) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate |
+| Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
+| TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
+| Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ❌ | separate brainstorm | undecided | Triggered by a third-party server implementer request or multi-tool-crate need |
+| MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
+| REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
+| AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
+| Full UCAN capability tokens | Security | 🚫 v1 | — | Phase 2 | Multi-tenant adopter |
+| Tool signature verification | Security | 🚫 v1 | — | Phase 2 | Multi-publisher marketplace |
+| Multi-device routing | Dispatch | 🚫 v1 | — | Phase 2 | Device-vendor adopter |
+| Distributed sessions | Dispatch | 🚫 v1 | — | Phase 2 | Multi-device lands first |
+| Native Skills-layer integration | Cross-cutting | 🚫 forever | — | — | Intentionally separate project |
+| HTTP transport | Dispatch | 🚫 v1 | — | Phase 2 | Cloud-hosted ATD adopter |
+
+### 10.1 Update cadence
+
+This document is maintained by the atd-mvp maintainers (see `CODEOWNERS`). Expected cadence:
+
+- **Per major SP:** The SP's plan includes a step to update this document's relevant status tables.
+- **Per minor SP:** Update only if status glyphs change or new issues are filed.
+- **Quarterly:** Re-read §9 (non-goals) and §10 (roadmap) for stale entries; re-open or close as needed.
+
+### 10.2 When to amend this document vs file an issue
+
+- **File an issue** in `docs/issues/` for a specific gap that needs tracking and fixing.
+- **Amend this document** when: (a) a gap is closed (update status glyph, remove the issue link), (b) a new non-goal is added or removed, (c) the layer model itself changes (rare — would signal a semver-breaking moment), or (d) a new layer / component / extension point is added.
+
+### 10.3 Versioning this document
+
+This document is `v1.0`. A `v2.0` version would be warranted when:
+
+- A non-goal category moves out of 🚫 (e.g., multi-device routing lands)
+- The layer count changes (e.g., a new layer is inserted)
+- The extension-point contracts change incompatibly
+
+Minor edits (status updates, new entries in §10) do NOT require a version bump. They're tracked by `git log`.
