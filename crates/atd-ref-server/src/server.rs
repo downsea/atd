@@ -46,6 +46,7 @@ pub(crate) struct ServerState {
     pub(crate) registry: Registry,
     pub(crate) config: ServerConfig,
     pub(crate) tier_policy: crate::tier::TierPolicy,
+    pub(crate) middleware: Vec<Arc<dyn crate::middleware::Middleware>>,
 }
 
 impl Server {
@@ -55,6 +56,7 @@ impl Server {
                 registry,
                 config,
                 tier_policy: crate::tier::TierPolicy::defaults(),
+                middleware: Vec::new(),
             }),
         }
     }
@@ -66,6 +68,15 @@ impl Server {
         let state = Arc::get_mut(&mut self.state)
             .expect("set_tier_policy must be called before run() hands out Arcs");
         state.tier_policy = policy;
+    }
+
+    /// Install the result-middleware chain. Order matters: first registered
+    /// runs first. Must be called before `run()` for the same reason as
+    /// `set_tier_policy` — `state` becomes shared when connections spawn.
+    pub fn set_middleware(&mut self, middleware: Vec<Arc<dyn crate::middleware::Middleware>>) {
+        let state = Arc::get_mut(&mut self.state)
+            .expect("set_middleware must be called before run() hands out Arcs");
+        state.middleware = middleware;
     }
 
     pub async fn run(self) -> std::io::Result<()> {
@@ -250,12 +261,20 @@ pub(crate) async fn dispatch(
                 .call(entry.definition(), args, &ctx)
                 .await
             {
-                Ok(data) => Response::ToolResult {
-                    tool_id,
-                    result: data,
-                    success: true,
-                    dry_run: false,
-                },
+                Ok(mut data) => {
+                    // SP-12 Task 5: result-middleware chain runs on success
+                    // only (spec §8 Q4). Order is the order set via
+                    // Server::set_middleware.
+                    for mw in &state.middleware {
+                        mw.on_result(&tool_id, entry.definition(), &mut data);
+                    }
+                    Response::ToolResult {
+                        tool_id,
+                        result: data,
+                        success: true,
+                        dry_run: false,
+                    }
+                }
                 Err(ToolCallError::InvalidArgs(msg)) => Response::Error {
                     message: format!("invalid args for {tool_id}: {msg}"),
                     code: None,
@@ -313,6 +332,7 @@ mod tests {
                 granted_capabilities: vec![],
             },
             tier_policy: crate::tier::TierPolicy::defaults(),
+            middleware: vec![],
         })
     }
 
@@ -560,6 +580,7 @@ mod tests {
                 granted_capabilities: vec![],
             },
             tier_policy: crate::tier::TierPolicy::defaults(),
+            middleware: vec![],
         })
     }
 

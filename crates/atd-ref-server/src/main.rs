@@ -46,6 +46,17 @@ struct Args {
     /// Repeatable. Example: `--tier-override hot=timeout_ms=300`.
     #[arg(long = "tier-override", action = clap::ArgAction::Append)]
     tier_overrides: Vec<String>,
+
+    /// Enable a result-middleware by name. Repeatable. Known names:
+    /// `redact_paths` (default). Unknown names exit 2. Pass
+    /// `--middleware none` or don't pass the flag to disable entirely
+    /// — the default list below includes `redact_paths`.
+    #[arg(
+        long = "middleware",
+        action = clap::ArgAction::Append,
+        default_values_t = vec!["redact_paths".to_string()]
+    )]
+    middleware: Vec<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -76,6 +87,26 @@ async fn main() -> std::process::ExitCode {
         }
     }
     server.set_tier_policy(policy);
+
+    // Resolve middleware names → trait objects. `none` is a sentinel that
+    // skips all middleware (useful for debugging). Unknown names exit 2.
+    let mut middleware: Vec<std::sync::Arc<dyn atd_ref_server::middleware::Middleware>> =
+        Vec::new();
+    for name in &args.middleware {
+        match name.as_str() {
+            "none" => { /* explicit opt-out */ }
+            "redact_paths" => {
+                middleware.push(std::sync::Arc::new(
+                    atd_ref_server::middleware::RedactPathsMiddleware::with_home_default(),
+                ));
+            }
+            other => {
+                eprintln!("atd-ref-server: --middleware '{other}': unknown (known: redact_paths, none)");
+                return std::process::ExitCode::from(2);
+            }
+        }
+    }
+    server.set_middleware(middleware);
 
     match server.run().await {
         Ok(()) => std::process::ExitCode::SUCCESS,
