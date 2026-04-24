@@ -22,4 +22,5 @@ regex = "1"
 ulid = { workspace = true }
 
 [dev-dependencies]
+atd-runtime = { path = "../atd-runtime", version = "0.1.0", features = ["testing"] }
 tempfile = { workspace = true }

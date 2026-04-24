@@ -152,7 +152,6 @@ dependencies = [
  "atd-tools-shell",
  "atd-tools-web",
  "clap",
- "libc",
  "serde",
  "serde_json",
  "tempfile",
