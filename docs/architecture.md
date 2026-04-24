@@ -150,17 +150,17 @@ Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/
 
 | Layer | Section | Primary crate | Status glance |
 |---|---|---|---|
-| Schema | [§3](#3-schema-layer) | `crates/atd-types/` | mostly ✅; machine-readable schema file ❌ |
-| Dispatch core (discover/describe/call) | [§4.1](#41-core-dispatch) | `crates/atd-ref-server/` + `crates/atd-client/` | ✅ |
-| Dispatch · binding abstraction | [§4.2.1](#421-binding-abstraction) | `crates/atd-ref-server/src/binding.rs` | ✅ (SP-12) |
-| Dispatch · tier-aware deadlines | [§4.2.2](#422-tier-aware-deadlines) | `crates/atd-ref-server/src/tier.rs` | ✅ (SP-12) |
-| Dispatch · capability gate | [§4.2.3](#423-capability-gate) | `crates/atd-ref-server/src/capability.rs` | ✅ (SP-12) |
-| Dispatch · result-middleware pipeline | [§4.2.4](#424-result-middleware-pipeline) | `crates/atd-ref-server/src/middleware.rs` | ✅ (SP-12, one built-in) |
+| Schema | [§3](#3-schema-layer) | `crates/atd-protocol/` | mostly ✅; machine-readable schema file ❌ |
+| Dispatch core (discover/describe/call) | [§4.1](#41-core-dispatch) | `crates/atd-runtime/` + `crates/atd-sdk/` | ✅ |
+| Dispatch · binding abstraction | [§4.2.1](#421-binding-abstraction) | `crates/atd-runtime/src/binding.rs` | ✅ (SP-12) |
+| Dispatch · tier-aware deadlines | [§4.2.2](#422-tier-aware-deadlines) | `crates/atd-runtime/src/tier.rs` | ✅ (SP-12) |
+| Dispatch · capability gate | [§4.2.3](#423-capability-gate) | `crates/atd-runtime/src/capability.rs` | ✅ (SP-12) |
+| Dispatch · result-middleware pipeline | [§4.2.4](#424-result-middleware-pipeline) | `crates/atd-runtime/src/middleware.rs` | ✅ (SP-12, one built-in) |
 | Dispatch · sessions & cancellation | [§4.2.5](#425-sessions-and-cancellation) | — | ❌ deferred by design |
 | Dispatch · ergonomic aliases | [§4.2.6](#426-ergonomic-aliases) | — | ❌ SDK-only; planned |
-| Security · classifications | [§5.1](#51-classification-taxonomy) | `crates/atd-types/` | ✅ |
-| Security · per-tool runtime controls | [§5.2](#52-per-tool-runtime-controls) | per-tool files in `crates/atd-ref-server/src/tools/` | ✅ where applicable |
-| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-ref-server/src/capability.rs` | ✅ v1 (allow-list); full HMAC/UCAN 🚫 |
+| Security · classifications | [§5.1](#51-classification-taxonomy) | `crates/atd-protocol/` | ✅ |
+| Security · per-tool runtime controls | [§5.2](#52-per-tool-runtime-controls) | per-tool files in `crates/atd-tools-*/src/` | ✅ where applicable |
+| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` | ✅ v1 (allow-list); full HMAC/UCAN 🚫 |
 | Security · audit logging | [§5.4](#54-audit-logging) | — | ❌ |
 | Security · rate limiting & concurrency | [§5.5](#55-rate-limiting-and-concurrency) | — | ❌ |
 | Security · dry-run consistency | [§5.6](#56-dry-run-consistency) | per-tool files | ⚠️ |
@@ -173,7 +173,7 @@ Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/
 ```
 agent.llm
     ↓ decides tool_id = "ref:shell.exec" and args = {"command": "uname -s"}
-atd_client::AtdClient::call(tool_id, args, CallOptions { .. })
+atd_sdk::AtdClient::call(tool_id, args, CallOptions { .. })
     ↓ writes length-prefixed JSON over Unix socket
 atd-ref-server accepts connection
     ↓ dispatcher: capability gate → registry lookup → tier deadline → binding → tool
@@ -182,7 +182,7 @@ NativeBinding::invoke(&args)
 ToolResult { success: true, data: { stdout: "Linux\n", exit_code: 0, .. } }
     ↓ result-middleware pipeline (RedactPathsMiddleware rewrites any $HOME paths)
     ↓ serialized, length-prefixed JSON back
-atd_client delivers ToolResult to agent
+atd_sdk delivers ToolResult to agent
 ```
 
 **Example B: Skills runtime → ATD (multi-step):**
@@ -192,7 +192,7 @@ skills_runtime loads skill @acme/morning-briefing per user intent
     ↓ install-time: runtime verified atd-tools: required are discoverable on the socket
 skill body executed in agent context
     ↓ body step 1 says: call hms:health.sleep.get for yesterday
-atd_client::AtdClient::call("hms:health.sleep.get", { "date": "2026-04-23" }, ..)
+atd_sdk::AtdClient::call("hms:health.sleep.get", { "date": "2026-04-23" }, ..)
     ↓ same dispatch path as Example A
     ... (body continues with step 2, step 3)
 skill returns to agent context with synthesised output
@@ -221,17 +221,17 @@ The schema layer does NOT own: dispatch behavior, security enforcement, binding 
 
 | Component | Source | Status | Tests | Notes |
 |---|---|---|---|---|
-| `ToolSummary` (incl. `input_schema`) | `crates/atd-types/src/summary.rs` | ✅ | types roundtrip tests | `input_schema` added in SP-10 Task 2.5 so LLM adapters emit real schemas |
-| `ToolDefinition` + sub-structs | `crates/atd-types/src/tool.rs` | ✅ | roundtrip tests | — |
-| `ToolResult` (Success/Error variants) | `crates/atd-types/src/result.rs` | ✅ | — | |
-| `AtdError` (9 variants + `is_retryable` + `suggest_fix`) | `crates/atd-types/src/error.rs` | ✅ | — | See [`docs/protocol/error-codes.md`](protocol/error-codes.md) for the reference table |
-| `SafetyLevel` / `ToolVisibility` / `TrustLevel` / `BindingProtocol` | `crates/atd-types/src/enums.rs` | ✅ | — | |
-| `ToolTier` enum (`Hot` / `Warm` / `Cold`) | `crates/atd-types/src/enums.rs` | ✅ | — | Runtime semantics in §4.2.2 |
-| `ToolResources.rate_limit_per_min` | `crates/atd-types/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
+| `ToolSummary` (incl. `input_schema`) | `crates/atd-protocol/src/summary.rs` | ✅ | types roundtrip tests | `input_schema` added in SP-10 Task 2.5 so LLM adapters emit real schemas |
+| `ToolDefinition` + sub-structs | `crates/atd-protocol/src/tool.rs` | ✅ | roundtrip tests | — |
+| `ToolResult` (Success/Error variants) | `crates/atd-protocol/src/result.rs` | ✅ | — | |
+| `AtdError` (9 variants + `is_retryable` + `suggest_fix`) | `crates/atd-protocol/src/error.rs` | ✅ | — | See [`docs/protocol/error-codes.md`](protocol/error-codes.md) for the reference table |
+| `SafetyLevel` / `ToolVisibility` / `TrustLevel` / `BindingProtocol` | `crates/atd-protocol/src/enums.rs` | ✅ | — | |
+| `ToolTier` enum (`Hot` / `Warm` / `Cold`) | `crates/atd-protocol/src/enums.rs` | ✅ | — | Runtime semantics in §4.2.2 |
+| `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
 | `ToolResources.max_concurrent` | same | 📜 | — | Same — declared, not enforced |
-| `ToolTrust.signature` | `crates/atd-types/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
+| `ToolTrust.signature` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
 | `CapabilityToken` / UCAN types | — | 🚫 | — | See [§9.3](#9-non-goals-explicit) |
-| Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-client/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
+| Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-sdk/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
 | Python schema mirror | `python/src/atd_client/types.py` | ✅ | — | Hand-ported; drift-prone |
 | **Machine-readable protocol schema** (`atd-protocol-schema.json`) | — | ❌ | — | Issue [`schema-protocol-machine-readable-missing`](issues/2026-04-24-schema-protocol-machine-readable-missing.md) |
 
@@ -268,11 +268,11 @@ Beyond v1: the schema layer accumulates optional additions as new capabilities l
 
 | Component | Source | Status | Tests | Notes |
 |---|---|---|---|---|
-| Wire framing (length-prefixed JSON, UTF-8) | `crates/atd-client/src/wire.rs` | ✅ | unit tests | See [`docs/protocol/wire-format.md`](protocol/wire-format.md) |
-| `ClientMessage::ToolList` / `ToolSchema` / `RunTool` | `crates/atd-client/src/protocol.rs` | ✅ | roundtrip tests | |
-| `Registry::dispatch()` (server-side routing) | `crates/atd-ref-server/src/registry.rs` | ✅ | integration tests | Tool id → `Arc<dyn Tool>` |
-| `Tool` trait + `CallContext` | `crates/atd-ref-server/src/registry.rs` + `context.rs` | ✅ | — | — |
-| `AtdClient::connect` / `discover` / `describe` / `call` / `ping` | `crates/atd-client/src/client.rs` | ✅ | 8 integration tests across workspace | — |
+| Wire framing (length-prefixed JSON, UTF-8) | `crates/atd-sdk/src/wire.rs` | ✅ | unit tests | See [`docs/protocol/wire-format.md`](protocol/wire-format.md) |
+| `ClientMessage::ToolList` / `ToolSchema` / `RunTool` | `crates/atd-sdk/src/protocol.rs` | ✅ | roundtrip tests | |
+| `Registry::dispatch()` (server-side routing) | `crates/atd-runtime/src/registry.rs` | ✅ | integration tests | Tool id → `Arc<dyn Tool>` |
+| `Tool` trait + `CallContext` | `crates/atd-runtime/src/registry.rs` + `context.rs` | ✅ | — | — |
+| `AtdClient::connect` / `discover` / `describe` / `call` / `ping` | `crates/atd-sdk/src/client.rs` | ✅ | 8 integration tests across workspace | — |
 | Python mirror (`AtdClient` + `AtdClientSync`) | `python/src/atd_client/` | ✅ | 45 pytest tests | — |
 
 ### 4.2 Dispatch primitives (v1 — per SP-12 and follow-ups)
@@ -293,7 +293,7 @@ accept connection → Hello handshake (capability gate) → receive RunTool
 
 | Component | Source | Status | Tests | Notes |
 |---|---|---|---|---|
-| `Binding` trait | `crates/atd-ref-server/src/binding.rs` | ✅ (SP-12) | SP-12 unit tests | |
+| `Binding` trait | `crates/atd-runtime/src/binding.rs` | ✅ (SP-12) | SP-12 unit tests | |
 | `NativeBinding` (delegates to `Tool` impl) | same | ✅ | — | Default for every registered built-in tool |
 | `CliBinding` (spawn subprocess, map JSON args to argv, honor deadlines) | same | ✅ | SP-12 tests | `ref:external.uname` is the demo tool |
 | `MCP` / `REST` / `AppFunction` bindings | — | 🚫 | — | See [§9.5](#9-non-goals-explicit). Trait designed to extend without breaking existing bindings. |
@@ -304,19 +304,19 @@ The binding trait's contract: given `args: serde_json::Value` and a `&CallContex
 
 | Component | Source | Status | Notes |
 |---|---|---|---|
-| `Tier` type (`Hot` / `Warm` / `Cold`) | `crates/atd-ref-server/src/tier.rs` | ✅ (SP-12) | Resolution of per-call deadline + max_output_bytes based on the tool's declared tier, overridable via `--tier-override` CLI flag |
-| Default deadlines per tier | same | ✅ | `Hot` = 300ms, `Warm` = 5s, `Cold` = 60s at time of writing; verify against `crates/atd-ref-server/src/tier.rs` before quoting |
-| Tool-declared tier → dispatch honor | `crates/atd-ref-server/src/registry.rs` | ✅ | Existing built-in tools: most ship as `Warm`; ref:external.uname (CliBinding demo) uses `Warm`. Re-classification PRs welcome. |
+| `Tier` type (`Hot` / `Warm` / `Cold`) | `crates/atd-runtime/src/tier.rs` | ✅ (SP-12) | Resolution of per-call deadline + max_output_bytes based on the tool's declared tier, overridable via `--tier-override` CLI flag |
+| Default deadlines per tier | same | ✅ | `Hot` = 300ms, `Warm` = 5s, `Cold` = 60s at time of writing; verify against `crates/atd-runtime/src/tier.rs` before quoting |
+| Tool-declared tier → dispatch honor | `crates/atd-runtime/src/registry.rs` | ✅ | Existing built-in tools: most ship as `Warm`; ref:external.uname (CliBinding demo) uses `Warm`. Re-classification PRs welcome. |
 | Hot-tier warmup / Cold-tier lazy-load | — | 🚫 | See [§9.5](#9-non-goals-explicit). `Hot` / `Cold` today mean latency/cost class, not lifecycle policy. |
 
 #### 4.2.3 Capability gate
 
 | Component | Source | Status | Notes |
 |---|---|---|---|
-| `Hello` wire message (client → server on connect) | `crates/atd-client/src/protocol.rs` | ✅ (SP-12) | Client requests a subset of capabilities it plans to use |
-| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
-| `CapabilitySet` type + intersection logic | `crates/atd-ref-server/src/capability.rs` | ✅ | — |
-| Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-ref-server/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
+| `Hello` wire message (client → server on connect) | `crates/atd-sdk/src/protocol.rs` | ✅ (SP-12) | Client requests a subset of capabilities it plans to use |
+| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server-bin/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
+| `CapabilitySet` type + intersection logic | `crates/atd-runtime/src/capability.rs` | ✅ | — |
+| Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-runtime/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
 | Full UCAN-style tokens (delegation, revocation, signatures) | — | 🚫 | See [§9.3](#9-non-goals-explicit) |
 
 The v1 capability gate is connection-scoped and allow-list-based. Token-based per-call authorization is deferred; the allow-list closes the 80% case of "limit what an adopter's socket exposes" without the cryptographic complexity of full UCAN.
@@ -325,7 +325,7 @@ The v1 capability gate is connection-scoped and allow-list-based. Token-based pe
 
 | Component | Source | Status | Notes |
 |---|---|---|---|
-| `Middleware` trait | `crates/atd-ref-server/src/middleware.rs` | ✅ (SP-12) | Runs on success before wire reply |
+| `Middleware` trait | `crates/atd-runtime/src/middleware.rs` | ✅ (SP-12) | Runs on success before wire reply |
 | `Pipeline` composition | same | ✅ | Composed at startup via repeated `--middleware` CLI flags |
 | `RedactPathsMiddleware` (redact `$HOME` paths) | same | ✅ | Enabled by default; disable with `--middleware none` |
 | Additional builtins: `pii_redact`, `injection_detect`, `image_meta_strip`, `trim`, `format` | — | ❌ | Tracked for future SPs — see §10 |
@@ -394,7 +394,7 @@ Every tool declares three classifications as part of its `ToolDefinition`. They 
 | Visibility | `Read` / `Write` / `Dangerous` / `System` | `ToolVisibility` (top-level) |
 | Trust level | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
 
-Status: ✅ implemented in `crates/atd-types/`. Every built-in tool declares all three. LLM adapters surface `Visibility` and `SafetyLevel` to agent-framework tool pickers where supported.
+Status: ✅ implemented in `crates/atd-protocol/`. Every built-in tool declares all three. LLM adapters surface `Visibility` and `SafetyLevel` to agent-framework tool pickers where supported.
 
 Trust signatures (`ToolTrust::signature`) are declarative-only in v1 (`📜 informational`). Full signature verification is 🚫 non-goal — see [§9.4](#9-non-goals-explicit).
 
@@ -404,10 +404,10 @@ Four specific runtime defenses run inside individual tools, not at the dispatch 
 
 | Control | Applies to | Source | Status |
 |---|---|---|---|
-| **SSRF guard** (loopback + RFC1918 + link-local + CGN + TEST-NET + 0.0.0.0/8 + IPv4-mapped-private; re-checked on every redirect hop) | `ref:web.fetch` | `crates/atd-ref-server/src/tools/web/fetch.rs::check_ssrf` | ✅ (SP-5) |
+| **SSRF guard** (loopback + RFC1918 + link-local + CGN + TEST-NET + 0.0.0.0/8 + IPv4-mapped-private; re-checked on every redirect hop) | `ref:web.fetch` | `crates/atd-tools-web/src/fetch.rs::check_ssrf` | ✅ (SP-5) |
 | **Header allowlist** (Accept, Accept-Language, Referer, User-Agent only; Authorization + Cookie rejected with `InvalidArgs`) | `ref:web.fetch` | same file, `build_headers` | ✅ (SP-5) |
-| **Must-read-before-edit** (mtime + size proof required in session before `fs.edit` will apply) | `ref:fs.edit` | `crates/atd-ref-server/src/tracker.rs` (ReadTracker), used from `crates/atd-ref-server/src/tools/fs/edit.rs` | ✅ (SP-2) |
-| **SIGTERM → grace → SIGKILL subprocess timeout** | `ref:shell.exec` / `ref:shell.pwsh` | `crates/atd-ref-server/src/tools/shell/shared.rs` | ✅ (SP-3) |
+| **Must-read-before-edit** (mtime + size proof required in session before `fs.edit` will apply) | `ref:fs.edit` | `crates/atd-runtime/src/tracker.rs` (ReadTracker), used from `crates/atd-tools-fs/src/edit.rs` | ✅ (SP-2) |
+| **SIGTERM → grace → SIGKILL subprocess timeout** | `ref:shell.exec` / `ref:shell.pwsh` | `crates/atd-tools-shell/src/shared.rs` | ✅ (SP-3) |
 | **Request-arg schema validation** (serde + per-tool checks) | all tools | per-tool `call` impls | ✅ |
 
 ### 5.3 Capability tokens
@@ -437,7 +437,7 @@ Without audit, the other security layers are unobservable in retrospect. Shippin
 
 | Component | Source | Status | Notes |
 |---|---|---|---|
-| `ToolResources.rate_limit_per_min` | `crates/atd-types/src/tool.rs` | 📜 | Declared on every tool; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
+| `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | Declared on every tool; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
 | `ToolResources.max_concurrent` | same | 📜 | Same |
 | Server-side semaphore wrapping per-tool invocation | — | ❌ | Planned: `tokio::sync::Semaphore` in `Registry` |
 | Server-side rate-limiter (token bucket via `governor`) | — | ❌ | Planned |
@@ -497,7 +497,7 @@ Adding a new binding back-end (for example: a gRPC binding, a WebAssembly bindin
 
 | Step | Contract |
 |---|---|
-| 1. Implement `Binding` trait | Defined in `crates/atd-ref-server/src/binding.rs`. Given `args: serde_json::Value` + `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. Respect `ctx.deadline`. |
+| 1. Implement `Binding` trait | Defined in `crates/atd-runtime/src/binding.rs`. Given `args: serde_json::Value` + `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. Respect `ctx.deadline`. |
 | 2. Register an instance | `Registry::register_binding("grpc", Arc::new(GrpcBinding::new(...)))` at startup |
 | 3. Tools declare `bindings: [ToolBinding { protocol: BindingProtocol::..., config: ... }, ...]` | One tool may have multiple bindings; dispatch picks one (currently: first) |
 
@@ -520,13 +520,13 @@ Adding a new tool to the reference server (or to a third-party ATD server):
 
 | Step | Contract |
 |---|---|
-| 1. Implement `Tool` trait | Defined in `crates/atd-ref-server/src/registry.rs`. Return `ToolDefinition` in `definition()`; implement `call(args, ctx)` returning `Result<serde_json::Value, ToolCallError>`. |
+| 1. Implement `Tool` trait | Defined in `crates/atd-runtime/src/registry.rs`. Return `ToolDefinition` in `definition()`; implement `call(args, ctx)` returning `Result<serde_json::Value, ToolCallError>`. |
 | 2. Register | `registry.register(Arc::new(MyTool::new()))` in `builtin.rs` or equivalent |
 | 3. Declare required capabilities, safety, tier, bindings | Via the returned `ToolDefinition` |
 
-Tools outside this repo can implement the same trait and register in their own `atd-ref-server`-analogue binary. The reference server is not required to host all tools; any crate can host a `Registry` and serve an ATD socket.
+Tools outside this repo can implement the same trait and register in their own binary that links `atd-runtime`. The reference server is not required to host all tools; any crate can host a `Registry` and serve an ATD socket.
 
-Canonical examples: `crates/atd-ref-server/src/tools/{echo,fs,shell,web}/`.
+Canonical examples: `crates/atd-tools-{echo,fs,shell,web}/`.
 
 ### 6.3 Middleware extensibility
 
@@ -534,7 +534,7 @@ Adding a new result-middleware:
 
 | Step | Contract |
 |---|---|
-| 1. Implement `Middleware` trait | Defined in `crates/atd-ref-server/src/middleware.rs`. Given the prior result + metadata, return a (possibly rewritten) result or an error to short-circuit the chain. |
+| 1. Implement `Middleware` trait | Defined in `crates/atd-runtime/src/middleware.rs`. Given the prior result + metadata, return a (possibly rewritten) result or an error to short-circuit the chain. |
 | 2. Register | `Pipeline::from_flags(["my_middleware", ...])` at startup, or programmatically via `Pipeline::add(Arc::new(MyMiddleware))` |
 | 3. Enable per deployment | CLI: repeated `--middleware <name>` flags compose a chain in declaration order |
 
@@ -570,9 +570,9 @@ A third-party implementer asking "what can I extend without forking the referenc
 
 ### 6.6 See also
 
-- [`crates/atd-ref-server/src/binding.rs`](../crates/atd-ref-server/src/binding.rs) — `Binding` trait definition
-- [`crates/atd-ref-server/src/middleware.rs`](../crates/atd-ref-server/src/middleware.rs) — `Middleware` trait definition
-- [`crates/atd-ref-server/src/registry.rs`](../crates/atd-ref-server/src/registry.rs) — `Tool` trait and registration
+- [`crates/atd-runtime/src/binding.rs`](../crates/atd-runtime/src/binding.rs) — `Binding` trait definition
+- [`crates/atd-runtime/src/middleware.rs`](../crates/atd-runtime/src/middleware.rs) — `Middleware` trait definition
+- [`crates/atd-runtime/src/registry.rs`](../crates/atd-runtime/src/registry.rs) — `Tool` trait and registration
 - [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — origin of the `Binding` / `Middleware` traits
 
 ## 7. Skills Layer (adjacent)
@@ -586,7 +586,7 @@ The Skills layer (SKILL.md files + `atd-tools:` dependency declarations + progre
 | SKILL.md authoring, validation, install | Skills runtime (Anthropic Skills, OpenClaw ClawHub, third parties) |
 | Progressive disclosure into agent context | Skills runtime |
 | `atd-tools:` dependency declarations | SKILL.md format (owned by Skills spec); ATD's contribution is stable tool IDs |
-| Invoking ATD tools from a skill body | Skills runtime calls ATD client (`atd_client.call(...)`) like any other agent |
+| Invoking ATD tools from a skill body | Skills runtime calls ATD client (`atd_client.call(...)` in Python, `atd_sdk::call(...)` in Rust) like any other agent |
 | The `discover` / `describe` / `call` API the skill body relies on | ATD (this project) |
 
 ### 7.2 ATD's commitments toward Skills
@@ -632,69 +632,58 @@ A clean logical decomposition of the reference implementation has three core com
 
 ### 8.2 Current → target mapping
 
-The current crate layout lumps some of these together. The table below names each logical component and its current home, with a suggested target for a future structural refactor.
+The current crate layout (post-`SP-refactor-v1`) cleanly separates each logical component into its own crate. The table below names each logical component and its current home.
 
-| Logical component | Current crate | Status | Notes for future refactor |
+| Logical component | Current crate | Status | Notes |
 |---|---|---|---|
-| **Protocol** (types, wire, sanitize) | `atd-types` + `atd-client::wire` + `atd-client::protocol` + `atd-client::sanitize` | ⚠️ split across crates | Sanitize was moved to client in SP-10 to fix a reverse-dep; wire + protocol are in client because the client did both sides initially. Future refactor: consolidate into a single `atd-protocol` crate. |
-| **Rust SDK** | `atd-client` | ✅ | Includes sanitize + adapters; feature-gated. |
-| **Python SDK** | `python/src/atd_client/` | ✅ | Hand-ported mirror |
-| **Runtime** (`Tool` trait, `Registry`, dispatch, context, tracker, binding, middleware, tier, capability) | `atd-ref-server/src/` (outside `tools/`) | ⚠️ lumped with tools + binary | Future refactor: `atd-runtime` crate as a library; ref-server binary becomes a thin wrapper. |
-| **Built-in tools** (echo, fs, shell, web) | `atd-ref-server/src/tools/` | ⚠️ lumped | Future refactor: per-domain `atd-tools-*` crates (fs, shell, web, echo); each registers against runtime |
+| **Protocol** (types, wire, sanitize) | `atd-protocol` | ✅ | Consolidated in SP-refactor-v1. |
+| **Rust SDK** | `atd-sdk` | ✅ | Renamed from `atd-client` in SP-refactor-v1. Adapters feature-gated. |
+| **Python SDK** | `python/src/atd_client/` | ⚠️ pending Python-mirror SP | Still named `atd_client`; rename deferred. |
+| **Runtime** (`Tool` trait, `Registry`, dispatch, binding, middleware, tier, capability) | `atd-runtime` | ✅ | Extracted from `atd-ref-server` in SP-refactor-v1. |
+| **Built-in tools** (echo, fs, shell, web) | `atd-tools-echo`, `atd-tools-fs`, `atd-tools-shell`, `atd-tools-web` | ✅ | Split per-domain in SP-refactor-v1. |
 | **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
 | **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
-| **Examples** | `examples/` (not a published crate) | ✅ | |
-| **Conformance suite** (future) | not yet | ❌ | Future SP |
+| **Ref-server binary** | `atd-ref-server-bin` (binary name `atd-ref-server`) | ✅ | Thin wrapper over `atd-runtime` + `atd-tools-*`. |
+| **Examples** | `examples/` (not published) | ✅ | |
+| **Conformance suite** (future) | not yet | ❌ | Future SP (SP-8) |
 
 ### 8.3 Dependency graph (current)
 
 ```
-atd-types
+atd-protocol
    ▲
-   ├── atd-client (+ sanitize, adapters, wire, protocol)
-   │       ▲
-   │       ├── atd-mcp-bridge (depends on client)
-   │       └── atd-cli (depends on client)
-   │
-   └── atd-ref-server (+ runtime + tools + binary)
-           ▲
-           └── atd-examples (hello_atd, hello_langchain)
-```
-
-Python SDK (`python/src/atd_client/`) mirrors `atd-types` + `atd-client` as a standalone Python package, with its own sanitize + adapters.
-
-### 8.4 Target-state graph (if/when refactor lands)
-
-```
-atd-protocol (types + wire + sanitize + ready-to-generate JSON schema)
-   ▲
-   ├── atd-sdk (Rust client, adapters)
+   ├── atd-sdk (client + adapters)
    │       ▲
    │       ├── atd-mcp-bridge
    │       └── atd-cli
    │
-   ├── atd-runtime (Tool/Binding/Middleware traits, Registry, dispatch)
-   │       ▲
-   │       ├── atd-tools-fs
-   │       ├── atd-tools-shell
-   │       ├── atd-tools-web
-   │       ├── atd-tools-echo
-   │       └── atd-ref-server-bin (wires runtime + tools into a binary)
-   │
-   ├── atd-conformance (cross-impl tests — future)
-   └── atd-sdk-py (Python mirror)
+   └── atd-runtime (Tool/Binding/Middleware/Registry/dispatch)
+           ▲
+           ├── atd-tools-echo
+           ├── atd-tools-fs
+           ├── atd-tools-shell
+           ├── atd-tools-web
+           └── atd-ref-server-bin (wires runtime + tools into an installable binary)
 ```
 
-### 8.5 When to refactor
+Python SDK (`python/src/atd_client/`) mirrors `atd-protocol` + `atd-sdk` as a standalone Python package with its own sanitize + adapters. Python rename to `atd_sdk` is a deferred SP.
 
-The refactor itself is a separate, yet-to-be-brainstormed project. This architecture doc names the target structure so refactor SPs have a concrete destination; it does not commit to a timeline. Triggering condition: either (a) a third-party server implementer asks for `atd-runtime` as a reusable library, or (b) multiple independent tool crates want to coexist.
+### 8.4 Refactor history
 
-Until then, the current lumping is acceptable — functionally correct, just not architecturally clean.
+Target layout landed in `SP-refactor-v1` (tag `sp-refactor-v1`). Pre-refactor
+state is available at tag `pre-refactor-v1` if someone needs the historical
+crate-lumping for comparison. The refactor was mechanical: zero behavior
+change, zero wire-format change, binary names (`atd`, `atd-ref-server`,
+`atd-mcp-bridge`) unchanged.
+
+### 8.5 Refactor triggers (resolved)
+
+The refactor triggers discussed in prior doc versions have been resolved; see §8.4 above for the landing record.
 
 ### 8.6 See also
 
-- A future refactor brainstorm, yet to be written, will live at `docs/superpowers/specs/YYYY-MM-DD-atd-refactor-design.md`
-- [`docs/design.md`](design.md) — the original Phase 0 spec that established the current crate names
+- [`docs/superpowers/specs/2026-04-24-crate-refactor-design.md`](superpowers/specs/2026-04-24-crate-refactor-design.md) — design spec for SP-refactor-v1
+- [`docs/design.md`](design.md) — the original Phase 0 spec that established the pre-refactor crate names
 
 ## 9. Non-goals (explicit)
 
@@ -774,7 +763,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Additional built-in middleware (pii_redact, injection_detect, image_meta_strip) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate |
 | Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
 | TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
-| Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ❌ | separate brainstorm | undecided | Triggered by a third-party server implementer request or multi-tool-crate need |
+| Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |

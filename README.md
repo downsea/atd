@@ -15,7 +15,7 @@ other MCP-speaking agent.
 ```bash
 git clone https://github.com/downsea/atd-mvp
 cd atd-mvp
-cargo build --release -p atd-ref-server
+cargo build --release -p atd-ref-server-bin
 cargo run --example hello_atd -p atd-examples
 ```
 
@@ -42,7 +42,7 @@ No ANOS, no external daemon — everything runs from this repo.
 For Rust agents that want to speak ATD:
 
 ```bash
-cargo add atd-client
+cargo add atd-sdk
 ```
 
 For MCP clients (Claude Desktop, Cursor, Hermes, …) that want to reach
@@ -60,7 +60,7 @@ examples.
 
 ```
 ┌──────────────┐  length-prefixed JSON  ┌────────────────────────────────────────┐
-│  atd-client  │ ←───────────────────→  │ atd-ref-server                          │
+│   atd-sdk    │ ←───────────────────→  │ atd-ref-server                          │
 │              │    (Unix socket)       │  Hello → capability gate                │
 │              │                        │  registry → tier → binding → middleware │
 └──────────────┘                        └────────────────────────────────────────┘
@@ -126,7 +126,7 @@ Two evidence docs prove the independence and cross-vendor claims:
 
 ### Quick start guides
 
-- [Rust](docs/quickstart/rust.md) — `cargo add atd-client`, first tool call, adapter usage
+- [Rust](docs/quickstart/rust.md) — `cargo add atd-sdk`, first tool call, adapter usage
 - [Python](docs/quickstart/python.md) — sync + async API, LangChain adapter, OpenAI/Anthropic helpers
 - [TypeScript](docs/quickstart/typescript.md) — planned; stub with design preview
 

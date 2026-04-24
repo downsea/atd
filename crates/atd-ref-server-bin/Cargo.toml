@@ -13,6 +13,9 @@ name = "atd_ref_server_bin"
 path = "src/lib.rs"
 
 [[bin]]
+# Binary name intentionally omits the `-bin` suffix: the installed command
+# is `atd-ref-server`. The `-bin` package suffix distinguishes this
+# executable crate from the library crates (atd-runtime, atd-tools-*).
 name = "atd-ref-server"
 path = "src/main.rs"
 

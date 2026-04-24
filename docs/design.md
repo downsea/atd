@@ -5,7 +5,7 @@
 **Owner:** ANOS project → future `atd-protocol` org
 **Related whitepaper:** [`/home/nan/proj/anos/docs/research/toward-agent-tool-dispatch-v2.md`](/home/nan/proj/anos/docs/research/toward-agent-tool-dispatch-v2.md) (esp. §2.4, §7, Appendix G)
 
-> **Note (2026-04-24):** This document is the original Phase 0 design spec from 2026-04-21. It has been **superseded by** [`docs/architecture.md`](architecture.md) as the normative architecture reference for the reference implementation. This file is retained for historical context — to understand the Phase 0 scoping decisions and the then-open questions (§10), read this doc. To understand the current architecture, crate layout, and evolution path, read `docs/architecture.md`.
+> **Note (2026-04-24):** This document is the original Phase 0 design spec from 2026-04-21. It has been **superseded by** [`docs/architecture.md`](architecture.md) as the normative architecture reference for the reference implementation. This file is retained for historical context — to understand the Phase 0 scoping decisions and the then-open questions (§10), read this doc. To understand the current architecture, crate layout, and evolution path, read `docs/architecture.md`. Note also that `SP-refactor-v1` (2026-04-24) has since split the monolithic reference server into `atd-protocol` / `atd-sdk` / `atd-runtime` / `atd-tools-*` / `atd-ref-server-bin`; crate names referenced below describe the pre-refactor layout for historical fidelity. Rust code examples (`use atd_sdk::*`) have been updated to current names; Python examples retain `atd_client` since the Python SDK rename is deferred.
 
 ---
 
@@ -16,7 +16,7 @@
 **Relationship to ANOS:**
 - ANOS at `/home/nan/proj/anos/` remains the **reference server** during Phase 0/1 (the daemon already implements the dispatch pipeline).
 - `atd-mvp` pulls inspiration from `/home/nan/proj/anos/crates/anos-tool-dispatch/`, `/home/nan/proj/anos/crates/anos-cli/src/client.rs`, and `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs` — but reimplements the **protocol-level types** cleanly, without any `anos-*` crate dependency.
-- CI must enforce: `atd-mvp` has **zero runtime dependency** on any `/home/nan/proj/anos/crates/*` crate. An `ANOS-free` test harness runs `atd-client` against a mock server to prove protocol independence.
+- CI must enforce: `atd-mvp` has **zero runtime dependency** on any `/home/nan/proj/anos/crates/*` crate. An `ANOS-free` test harness runs `atd-sdk` against a mock server to prove protocol independence.
 
 ## 1. Goals and Non-Goals
 
@@ -24,12 +24,12 @@
 
 | Priority | Goal | Exit signal |
 |---------|------|------------|
-| **A** | Technical validation — prove ATD protocol is usable by non-ANOS agents | One working demo: LangChain/Hermes/OpenClaw agent calls an ATD tool via atd-client, end to end |
+| **A** | Technical validation — prove ATD protocol is usable by non-ANOS agents | One working demo: LangChain/Hermes/OpenClaw agent calls an ATD tool via atd-sdk, end to end |
 | **B** | DX-first onboarding — 15 min install-to-first-call for agent framework developers | Third-party developer writes a 10-line example from `pip install` to working tool call, no support ticket |
 
 ### 1.2 Explicit Non-Goals (Phase 0/1)
 
-- ❌ Skill runtime. `atd-client` does **not** parse SKILL.md, execute skill bodies, or manage progressive disclosure. Skill runtime is a future independent package (`atd-skill-runtime`), Phase 2+, likely a separate repo.
+- ❌ Skill runtime. `atd-sdk` does **not** parse SKILL.md, execute skill bodies, or manage progressive disclosure. Skill runtime is a future independent package (`atd-skill-runtime`), Phase 2+, likely a separate repo.
 - ❌ SOUL.md / agent identity / personality injection.
 - ❌ `subscribe` / event streaming — defer to Phase 2 (simplifies transport).
 - ❌ HTTP/JSON transport — defer to Phase 2 (Unix socket + stdio covers Phase 0/1).
@@ -99,8 +99,8 @@ Inherits the length-prefixed JSON format already used by ANOS IPC (see `/home/na
 ### 3.1 Rust reference
 
 ```rust
-// /home/nan/proj/atd-mvp/crates/atd-client/src/lib.rs
-use atd_types::{ToolSummary, ToolDefinition, ToolResult, DiscoverFilter, CallOptions};
+// /home/nan/proj/atd-mvp/crates/atd-sdk/src/lib.rs
+use atd_protocol::{ToolSummary, ToolDefinition, ToolResult, DiscoverFilter, CallOptions};
 
 pub struct AtdClient { /* ... */ }
 
@@ -168,7 +168,7 @@ Handles tool-name sanitization: `xiaomi:light.toggle` → `xiaomi_light_toggle` 
 ### 3.5 Error model
 
 ```rust
-// /home/nan/proj/atd-mvp/crates/atd-types/src/error.rs
+// /home/nan/proj/atd-mvp/crates/atd-protocol/src/error.rs
 pub enum AtdError {
     ToolNotFound { tool_id: String, suggestions: Vec<String> },
     InvalidArguments { tool_id: String, field: String, reason: String },
@@ -207,9 +207,9 @@ Every error includes a `suggest_fix()` returning an actionable hint (printed by 
 /home/nan/proj/atd-mvp/
 ├── Cargo.toml                          # workspace manifest (Rust)
 ├── crates/
-│   ├── atd-types/                      # protocol types (no ANOS dependency)
+│   ├── atd-protocol/                      # protocol types (no ANOS dependency)
 │   │   └── src/{tool.rs, capability.rs, error.rs, binding.rs}
-│   ├── atd-client/                     # Rust reference client
+│   ├── atd-sdk/                     # Rust reference client
 │   │   └── src/{lib.rs, transport/{unix.rs, stdio.rs, mcp.rs}, adapters/}
 │   ├── atd-cli/                        # `atd` command-line binary
 │   │   └── src/{main.rs, list.rs, call.rs, schema.rs, doctor.rs, allow.rs}
@@ -253,7 +253,7 @@ Each target agent ecosystem has a **minimum-invasion path** (zero upstream coord
 
 | Target | Phase 0 path | Phase 1-2 path |
 |--------|-------------|---------------|
-| **OpenClaw** | Publish `atd-dispatch` skill to ClawHub | PR OpenClaw: dispatcher resolves `atd:*` tool ids via atd-client |
+| **OpenClaw** | Publish `atd-dispatch` skill to ClawHub | PR OpenClaw: dispatcher resolves `atd:*` tool ids via atd-sdk |
 | **Hermes Agent** | Spawn `atd-mcp-bridge`; Hermes MCP config points at it | PR Hermes: add native `AtdClient` (gets session/capability/tier benefits) |
 | **LangChain** | `pip install atd-langchain` toolkit | — |
 | **Claude Code / Cursor / Codex** | ATD-MCP-bridge exposes ATD tools as MCP server | Already covered by MCP adoption |
@@ -370,9 +370,9 @@ hint:  run 'atd allow fs.delete' to grant for this session
 
 | Deliverable | Location | Source reference |
 |------------|----------|-----------------|
-| `atd-types` crate | `/home/nan/proj/atd-mvp/crates/atd-types/` | Reimplement from `/home/nan/proj/anos/crates/anos-types/src/tool.rs` |
-| `atd-client` crate | `/home/nan/proj/atd-mvp/crates/atd-client/` | Pattern from `/home/nan/proj/anos/crates/anos-cli/src/client.rs` |
-| Unix socket transport | `/home/nan/proj/atd-mvp/crates/atd-client/src/transport/unix.rs` | Based on `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs` |
+| `atd-protocol` crate | `/home/nan/proj/atd-mvp/crates/atd-protocol/` | Reimplement from `/home/nan/proj/anos/crates/anos-types/src/tool.rs` |
+| `atd-sdk` crate | `/home/nan/proj/atd-mvp/crates/atd-sdk/` | Pattern from `/home/nan/proj/anos/crates/anos-cli/src/client.rs` |
+| Unix socket transport | `/home/nan/proj/atd-mvp/crates/atd-sdk/src/transport/unix.rs` | Based on `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs` |
 | `atd` CLI | `/home/nan/proj/atd-mvp/crates/atd-cli/` | New |
 | hello-world examples | `/home/nan/proj/atd-mvp/examples/hello_atd.{rs,py}` | New |
 | LangChain demo | `/home/nan/proj/atd-mvp/examples/langchain_demo.py` | New |
@@ -381,7 +381,7 @@ hint:  run 'atd allow fs.delete' to grant for this session
 - `cargo run --example hello_atd` succeeds
 - First-call latency <100ms on local Unix socket
 - README has the 15-min install story
-- Demo video: LangChain agent cross-process-calls `fs.read` via atd-client → ANOS daemon
+- Demo video: LangChain agent cross-process-calls `fs.read` via atd-sdk → ANOS daemon
 
 ### 7.2 Phase 1 — DX Push (4-6 weeks)
 
@@ -391,8 +391,8 @@ hint:  run 'atd allow fs.delete' to grant for this session
 |------------|----------|
 | Python SDK | `/home/nan/proj/atd-mvp/python/` → PyPI `atd-client` |
 | TypeScript SDK | `/home/nan/proj/atd-mvp/typescript/` → npm `@atd-protocol/client` |
-| stdio transport | `/home/nan/proj/atd-mvp/crates/atd-client/src/transport/stdio.rs` |
-| MCP-compat transport | `/home/nan/proj/atd-mvp/crates/atd-client/src/transport/mcp.rs` |
+| stdio transport | `/home/nan/proj/atd-mvp/crates/atd-sdk/src/transport/stdio.rs` |
+| MCP-compat transport | `/home/nan/proj/atd-mvp/crates/atd-sdk/src/transport/mcp.rs` |
 | `atd-langchain` | `/home/nan/proj/atd-mvp/python/atd_langchain/` → PyPI |
 | `atd-mcp-bridge` | `/home/nan/proj/atd-mvp/crates/atd-mcp-bridge/` → standalone binary |
 | `atd-dispatch` skill | `/home/nan/proj/atd-mvp/skills/atd-dispatch/SKILL.md` → skills.sh |
@@ -401,7 +401,7 @@ hint:  run 'atd allow fs.delete' to grant for this session
 **Exit criteria:**
 - Published on PyPI + npm + crates.io
 - `atd-dispatch` skill downloads ≥50
-- 3 external project repos depend on `atd-client`
+- 3 external project repos depend on `atd-sdk`
 - At least one third-party tutorial (YouTube/blog)
 
 ### 7.3 Phase 2 — Ecosystem Validation (8-12 weeks)
@@ -410,7 +410,7 @@ hint:  run 'atd allow fs.delete' to grant for this session
 
 | Deliverable | Location |
 |------------|----------|
-| HTTP/JSON transport | `/home/nan/proj/atd-mvp/crates/atd-client/src/transport/http.rs` |
+| HTTP/JSON transport | `/home/nan/proj/atd-mvp/crates/atd-sdk/src/transport/http.rs` |
 | AppFunction reference binding | `/home/nan/proj/atd-mvp/bindings/appfunction-harmonyos/` |
 | OpenClaw upstream PR | External repo `github.com/openclaw/openclaw` |
 | Hermes native integration PR | External repo `github.com/nousresearch/hermes-agent` |
@@ -428,7 +428,7 @@ hint:  run 'atd allow fs.delete' to grant for this session
 
 | Risk | Severity | Mitigation |
 |------|---------|------------|
-| Extraction from `/home/nan/proj/anos/crates/anos-tool-dispatch/` leaks ANOS-specific assumptions | HIGH | Independent schema in `/home/nan/proj/atd-mvp/crates/atd-types/`; CI runs ANOS-free test harness in `/home/nan/proj/atd-mvp/tests/integration/mock_server.rs` |
+| Extraction from `/home/nan/proj/anos/crates/anos-tool-dispatch/` leaks ANOS-specific assumptions | HIGH | Independent schema in `/home/nan/proj/atd-mvp/crates/atd-protocol/`; CI runs ANOS-free test harness in `/home/nan/proj/atd-mvp/tests/integration/mock_server.rs` |
 | MCP-compat mode hides ATD's unique advantages (users stay on the MCP subset) | MEDIUM | Docs clearly mark ATD-extension fields; MCP-compat positioned as "onboarding ramp," native as goal |
 | AppFunction binding needs real hardware | HIGH | Start with HarmonyOS (Huawei cloud emulator + remote device access); iOS deferred to Phase 3 |
 | agentskills.io spec rejects `atd-tools` extension | MEDIUM | Fall back to ATD-internal `x-atd-tools:` namespace — does not affect SKILL.md portability |
@@ -459,8 +459,8 @@ Deliverables in order:
 
 1. `mkdir /home/nan/proj/atd-mvp/` — initialize repo, add `README.md`, `LICENSE`, `Cargo.toml` workspace manifest
 2. Copy this design doc to `/home/nan/proj/atd-mvp/docs/design.md`
-3. Create `atd-types` crate: port `ToolDefinition`, `ToolSummary`, `CapabilityDescriptor` from `/home/nan/proj/anos/crates/anos-types/src/tool.rs` without `anos-*` dependencies
-4. Create `atd-client` crate: minimum `AtdClient::connect` + `call` over Unix socket
+3. Create `atd-protocol` crate: port `ToolDefinition`, `ToolSummary`, `CapabilityDescriptor` from `/home/nan/proj/anos/crates/anos-types/src/tool.rs` without `anos-*` dependencies
+4. Create `atd-sdk` crate: minimum `AtdClient::connect` + `call` over Unix socket
 5. Write `/home/nan/proj/atd-mvp/examples/hello_atd.rs`
 6. Run against local ANOS daemon (no ANOS code changes required)
 7. Write `/home/nan/proj/atd-mvp/README.md` — 15-min install story

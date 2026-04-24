@@ -25,7 +25,7 @@ The integration path is: `Client UI → atd-mcp-bridge (stdio) → Unix socket �
 ```bash
 git clone https://github.com/atd-protocol/atd-mvp
 cd atd-mvp
-cargo build --release -p atd-ref-server -p atd-mcp-bridge
+cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
 ```
 
 The binaries end up at `target/release/atd-ref-server` and `target/release/atd-mcp-bridge`. Note the **absolute paths** — you will paste these into the config files below.
@@ -199,11 +199,11 @@ The following is an illustrative text transcript of what you see in Claude Deskt
 
 **In Claude Desktop's chat UI, after ATD tools are registered:**
 
-> **User:** List all the Rust source files in /home/nan/proj/atd-mvp/crates/atd-client/src using the ATD file glob tool.
+> **User:** List all the Rust source files in /home/nan/proj/atd-mvp/crates/atd-sdk/src using the ATD file glob tool.
 >
 > **Claude:** I'll use the ATD file glob tool to find the Rust source files.
 >
-> _(Claude invokes `ref_fs_glob` with `{"pattern": "**/*.rs", "root": "/home/nan/proj/atd-mvp/crates/atd-client/src"}`)_
+> _(Claude invokes `ref_fs_glob` with `{"pattern": "**/*.rs", "root": "/home/nan/proj/atd-mvp/crates/atd-sdk/src"}`)_
 >
 > _(Tool returns a list of `.rs` files)_
 >

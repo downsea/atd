@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## See also
 
-- [`atd-types`](https://crates.io/crates/atd-types) — shared protocol types
+- [`atd-protocol`](https://crates.io/crates/atd-protocol) — shared protocol types
 - [`atd-mcp-bridge`](https://crates.io/crates/atd-mcp-bridge) — MCP bridge
   for third-party MCP clients like Claude Desktop, Cursor, Hermes
 

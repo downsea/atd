@@ -1,4 +1,4 @@
-# atd-types
+# atd-protocol
 
 Protocol types for the [Agent Tool Dispatch (ATD) protocol](https://github.com/downsea/atd-mvp).
 

@@ -2,7 +2,7 @@
 
 Neutral reference server for the [ATD protocol](../../docs/design.md). Stands up a Unix-socket daemon that speaks the standard ATD wire format and exposes a small but real tool catalog. Designed to be **forked**: third parties writing their own ATD server can read the code and use it as a working template.
 
-Zero dependency on any specific client SDK or agent framework. In particular, zero dependency on `atd-sdk`, `atd-mcp-bridge`, `atd-cli`, or any `anos-*` crate.
+Zero dependency on any specific client SDK or agent framework. In particular, zero dependency on `atd-sdk`, `atd-mcp-bridge`, `atd-cli`, or any `anos-*` crate. The server crate links only `atd-protocol` + `atd-runtime` + the `atd-tools-*` crates it chooses to ship.
 
 ## Quick start
 
@@ -38,7 +38,7 @@ Shell tools return `{exit_code, stdout, stdout_truncated, stderr, stderr_truncat
 ```bash
 # Find all Rust files under src/:
 atd --sock $HOME/.atd-ref/server.sock call ref:fs.glob \
-  --args '{"pattern": "**/*.rs", "path": "crates/atd-ref-server/src"}'
+  --args '{"pattern": "**/*.rs", "path": "crates/atd-ref-server-bin/src"}'
 
 # Regex search with glob filter:
 atd --sock $HOME/.atd-ref/server.sock call ref:fs.grep \
@@ -63,13 +63,19 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
 
 ## How to add a tool
 
-1. **Create the tool file** at `src/tools/<name>.rs`:
+Post-`SP-refactor-v1`, built-in tools live in sibling crates under
+`crates/atd-tools-*/`. Each crate owns one domain (echo, fs, shell, web).
+The `atd-ref-server-bin` crate links them and wires them into a
+`Registry` in `builtin.rs`. To add a tool, pick the right crate (or
+create a new sibling `atd-tools-<domain>` crate) and:
+
+1. **Create the tool file** in the chosen tool-crate, e.g.
+   `crates/atd-tools-fs/src/my_tool.rs`:
 
    ```rust
    use atd_protocol::ToolDefinition;
-   use crate::context::CallContext;
-   use crate::error::ToolCallError;
-   use crate::registry::{CallFuture, Tool};
+   use atd_runtime::{CallContext, Tool, ToolCallError};
+   use atd_runtime::registry::CallFuture;
 
    pub struct MyTool;
 
@@ -89,21 +95,27 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
    }
    ```
 
-2. **Export from `tools/mod.rs`**:
+2. **Export from the crate's `lib.rs`**:
 
    ```rust
    pub mod my_tool;
    ```
 
-3. **Register in `builtin.rs`**:
+3. **Register in `atd-ref-server-bin/src/builtin.rs`**:
 
    ```rust
-   reg.register(Arc::new(my_tool::MyTool));
+   use atd_tools_fs::my_tool::MyTool;
+
+   reg.register(Arc::new(MyTool::new()));
    ```
 
 4. **Add unit tests** in the same file under `#[cfg(test)] mod tests`.
 
-5. **`cargo test -p atd-ref-server-bin`** — done.
+5. **`cargo test -p atd-tools-fs -p atd-ref-server-bin`** — done.
+
+New external tools can live in entirely separate crates that depend on
+`atd-runtime` + `atd-protocol`; they don't need to live in this workspace.
+The reference server is a template, not a privileged host.
 
 ## Architecture
 

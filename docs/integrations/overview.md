@@ -26,7 +26,7 @@ protocol surface it speaks.
 
 ### Path 1 — Direct SDK (Rust or Python)
 
-You import `atd-client` into your own agent code, call
+You import `atd-sdk` into your own agent code, call
 `discover()` + `describe()` + `call()` directly, and feed the results
 into whatever LLM SDK you're using.
 
@@ -167,7 +167,7 @@ protocol in your language of choice. The protocol is simple:
 - Three messages: `discover`, `describe`, `call`
 - Reference: [`../protocol/wire-format.md`](../protocol/wire-format.md)
 
-Both the Rust client (`crates/atd-client/`) and the Python client
+Both the Rust client (`crates/atd-sdk/`) and the Python client
 (`python/src/atd_client/`) are small enough to be read end-to-end as
 porting references.
 
@@ -319,7 +319,7 @@ Honest gaps, for expectations management:
   v0.1.0. Unix socket / stdio only. Phase 2 plans HTTP; no timeline.
 - **Cloud-only agent platforms (e.g., closed SaaS without local agent
   access)** — ATD is a local-dispatch protocol. Cloud integration
-  requires the vendor to embed `atd-client` or an MCP bridge in
+  requires the vendor to embed `atd-sdk` or an MCP bridge in
   their runtime.
 - **Agent platforms that require Apache-2.0-incompatible licensing** —
   ATD is Apache-2.0. Dual-licensed integrations are possible but not
@@ -349,8 +349,9 @@ Honest gaps, for expectations management:
   Rust or Python client source.
 
 - **Publishing your own tools:** run an ATD server exposing them.
-  Start from `atd-ref-server` as a template
-  (`crates/atd-ref-server/`). Each tool is roughly one file.
+  Start from `atd-ref-server-bin` as a template
+  (`crates/atd-ref-server-bin/`) and link `atd-runtime` +
+  one of the `crates/atd-tools-*` crates. Each tool is roughly one file.
 
 ---
 

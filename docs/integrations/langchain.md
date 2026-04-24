@@ -23,7 +23,7 @@ The integration works by wrapping the ATD discover-then-call pattern in LangChai
 
 ```bash
 # Build and start the reference server
-cargo build --release -p atd-ref-server
+cargo build --release -p atd-ref-server-bin
 ./target/release/atd-ref-server --sock /tmp/my-atd.sock
 ```
 
@@ -55,7 +55,7 @@ The following script connects to ATD, discovers all available tools, binds them 
 """LangChain agent wired to ATD tools.
 
 Usage:
-    cargo build --release -p atd-ref-server
+    cargo build --release -p atd-ref-server-bin
     pip install -e '/path/to/atd-mvp/python[langchain]'
     pip install langchain-openai
     export OPENAI_API_KEY=<YOUR_API_KEY>
@@ -99,7 +99,7 @@ async def main() -> None:
         repo_root = Path(__file__).resolve().parent.parent
         binary = repo_root / "target" / "release" / "atd-ref-server"
         if not binary.exists():
-            raise SystemExit(f"Build first: cargo build --release -p atd-ref-server")
+            raise SystemExit(f"Build first: cargo build --release -p atd-ref-server-bin")
         tmpdir = tempfile.TemporaryDirectory()
         sock = Path(tmpdir.name) / "demo.sock"
         proc = await asyncio.create_subprocess_exec(

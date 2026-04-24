@@ -73,7 +73,7 @@ Propagating capabilities through the MCP bridge is a future-SP item.
 
 ## See also
 
-- [`atd-types`](https://crates.io/crates/atd-types) — protocol types
+- [`atd-protocol`](https://crates.io/crates/atd-protocol) — protocol types
 - [`atd-sdk`](https://crates.io/crates/atd-sdk) — Rust client SDK
 
 ## License

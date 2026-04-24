@@ -1,7 +1,7 @@
 # ATD Error Codes Reference
 
 **Protocol version:** 0.1.0
-**Source:** `crates/atd-types/src/error.rs` + `crates/atd-ref-server/src/tools/` at tag `sp10-adapters`
+**Source:** `crates/atd-protocol/src/error.rs` + `crates/atd-tools-*/src/` at tag `sp-refactor-v1`
 
 This document is the authoritative reference for all error conditions in the ATD
 protocol. It covers both the client-side `AtdError` enum and the server-side
@@ -16,7 +16,7 @@ deciding how to handle and retry them.
 
 ### 1.1 Layer 1: Client-side `AtdError`
 
-`AtdError` is the Rust enum in `crates/atd-types/src/error.rs`. It is returned by
+`AtdError` is the Rust enum in `crates/atd-protocol/src/error.rs`. It is returned by
 `AtdClient` methods (`discover`, `describe`, `call`, `ping`) whenever something goes
 wrong **before the tool produces a result** — transport failure, protocol violation,
 argument validation, or capability denial.
@@ -25,8 +25,8 @@ argument validation, or capability denial.
 client library and exist only in the calling process.
 
 ```rust
-use atd_client::AtdClient;
-use atd_types::AtdError;
+use atd_sdk::AtdClient;
+use atd_protocol::AtdError;
 
 let result: Result<ToolResult, AtdError> = client.call("ref:fs.read", args, opts).await;
 match result {
@@ -79,7 +79,7 @@ AtdClient::call()
 
 ## 2. Full `AtdError` Table
 
-Source: `crates/atd-types/src/error.rs`
+Source: `crates/atd-protocol/src/error.rs`
 
 The enum is `#[non_exhaustive]` — third-party code must handle unknown variants with
 a wildcard arm. All 9 variants known at v0.1.0 are listed below.
@@ -359,7 +359,7 @@ match client.ping().await {
 
 These are the `code` strings emitted inside `ToolResult::Error` by the reference
 server's tool implementations. Enumerated by grepping
-`crates/atd-ref-server/src/tools/` for `ExecutionFailed { code:`.
+`crates/atd-tools-*/src/` for `ExecutionFailed { code:`.
 
 Each code is a `String` in the wire JSON. The `retryable` boolean travels alongside
 it. The set of codes is part of the stability surface: changing existing codes is a
@@ -470,7 +470,7 @@ The TLS handshake failed — certificate validation error, expired cert, or ciph
 negotiation failure. The reference server uses the OS TLS stack; the exact error
 message comes from the underlying TLS library.
 
-Source: `crates/atd-ref-server/src/tools/web/fetch.rs:472–473`. The check is
+Source: `crates/atd-tools-web/src/fetch.rs`. The check is
 heuristic: if the I/O error message contains `"tls"` or `"certificate"`, the code is
 `TLS_FAILED`; otherwise `IO`.
 
@@ -539,8 +539,8 @@ function maybe_retry(err, attempt, max_attempts=3):
 ### 4.3 Rust retry wrapper example
 
 ```rust
-use atd_types::{AtdError, ToolResult};
-use atd_client::{AtdClient, CallOptions};
+use atd_protocol::{AtdError, ToolResult};
+use atd_sdk::{AtdClient, CallOptions};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -585,13 +585,13 @@ The reference client uses the `tracing` crate. Set `RUST_LOG` before running you
 binary to see request/response frames:
 
 ```bash
-RUST_LOG=atd_client=debug cargo run --example hello_atd -p atd-examples
+RUST_LOG=atd_sdk=debug cargo run --example hello_atd -p atd-examples
 ```
 
 For full frame content (including JSON bodies), use `trace` level:
 
 ```bash
-RUST_LOG=atd_client=trace cargo run --example hello_atd -p atd-examples
+RUST_LOG=atd_sdk=trace cargo run --example hello_atd -p atd-examples
 ```
 
 ### 5.2 Server-side logs
@@ -602,7 +602,7 @@ The reference server logs to stderr. If you launched it via `AtdClient::connect(
 For a manually launched server:
 
 ```bash
-RUST_LOG=atd_ref_server=debug ./target/release/atd-ref-server --socket /tmp/atd.sock
+RUST_LOG=atd_ref_server_bin=debug ./target/release/atd-ref-server --socket /tmp/atd.sock
 ```
 
 Relevant log fields:
@@ -638,7 +638,7 @@ ps aux | grep atd-ref-server  # Is the server process running?
 **`AtdError::ProtocolError { expected: "pong", got: "..." }`**
 
 The server returned an unexpected response to `ping`. Likely a version mismatch —
-check that `atd-client` and `atd-ref-server` are built from the same commit.
+check that `atd-sdk` and `atd-ref-server` are built from the same commit.
 
 **`ToolResult::Error { code: "IS_DIR" }` from `ref:fs.read`**
 

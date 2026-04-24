@@ -1,7 +1,7 @@
 # ATD Wire Format Reference
 
 **Protocol version:** 0.1.0
-**Source:** `crates/atd-types/src/` + `crates/atd-client/src/wire.rs` at tag `sp10-adapters`
+**Source:** `crates/atd-protocol/src/` + `crates/atd-sdk/src/wire.rs` at tag `sp10-adapters`
 **Transports:** Unix socket (implemented), stdio (planned), HTTP (Phase 2)
 
 This document is the authoritative reference for the ATD wire protocol. Implementers
@@ -19,7 +19,7 @@ discover tools on a server, inspect their schemas, and invoke them. The protocol
   by a UTF-8 JSON object. There is no other framing (no HTTP headers, no XML, no
   custom binary encoding).
 - **Transport-agnostic in design, Unix-socket-first in v0.1.0** — the reference
-  implementation (`atd-client`) connects over a Unix domain socket. Stdio transport
+  implementation (`atd-sdk`) connects over a Unix domain socket. Stdio transport
   is planned for Phase 1; HTTP REST is Phase 2.
 - **Synchronous request/response** — each request produces exactly one response.
   There is no multiplexing or streaming in v0.1.0. In-flight concurrency is achieved
@@ -59,7 +59,7 @@ the JSON body that follows. The prefix encodes the number of bytes in the body o
 it does not include the 4 bytes of the prefix itself.
 
 Maximum body size: **10 MiB** (`10 * 1024 * 1024` bytes). The reference client
-(`crates/atd-client/src/wire.rs`) rejects frames larger than this limit before
+(`crates/atd-sdk/src/wire.rs`) rejects frames larger than this limit before
 allocating the receive buffer. Compliant servers must also enforce this limit on
 incoming request frames.
 
@@ -96,7 +96,7 @@ Complete 19-byte frame on the wire:
 
 ### 2.4 Implementation reference
 
-The framing logic lives entirely in `crates/atd-client/src/wire.rs`:
+The framing logic lives entirely in `crates/atd-sdk/src/wire.rs`:
 
 ```rust
 // write_frame: serialize T to JSON, write 4-byte BE length, write body, flush.
@@ -169,7 +169,7 @@ stateless.
 
 ## 4. Message Types
 
-All request types are variants of `enum Request` (`crates/atd-client/src/protocol.rs`).
+All request types are variants of `enum Request` (`crates/atd-sdk/src/protocol.rs`).
 All response types are variants of `enum Response`.
 
 The `"type"` tag discriminates both enums.
@@ -397,8 +397,8 @@ this subset to enforce each tool's `required_capabilities`.
   `code: 1001` otherwise.
 - `hello` is idempotent within a connection: re-sending with a different set
   **replaces** the stored set (does not union).
-- Pre-SP-12 servers reply with a generic `type: "error"`. SDKs (`atd-client`,
-  `atd_client`) demote this to "no capabilities granted" so a single
+- Pre-SP-12 servers reply with a generic `type: "error"`. SDKs (`atd-sdk`,
+  `atd_sdk`) demote this to "no capabilities granted" so a single
   `hello()` call works against any server version.
 
 ### 4.7 Capability-denied error (SP-12)
@@ -441,13 +441,13 @@ receives any of these:
 
 ## 5. Full Type Definitions
 
-Source: `crates/atd-types/src/` — all tables are derived from the Rust source at
+Source: `crates/atd-protocol/src/` — all tables are derived from the Rust source at
 commit `sp10-adapters`. Field names match the Rust struct field names; where serde
 applies a rename, the wire name is shown separately.
 
 ### 5.1 `ToolSummary`
 
-Source: `crates/atd-types/src/summary.rs`
+Source: `crates/atd-protocol/src/summary.rs`
 
 The lightweight representation returned by `tool_list`. Intended for display and
 filtering without pulling the full definition.
@@ -468,7 +468,7 @@ when `None`. Clients must handle both present and absent cases.
 
 ### 5.2 `ToolDefinition`
 
-Source: `crates/atd-types/src/tool.rs`
+Source: `crates/atd-protocol/src/tool.rs`
 
 The full tool spec returned by `tool_schema`. Contains everything needed to call,
 validate, and trust a tool.
@@ -532,7 +532,7 @@ validate, and trust a tool.
 
 ### 5.3 `ToolResult`
 
-Source: `crates/atd-types/src/result.rs`
+Source: `crates/atd-protocol/src/result.rs`
 
 The serde discriminant is `"status"` (not `"type"`), using `serde(tag = "status", rename_all = "snake_case")`.
 
@@ -574,7 +574,7 @@ The serde discriminant is `"status"` (not `"type"`), using `serde(tag = "status"
 
 ### 5.4 `ToolResultMetadata`
 
-Source: `crates/atd-types/src/result.rs`
+Source: `crates/atd-protocol/src/result.rs`
 
 All fields except `tool_id` are optional and server-populated. Clients must not
 fabricate metadata fields they did not receive — doing so could silently masquerade
@@ -597,7 +597,7 @@ Minimal wire form (server required to emit):
 
 ### 5.5 `Request` enum
 
-Source: `crates/atd-client/src/protocol.rs`. Discriminant field: `"type"`.
+Source: `crates/atd-sdk/src/protocol.rs`. Discriminant field: `"type"`.
 
 | variant | wire `"type"` | fields |
 |---|---|---|
@@ -608,7 +608,7 @@ Source: `crates/atd-client/src/protocol.rs`. Discriminant field: `"type"`.
 
 ### 5.6 `Response` enum
 
-Source: `crates/atd-client/src/protocol.rs`. Discriminant field: `"type"`.
+Source: `crates/atd-sdk/src/protocol.rs`. Discriminant field: `"type"`.
 
 | variant | wire `"type"` | fields |
 |---|---|---|
@@ -620,7 +620,7 @@ Source: `crates/atd-client/src/protocol.rs`. Discriminant field: `"type"`.
 
 ### 5.7 `ToolVisibility` enum
 
-Source: `crates/atd-types/src/enums.rs`. Serde: `rename_all = "snake_case"`, also accepts `PascalCase` aliases.
+Source: `crates/atd-protocol/src/enums.rs`. Serde: `rename_all = "snake_case"`, also accepts `PascalCase` aliases.
 
 | variant | wire value | meaning |
 |---|---|---|
@@ -631,7 +631,7 @@ Source: `crates/atd-types/src/enums.rs`. Serde: `rename_all = "snake_case"`, als
 
 ### 5.8 `ToolTier` enum
 
-Source: `crates/atd-types/src/enums.rs`. Serde: `rename_all = "snake_case"`.
+Source: `crates/atd-protocol/src/enums.rs`. Serde: `rename_all = "snake_case"`.
 
 | variant | wire value | meaning |
 |---|---|---|
@@ -643,7 +643,7 @@ Ordering: `Hot < Warm < Cold` (used when filtering by acceptable latency tier).
 
 ### 5.9 `BindingProtocol` enum
 
-Source: `crates/atd-types/src/enums.rs`. Serde: `rename_all = "PascalCase"`.
+Source: `crates/atd-protocol/src/enums.rs`. Serde: `rename_all = "PascalCase"`.
 
 | variant | wire value | meaning |
 |---|---|---|
@@ -654,7 +654,7 @@ Source: `crates/atd-types/src/enums.rs`. Serde: `rename_all = "PascalCase"`.
 
 ### 5.10 `SafetyLevel` enum
 
-Source: `crates/atd-types/src/enums.rs`. Serde: PascalCase (no rename directive).
+Source: `crates/atd-protocol/src/enums.rs`. Serde: PascalCase (no rename directive).
 
 | variant | wire value | ordinal | meaning |
 |---|---|---|---|
@@ -669,7 +669,7 @@ Ordering is strictly monotonic: `Read < Write < … < Destructive`.
 
 ### 5.11 `TrustLevel` enum
 
-Source: `crates/atd-types/src/enums.rs`. Serde: PascalCase (no rename directive).
+Source: `crates/atd-protocol/src/enums.rs`. Serde: PascalCase (no rename directive).
 
 | variant | wire value | ordinal | meaning |
 |---|---|---|---|
@@ -781,8 +781,8 @@ reference. The distinction is important:
 
 ### 7.1 Client-side errors (`AtdError`)
 
-The Rust client SDK (`atd-client`) converts transport problems, protocol violations,
-and high-level semantic errors into the `AtdError` enum (`crates/atd-types/src/error.rs`).
+The Rust client SDK (`atd-sdk`) converts transport problems, protocol violations,
+and high-level semantic errors into the `AtdError` enum (`crates/atd-protocol/src/error.rs`).
 These are never serialized over the wire; they are synthesized by the client library
 before or after deserialization.
 
@@ -955,7 +955,7 @@ The bridge desanitizes the MCP tool name (`ref_fs_read`) back to the ATD id
 
 ATD tool ids use `:` and `.` for namespace/domain/action structure. MCP and LLM APIs
 require names matching `[a-zA-Z0-9_-]`. The sanitization rule (from
-`crates/atd-client/src/sanitize.rs`) is:
+`crates/atd-sdk/src/sanitize.rs`) is:
 
 - Replace `:` with `_`
 - Replace `.` with `_`
@@ -972,7 +972,7 @@ Examples:
 
 **Important:** sanitization is lossy. `a:b` and `a.b` both map to `a_b`. If a tool
 registry contains two tools whose ids sanitize to the same string, a collision occurs.
-Use `detect_collisions()` from `atd-client::sanitize` to check before exposing tools
+Use `detect_collisions()` from `atd-sdk::sanitize` to check before exposing tools
 via MCP.
 
 ### 10.4 Error mapping
