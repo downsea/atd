@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "leading_separator",
+  "description": "Leading separator preserves the underscore.",
+  "input": ":tool",
+  "expect_sanitized": "_tool"
+}

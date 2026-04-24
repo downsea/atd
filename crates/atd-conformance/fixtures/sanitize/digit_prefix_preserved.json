@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "digit_prefix_preserved",
+  "description": "Tool ids starting with digits are not remapped; sanitization only touches illegal chars.",
+  "input": "v2:tool",
+  "expect_sanitized": "v2_tool"
+}

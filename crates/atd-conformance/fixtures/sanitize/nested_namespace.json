@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "nested_namespace",
+  "description": "Deeply-nested namespace with mixed separators.",
+  "input": "vendor:product.module:submodule.action",
+  "expect_sanitized": "vendor_product_module_submodule_action"
+}

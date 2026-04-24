@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "multiple_separators_mixed",
+  "description": "Colons, dots, and slashes map to underscores; hyphens are preserved (they are in the allow-set).",
+  "input": "a:b.c/d-e",
+  "expect_sanitized": "a_b_c_d-e"
+}

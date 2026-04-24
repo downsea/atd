@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "empty_input",
+  "description": "Empty input yields empty output.",
+  "input": "",
+  "expect_sanitized": ""
+}

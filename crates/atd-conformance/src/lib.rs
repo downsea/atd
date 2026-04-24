@@ -9,9 +9,9 @@
 //! for the design.
 
 pub mod case;
+pub mod runner;
 
 // Modules populated in subsequent tasks:
-// pub mod runner;   (Tasks 3-5)
 // pub mod wire;     (Task 4)
 // pub mod report;   (Task 6)
 

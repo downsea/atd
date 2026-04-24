@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "single_colon",
+  "description": "A single colon between two segments is a standard case.",
+  "input": "a:b",
+  "expect_sanitized": "a_b"
+}

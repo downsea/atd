@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "alphanumeric_passthrough",
+  "description": "Tool ids already matching [a-zA-Z0-9_] pass through unchanged.",
+  "input": "plain_tool_name",
+  "expect_sanitized": "plain_tool_name"
+}

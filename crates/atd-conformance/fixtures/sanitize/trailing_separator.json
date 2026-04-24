@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "trailing_separator",
+  "description": "Trailing separator preserves the underscore (no trimming).",
+  "input": "tool.",
+  "expect_sanitized": "tool_"
+}

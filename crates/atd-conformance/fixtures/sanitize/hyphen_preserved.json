@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "hyphen_preserved",
+  "description": "Hyphens are preserved; [a-zA-Z0-9_-] all pass through unchanged per atd-protocol sanitize rules.",
+  "input": "my-tool",
+  "expect_sanitized": "my-tool"
+}

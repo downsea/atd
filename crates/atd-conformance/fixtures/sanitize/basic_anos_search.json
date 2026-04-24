@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "basic_anos_search",
+  "description": "Tool id 'anos:search.semantic' sanitizes dots and colons uniformly.",
+  "input": "anos:search.semantic",
+  "expect_sanitized": "anos_search_semantic"
+}

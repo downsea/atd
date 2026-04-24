@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "slash_becomes_underscore",
+  "description": "Forward slashes sanitize to underscores.",
+  "input": "ns/tool",
+  "expect_sanitized": "ns_tool"
+}

@@ -1,0 +1,7 @@
+{
+  "category": "sanitize",
+  "name": "basic_ref_fs_read",
+  "description": "Tool id 'ref:fs.read' sanitizes to 'ref_fs_read'.",
+  "input": "ref:fs.read",
+  "expect_sanitized": "ref_fs_read"
+}
