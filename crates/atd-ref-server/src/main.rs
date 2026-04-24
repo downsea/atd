@@ -33,6 +33,13 @@ struct Args {
     /// Per-call deadline in milliseconds.
     #[arg(long, default_value_t = 60_000)]
     timeout_ms: u64,
+
+    /// Capability the server will grant to clients that request it during
+    /// `Hello`. Repeatable (e.g. `--grant-capability read --grant-capability exec`).
+    /// No flags = fail-closed: clients cannot hold any capability, so tools
+    /// with non-empty `required_capabilities` are unreachable.
+    #[arg(long = "grant-capability", action = clap::ArgAction::Append)]
+    grant_capabilities: Vec<String>,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -48,6 +55,7 @@ async fn main() -> std::process::ExitCode {
     }
     config.max_output_bytes = args.max_output_bytes;
     config.default_call_timeout_ms = args.timeout_ms;
+    config.granted_capabilities = args.grant_capabilities;
 
     let registry = builtin_registry();
     let server = Server::new(registry, config);

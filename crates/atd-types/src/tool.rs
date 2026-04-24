@@ -20,6 +20,21 @@ pub struct ToolDefinition {
 
     #[serde(default)]
     pub visibility: ToolVisibility,
+
+    /// Capabilities a caller must hold for this tool to be invoked.
+    /// Enforced by the server's dispatch layer (SP-12). Empty = unrestricted.
+    /// The existing `capability` field above is a *descriptor* (domain, actions,
+    /// intent examples); this is the *enforcement* list — intentionally
+    /// separate to avoid overloading the schema.
+    #[serde(default)]
+    pub required_capabilities: Vec<String>,
+
+    /// Execution tier hint used by the dispatch layer to derive deadline and
+    /// max-output budgets. Absent / unknown values default to `Warm` on the
+    /// server side (SP-12 back-compat). The client-facing `ToolSummary` carries
+    /// an equivalent field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<crate::enums::ToolTier>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +118,8 @@ mod tests {
                 signature: None,
             },
             visibility: ToolVisibility::Read,
+            required_capabilities: vec![],
+            tier: None,
         }
     }
 
@@ -122,5 +139,29 @@ mod tests {
         v.as_object_mut().unwrap().remove("visibility");
         let back: ToolDefinition = serde_json::from_value(v).unwrap();
         assert_eq!(back.visibility, ToolVisibility::Read);
+    }
+
+    #[test]
+    fn required_capabilities_defaults_to_empty_when_missing() {
+        // Pre-SP-12 serialized definitions omit the field; must round-trip.
+        let mut v = serde_json::to_value(sample()).unwrap();
+        v.as_object_mut().unwrap().remove("required_capabilities");
+        let back: ToolDefinition = serde_json::from_value(v).unwrap();
+        assert!(back.required_capabilities.is_empty());
+    }
+
+    #[test]
+    fn required_capabilities_roundtrip_when_set() {
+        let mut t = sample();
+        t.required_capabilities = vec!["exec".into(), "read".into()];
+        let j = serde_json::to_string(&t).unwrap();
+        let back: ToolDefinition = serde_json::from_str(&j).unwrap();
+        assert_eq!(back.required_capabilities, vec!["exec", "read"]);
+    }
+
+    #[test]
+    fn tier_omitted_when_none() {
+        let j = serde_json::to_string(&sample()).unwrap();
+        assert!(!j.contains("\"tier\""), "tier should be skipped when None: {j}");
     }
 }

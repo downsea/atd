@@ -17,6 +17,12 @@ pub struct ServerConfig {
     pub cwd: PathBuf,
     pub max_output_bytes: usize,
     pub default_call_timeout_ms: u64,
+    /// Server-operator allow-list. Capabilities a client may ask for in
+    /// `Hello`; anything not in this list is refused. Empty (default) means
+    /// no client can hold any capability, so tools with
+    /// `required_capabilities != []` cannot be called — matching the fail-
+    /// closed policy for SP-12.
+    pub granted_capabilities: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -27,6 +33,7 @@ impl Default for ServerConfig {
             cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             max_output_bytes: 1_048_576,
             default_call_timeout_ms: 60_000,
+            granted_capabilities: vec![],
         }
     }
 }
@@ -89,13 +96,16 @@ impl Server {
 async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::io::Result<()> {
     let (mut reader, mut writer) = stream.into_split();
     let tracker = Arc::new(crate::tracker::ReadTracker::new());  // per-connection
+    // Per-connection capability set, replaced on `Hello`. Default: empty.
+    let mut caps: Arc<crate::capability::CapabilitySet> =
+        Arc::new(crate::capability::CapabilitySet::empty());
     loop {
         let req: Request = match read_frame(&mut reader).await {
             Ok(r) => r,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(e),
         };
-        let resp = dispatch(&state, &tracker, req).await;
+        let resp = dispatch(&state, &tracker, &mut caps, req).await;
         write_frame(&mut writer, &resp).await?;
     }
 }
@@ -103,18 +113,30 @@ async fn handle_connection(state: Arc<ServerState>, stream: UnixStream) -> std::
 pub(crate) async fn dispatch(
     state: &Arc<ServerState>,
     tracker: &Arc<crate::tracker::ReadTracker>,
+    caps: &mut Arc<crate::capability::CapabilitySet>,
     req: Request,
 ) -> Response {
     match req {
         Request::Ping => Response::Pong,
-        // SP-12 Task 1: stub Hello handler — always grants nothing.
-        // Task 2 intersects `requested_capabilities` with the server's
-        // `--grant-capability` set and stores the result on the connection.
-        Request::Hello { client_id: _, requested_capabilities: _ } => Response::HelloAck {
-            granted_capabilities: vec![],
-            server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
-            supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
-        },
+        // SP-12 Task 2: intersect requested capabilities with the server's
+        // allow-list; store the granted subset on the connection. Replying with
+        // the subset (not the full server set) lets clients discover what they
+        // actually hold.
+        Request::Hello {
+            client_id: _,
+            requested_capabilities,
+        } => {
+            let allow = crate::capability::CapabilitySet::from_iter(
+                state.config.granted_capabilities.iter().cloned(),
+            );
+            let (granted, _denied) = allow.intersect(&requested_capabilities);
+            *caps = Arc::new(crate::capability::CapabilitySet::from_iter(granted.clone()));
+            Response::HelloAck {
+                granted_capabilities: granted,
+                server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
+                supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
+            }
+        }
         Request::ToolList => {
             let summaries = state.registry.summaries();
             Response::ToolList {
@@ -157,6 +179,34 @@ pub(crate) async fn dispatch(
                     };
                 }
             };
+            // SP-12 Task 2: capability enforcement. Refuse calls whose
+            // required_capabilities are not a subset of the connection's
+            // granted set. Sorted `missing` + `granted` keep the error shape
+            // deterministic for tests and UI.
+            let required = tool.definition().required_capabilities.clone();
+            let missing: Vec<String> = required
+                .iter()
+                .filter(|c| !caps.contains(c))
+                .cloned()
+                .collect();
+            if !missing.is_empty() {
+                let mut required_sorted = required.clone();
+                required_sorted.sort();
+                let mut missing_sorted = missing.clone();
+                missing_sorted.sort();
+                return Response::Error {
+                    message: format!(
+                        "capability denied for {tool_id}: missing {missing_sorted:?}"
+                    ),
+                    code: Some(crate::protocol::ERR_CAPABILITY_DENIED),
+                    retryable: Some(false),
+                    details: Some(serde_json::json!({
+                        "required": required_sorted,
+                        "granted": caps.granted(),
+                        "missing": missing_sorted,
+                    })),
+                };
+            }
             let ctx = CallContext {
                 cwd: state.config.cwd.clone(),
                 max_output_bytes: state.config.max_output_bytes,
@@ -165,10 +215,9 @@ pub(crate) async fn dispatch(
                     Instant::now() + Duration::from_millis(state.config.default_call_timeout_ms),
                 ),
                 read_tracker: Some(tracker.clone()),
-                // SP-12 Task 1: empty capability set + Warm tier preserves
-                // current behavior. Task 2 wires `Hello`-derived caps; Task 3
-                // derives tier from the tool definition.
-                capabilities: std::sync::Arc::new(crate::capability::CapabilitySet::empty()),
+                // SP-12 Task 2: capabilities flow from the connection's Hello.
+                // Task 3 will derive tier from the tool definition.
+                capabilities: caps.clone(),
                 tier: crate::tier::ToolTier::Warm,
             };
             match tool.call(args, &ctx).await {
@@ -217,6 +266,13 @@ mod tests {
         Arc::new(crate::tracker::ReadTracker::new())
     }
 
+    /// Empty capability set, wrapped in `Arc`. Used by dispatch tests that
+    /// don't exercise the capability gate; callers that do should build a
+    /// populated one directly.
+    fn fresh_caps() -> Arc<crate::capability::CapabilitySet> {
+        Arc::new(crate::capability::CapabilitySet::empty())
+    }
+
     fn test_state() -> Arc<ServerState> {
         Arc::new(ServerState {
             registry: builtin_registry(),
@@ -225,6 +281,7 @@ mod tests {
                 cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
                 max_output_bytes: 1_048_576,
                 default_call_timeout_ms: 60_000,
+                granted_capabilities: vec![],
             },
         })
     }
@@ -232,14 +289,14 @@ mod tests {
     #[tokio::test]
     async fn ping_returns_pong() {
         let s = test_state();
-        let r = dispatch(&s, &fresh_tracker(), Request::Ping).await;
+        let r = dispatch(&s, &fresh_tracker(), &mut fresh_caps(), Request::Ping).await;
         assert!(matches!(r, Response::Pong));
     }
 
     #[tokio::test]
     async fn tool_list_returns_registered_summaries() {
         let s = test_state();
-        let r = dispatch(&s, &fresh_tracker(), Request::ToolList).await;
+        let r = dispatch(&s, &fresh_tracker(), &mut fresh_caps(), Request::ToolList).await;
         match r {
             Response::ToolList { tools } => {
                 let arr = tools.as_array().unwrap();
@@ -265,6 +322,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::ToolSchema { tool_id: "ref:echo.say".into() },
         )
         .await;
@@ -283,6 +341,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::ToolSchema { tool_id: "ref:missing".into() },
         )
         .await;
@@ -300,6 +359,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"k": "v"}),
@@ -323,6 +383,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "ref:echo.say".into(),
                 args: serde_json::json!({"x": 1}),
@@ -348,6 +409,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "ref:missing".into(),
                 args: serde_json::json!({}),
@@ -419,6 +481,8 @@ mod tests {
                         signature: None,
                     },
                     visibility: ToolVisibility::Read,
+                    required_capabilities: vec![],
+                    tier: None,
                 },
                 mode,
             }
@@ -459,6 +523,7 @@ mod tests {
                 cwd: PathBuf::from("."),
                 max_output_bytes: 1024,
                 default_call_timeout_ms: 1000,
+                granted_capabilities: vec![],
             },
         })
     }
@@ -469,6 +534,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "test:invalid".into(),
                 args: serde_json::json!({}),
@@ -491,6 +557,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "test:exec".into(),
                 args: serde_json::json!({}),
@@ -517,6 +584,7 @@ mod tests {
         let r = dispatch(
             &s,
             &fresh_tracker(),
+            &mut fresh_caps(),
             Request::RunTool {
                 tool_id: "test:internal".into(),
                 args: serde_json::json!({}),

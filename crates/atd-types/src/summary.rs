@@ -82,6 +82,8 @@ mod tests {
                 signature: None,
             },
             visibility: ToolVisibility::Read,
+            required_capabilities: vec![],
+            tier: None,
         }
     }
 

@@ -75,6 +75,8 @@ fn definition() -> &'static ToolDefinition {
             signature: None,
         },
         visibility: ToolVisibility::Dangerous,
+        required_capabilities: vec![],
+        tier: None,
     })
 }
 
