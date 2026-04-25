@@ -641,11 +641,12 @@ The current crate layout (post-`SP-refactor-v1`) cleanly separates each logical 
 | **Protocol** (types, wire, sanitize) | `atd-protocol` | ✅ | Consolidated in SP-refactor-v1. |
 | **Rust SDK** | `atd-sdk` | ✅ | Renamed from `atd-client` in SP-refactor-v1. Adapters feature-gated. |
 | **Python SDK** | `python/src/atd_client/` | ⚠️ pending Python-mirror SP | Still named `atd_client`; rename deferred. |
-| **Runtime** (`Tool` trait, `Registry`, dispatch, binding, middleware, tier, capability) | `atd-runtime` | ✅ | Extracted from `atd-ref-server` in SP-refactor-v1. |
+| **Runtime** (`Tool` trait, `Registry`, dispatch, binding, middleware, tier, capability) | `atd-runtime` | ✅ | Extracted from `atd-ref-server` in SP-refactor-v1. Transport-agnostic. |
+| **Server transport** (Unix-socket listener, accept loop, per-connection task) | `atd-server` | ✅ | Extracted from `atd-ref-server` in SP-listener-extract (triggered by `healthkit_cli` first-vendor-server signal). Pair with `atd-runtime` to host any ATD-speaking server. |
 | **Built-in tools** (echo, fs, shell, web) | `atd-tools-echo`, `atd-tools-fs`, `atd-tools-shell`, `atd-tools-web` | ✅ | Split per-domain in SP-refactor-v1. |
 | **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
 | **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
-| **Ref-server binary** | `atd-ref-server` (binary name `atd-ref-server`) | ✅ | Thin wrapper over `atd-runtime` + `atd-tools-*`. |
+| **Ref-server binary** | `atd-ref-server` (binary name `atd-ref-server`) | ✅ | Slim wiring of `atd-server` + `atd-runtime` + `atd-tools-*` into the reference / demo binary. |
 | **Examples** | `examples/` (not published) | ✅ | |
 | **Conformance suite** (future) | not yet | ❌ | Future SP (SP-8) |
 
@@ -659,13 +660,19 @@ atd-protocol
    │       ├── atd-mcp-bridge
    │       └── atd-cli
    │
-   └── atd-runtime (Tool/Binding/Middleware/Registry/dispatch)
+   └── atd-runtime (Tool/Binding/Middleware/Registry/dispatch — transport-agnostic)
            ▲
            ├── atd-tools-echo
            ├── atd-tools-fs
            ├── atd-tools-shell
            ├── atd-tools-web
-           └── atd-ref-server (wires runtime + tools into an installable binary)
+           └── atd-server (Unix-socket listener + connection task)
+                   ▲
+                   └── atd-ref-server (slim binary: wires runtime + tools + server)
+                       │
+                       └── + future vendor servers (e.g. healthkit-server)
+                           depend directly on atd-runtime + atd-server,
+                           skip atd-ref-server entirely
 ```
 
 Python SDK (`python/src/atd_client/`) mirrors `atd-protocol` + `atd-sdk` as a standalone Python package with its own sanitize + adapters. Python rename to `atd_sdk` is a deferred SP.
@@ -768,6 +775,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
 | TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
 | Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
+| Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
