@@ -1,0 +1,17 @@
+{
+  "category": "behavior",
+  "name": "rate_limited_returns_code_1002",
+  "description": "Calling a tool whose max_concurrent permits are exhausted returns Response::Error { code: 1002, retryable: true }. Requires the target server to expose a permanently-saturated tool — the atd-mvp reference server does this via `ref:conformance.saturate_op` (registered with max_concurrent=1 when `--enable-conformance-tool` is passed; its sole permit is leaked at server startup so any client call finds the semaphore empty). Third-party servers that want to validate this case must expose a tool with id `ref:conformance.saturate_op` declaring max_concurrent=1, and arrange for that permit to be permanently held (e.g., on startup) so single-shot client calls always hit the rate-limit path.",
+  "setup": null,
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:conformance.saturate_op",
+    "args": {},
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "error",
+    "code": 1002,
+    "retryable": true
+  }
+}

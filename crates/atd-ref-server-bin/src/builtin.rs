@@ -10,11 +10,16 @@ use atd_tools_web::WebFetchTool;
 
 /// Build the reference server's built-in tool registry.
 ///
-/// When `enable_conformance_tool` is `true`, additionally registers
-/// `ref:conformance.denied_op` — a test-only tool that requires the
-/// `conformance.denied` capability. This exists solely so the
-/// `atd-conformance` suite can exercise the `ERR_CAPABILITY_DENIED`
-/// (code 1001) wire path. Production deployments pass `false`.
+/// When `enable_conformance_tool` is `true`, additionally registers two
+/// test-only tools used by the `atd-conformance` suite:
+/// - `ref:conformance.denied_op` — requires the `conformance.denied`
+///   capability so the suite can exercise `ERR_CAPABILITY_DENIED`
+///   (code 1001).
+/// - `ref:conformance.saturate_op` — declares `max_concurrent=1`; its
+///   sole permit is leaked at startup by `main.rs`, so any client
+///   call returns `ERR_RATE_LIMITED` (code 1002).
+///
+/// Production deployments pass `false`.
 pub fn builtin_registry(enable_conformance_tool: bool) -> Registry {
     let mut reg = Registry::new();
     reg.register(Arc::new(EchoTool::new()));
@@ -36,8 +41,9 @@ pub fn builtin_registry(enable_conformance_tool: bool) -> Registry {
     }
 
     if enable_conformance_tool {
-        use crate::conformance::ConformanceDeniedTool;
+        use crate::conformance::{ConformanceDeniedTool, ConformanceSaturatedTool};
         reg.register(Arc::new(ConformanceDeniedTool::new()));
+        reg.register(Arc::new(ConformanceSaturatedTool::new()));
     }
 
     reg
@@ -77,21 +83,34 @@ mod tests {
     }
 
     #[test]
-    fn builtin_registry_with_conformance_tool_adds_one() {
+    fn builtin_registry_with_conformance_tools_adds_two() {
         let default = builtin_registry(false);
         let extended = builtin_registry(true);
         assert_eq!(
             extended.count(),
-            default.count() + 1,
-            "enabling conformance tool should add exactly one tool"
+            default.count() + 2,
+            "enabling conformance tools should add exactly two tools"
         );
-        let entry = extended
+
+        // denied_op (SP-8.1)
+        let denied = extended
             .get("ref:conformance.denied_op")
-            .expect("conformance tool registered when flag is true");
+            .expect("denied_op registered when flag is true");
         assert_eq!(
-            entry.tool.definition().required_capabilities,
+            denied.tool.definition().required_capabilities,
             vec!["conformance.denied".to_string()]
         );
+
+        // saturate_op (SP-8.2)
+        let saturate = extended
+            .get("ref:conformance.saturate_op")
+            .expect("saturate_op registered when flag is true");
+        assert_eq!(saturate.tool.definition().resources.max_concurrent, 1);
+        assert!(saturate.tool.definition().required_capabilities.is_empty());
+
+        // Default registry must NOT contain either
+        assert!(default.get("ref:conformance.denied_op").is_none());
+        assert!(default.get("ref:conformance.saturate_op").is_none());
     }
 
     #[test]

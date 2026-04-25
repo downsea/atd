@@ -112,6 +112,24 @@ async fn main() -> std::process::ExitCode {
     config.audit_sink = audit_sink;
 
     let registry = builtin_registry(args.enable_conformance_tool);
+
+    // SP-8.2: when the conformance tool family is enabled, permanently
+    // saturate ref:conformance.saturate_op so the conformance suite's
+    // rate-limited fixture sees a 1002 on every single-shot call. The
+    // leaked permit lives for the entire process lifetime —
+    // intentional, documented, ~64 bytes.
+    if args.enable_conformance_tool {
+        let entry = registry
+            .get("ref:conformance.saturate_op")
+            .expect("ref:conformance.saturate_op registered when --enable-conformance-tool is set");
+        let permit = entry
+            .semaphore
+            .clone()
+            .try_acquire_owned()
+            .expect("saturate_op semaphore should have its single permit available at startup");
+        Box::leak(Box::new(permit));
+    }
+
     let mut server = Server::new(registry, config);
 
     // Apply tier overrides before run() so they take effect before any
