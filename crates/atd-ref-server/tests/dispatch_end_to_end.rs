@@ -77,6 +77,7 @@ impl FullstackTool {
                 visibility: ToolVisibility::Read,
                 required_capabilities: vec!["exec".into()],
                 tier: Some(ToolTier::Hot),
+                errors: vec![],
             },
         }
     }

@@ -73,6 +73,7 @@ fn definition() -> &'static ToolDefinition {
         visibility: ToolVisibility::Dangerous,
         required_capabilities: vec![],
         tier: None,
+        errors: vec![],
     })
 }
 

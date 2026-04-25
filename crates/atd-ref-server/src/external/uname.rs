@@ -82,6 +82,7 @@ pub fn definition() -> ToolDefinition {
         visibility: ToolVisibility::Read,
         required_capabilities: vec![],
         tier: Some(ToolTier::Hot),
+        errors: vec![],
     }
 }
 

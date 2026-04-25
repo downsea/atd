@@ -66,6 +66,7 @@ impl ConformanceDeniedTool {
                 visibility: ToolVisibility::Read,
                 required_capabilities: vec!["conformance.denied".into()],
                 tier: None,
+                errors: vec![],
             },
         }
     }
@@ -151,6 +152,7 @@ impl ConformanceSaturatedTool {
                 visibility: ToolVisibility::Read,
                 required_capabilities: vec![],
                 tier: Some(ToolTier::Hot),
+                errors: vec![],
             },
         }
     }

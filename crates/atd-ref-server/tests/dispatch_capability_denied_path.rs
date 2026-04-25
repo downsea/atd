@@ -68,6 +68,7 @@ impl GatedTool {
             visibility: ToolVisibility::Read,
             required_capabilities: vec!["exec".into()],
             tier: None,
+            errors: vec![],
         };
         Self { def }
     }

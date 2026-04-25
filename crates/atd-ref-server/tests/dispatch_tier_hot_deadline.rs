@@ -69,6 +69,7 @@ impl SleepTool {
                 visibility: ToolVisibility::Read,
                 required_capabilities: vec![],
                 tier,
+                errors: vec![],
             },
             sleep,
         }

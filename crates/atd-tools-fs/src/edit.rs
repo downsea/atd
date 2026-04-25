@@ -69,6 +69,7 @@ fn definition() -> &'static ToolDefinition {
         visibility: ToolVisibility::Write,
         required_capabilities: vec![],
         tier: None,
+        errors: vec![],
     })
 }
 

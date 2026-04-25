@@ -35,6 +35,20 @@ pub struct ToolDefinition {
     /// an equivalent field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tier: Option<crate::enums::ToolTier>,
+
+    /// Domain errors this tool may emit. Optional; missing on the wire =
+    /// empty. Surfaces only via `describe`, never via `discover` (kept off
+    /// `ToolSummary`).
+    #[serde(default)]
+    pub errors: Vec<ToolErrorDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolErrorDef {
+    /// SCREAMING_SNAKE error code, e.g. "FILE_NOT_FOUND".
+    pub code: String,
+    pub description: String,
+    pub retryable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,6 +134,7 @@ mod tests {
             visibility: ToolVisibility::Read,
             required_capabilities: vec![],
             tier: None,
+            errors: vec![],
         }
     }
 

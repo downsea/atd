@@ -64,6 +64,7 @@ impl EmitHomePathTool {
                 visibility: ToolVisibility::Read,
                 required_capabilities: vec![],
                 tier: None,
+                errors: vec![],
             },
         }
     }

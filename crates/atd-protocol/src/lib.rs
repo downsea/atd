@@ -19,4 +19,6 @@ pub use messages::{ERR_CAPABILITY_DENIED, ERR_RATE_LIMITED, Request, Response};
 pub use result::{ToolResult, ToolResultMetadata};
 pub use sanitize::{desanitize_tool_name, detect_collisions, sanitize_tool_name};
 pub use summary::ToolSummary;
-pub use tool::{ToolBinding, ToolCapability, ToolDefinition, ToolResources, ToolSafety, ToolTrust};
+pub use tool::{
+    ToolBinding, ToolCapability, ToolDefinition, ToolErrorDef, ToolResources, ToolSafety, ToolTrust,
+};
