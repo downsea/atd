@@ -19,5 +19,6 @@ python/*.egg-info/
 
 # Local-only working files (not for the public repo)
 /CLAUDE.md
-/claude-code-source/
+/claude-code-source
 /docs/whitepaper/build-overview-pptx.js
+*.log
