@@ -9,7 +9,7 @@ rust-version.workspace = true
 description = "Server-side runtime for the ATD protocol: Tool trait, Registry, dispatch, Binding, Middleware, capability gate."
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.1.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.2.0" }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

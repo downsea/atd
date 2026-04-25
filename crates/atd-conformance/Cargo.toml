@@ -20,13 +20,13 @@ name = "atd-conformance"
 path = "src/main.rs"
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.1.0" }
-atd-sdk = { path = "../atd-sdk", version = "0.1.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.2.0" }
+atd-sdk = { path = "../atd-sdk", version = "0.2.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-ref-server = { path = "../atd-ref-server", version = "0.1.0" }
+atd-ref-server = { path = "../atd-ref-server", version = "0.2.0" }
 tempfile = { workspace = true }

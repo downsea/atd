@@ -17,12 +17,12 @@ name = "atd-ref-server"
 path = "src/main.rs"
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.1.0" }
-atd-runtime = { path = "../atd-runtime", version = "0.1.0" }
-atd-tools-echo = { path = "../atd-tools-echo", version = "0.1.0" }
-atd-tools-fs = { path = "../atd-tools-fs", version = "0.1.0" }
-atd-tools-shell = { path = "../atd-tools-shell", version = "0.1.0" }
-atd-tools-web = { path = "../atd-tools-web", version = "0.1.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.2.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.2.0" }
+atd-tools-echo = { path = "../atd-tools-echo", version = "0.2.0" }
+atd-tools-fs = { path = "../atd-tools-fs", version = "0.2.0" }
+atd-tools-shell = { path = "../atd-tools-shell", version = "0.2.0" }
+atd-tools-web = { path = "../atd-tools-web", version = "0.2.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -31,8 +31,8 @@ ulid = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.1.0", features = ["testing"] }
-atd-sdk = { path = "../atd-sdk", version = "0.1.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.2.0", features = ["testing"] }
+atd-sdk = { path = "../atd-sdk", version = "0.2.0" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 
