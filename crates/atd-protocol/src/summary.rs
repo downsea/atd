@@ -4,6 +4,7 @@ use crate::enums::{ToolTier, ToolVisibility};
 use crate::tool::ToolDefinition;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolSummary {
     pub id: String,
     #[serde(default)]

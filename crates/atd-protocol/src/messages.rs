@@ -12,6 +12,7 @@ pub const ERR_RATE_LIMITED: u16 = 1002;
 
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type")]
 pub enum Request {
     #[serde(rename = "ping")]
@@ -45,6 +46,7 @@ pub enum Request {
 
 /// Response frames sent from server → client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "type")]
 pub enum Response {
     #[serde(rename = "pong")]

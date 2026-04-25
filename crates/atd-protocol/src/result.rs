@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::enums::BindingProtocol;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ToolResult {
     Success {
@@ -26,6 +27,7 @@ pub enum ToolResult {
 /// has no dependency on a specific datetime or ULID implementation; callers
 /// that need typed access can parse with their preferred library.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolResultMetadata {
     pub tool_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

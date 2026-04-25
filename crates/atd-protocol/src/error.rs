@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[non_exhaustive]
 pub enum AtdError {
     #[error("tool not found: {tool_id}")]
@@ -31,6 +32,9 @@ pub enum AtdError {
     },
 
     #[error("tool execution failed: {tool_id}")]
+    // `inner` is a boxed trait object that JsonSchema cannot describe;
+    // skip this variant entirely in the generated schema.
+    #[cfg_attr(feature = "schema", schemars(skip))]
     ToolExecutionFailed {
         tool_id: String,
         #[source]
@@ -41,6 +45,7 @@ pub enum AtdError {
     Timeout { tool_id: String, after_ms: u64 },
 
     #[error("server unreachable: {0}")]
+    #[cfg_attr(feature = "schema", schemars(skip))]
     ServerUnreachable(#[from] std::io::Error),
 
     #[error("not implemented: {feature}")]

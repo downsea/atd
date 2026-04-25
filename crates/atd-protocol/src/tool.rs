@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::enums::{BindingProtocol, SafetyLevel, ToolVisibility, TrustLevel};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolDefinition {
     pub id: String,
     pub name: String,
@@ -44,6 +45,7 @@ pub struct ToolDefinition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolErrorDef {
     /// SCREAMING_SNAKE error code, e.g. "FILE_NOT_FOUND".
     pub code: String,
@@ -52,6 +54,7 @@ pub struct ToolErrorDef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolCapability {
     pub domain: String,
     pub actions: Vec<String>,
@@ -60,12 +63,14 @@ pub struct ToolCapability {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolBinding {
     pub protocol: BindingProtocol,
     pub config: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolSafety {
     pub level: SafetyLevel,
     pub dry_run: bool,
@@ -74,6 +79,7 @@ pub struct ToolSafety {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolResources {
     pub timeout_ms: u64,
     pub max_concurrent: u32,
@@ -82,6 +88,7 @@ pub struct ToolResources {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolTrust {
     pub publisher: String,
     pub trust_level: TrustLevel,

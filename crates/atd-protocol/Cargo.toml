@@ -12,8 +12,18 @@ keywords = ["atd", "agent", "tool-dispatch", "protocol", "mcp"]
 categories = ["api-bindings", "development-tools"]
 exclude = ["tests/fixtures/*"]
 
+[features]
+default = []
+schema = ["dep:schemars", "dep:jsonschema"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+schemars = { version = "0.8", features = ["preserve_order"], optional = true }
+jsonschema = { version = "0.18", default-features = false, optional = true }
+
+[[bin]]
+name = "gen-schema"
+required-features = ["schema"]
