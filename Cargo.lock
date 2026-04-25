@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "atd-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "atd-conformance"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-ref-server",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "atd-examples"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "atd-mcp-bridge"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "atd-protocol"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "jsonschema",
  "schemars",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "atd-ref-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "atd-runtime"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "chrono",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "atd-sdk"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "serde",
@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "atd-server"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-echo"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-fs"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-shell"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-web"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
