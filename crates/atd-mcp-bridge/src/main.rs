@@ -61,6 +61,31 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    // SP-12 capability handshake: if the operator wants this MCP-bridge
+    // session to hold capabilities (so it can reach gated tools), set
+    // `ATD_REQUEST_CAPS=cap1,cap2,...`. Capabilities not in the server's
+    // allow-list are silently dropped (server returns the granted subset).
+    // Empty / unset = no caps requested = bridge can only call tools with
+    // `required_capabilities: []` (matches pre-SP-12 behavior).
+    if let Ok(caps_str) = std::env::var("ATD_REQUEST_CAPS") {
+        let caps: Vec<String> = caps_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if !caps.is_empty() {
+            match client.hello(Some("atd-mcp-bridge"), caps.clone()).await {
+                Ok(granted) => {
+                    eprintln!("atd-mcp-bridge: hello requested {caps:?}, granted {granted:?}");
+                }
+                Err(e) => {
+                    eprintln!("atd-mcp-bridge: hello failed (continuing without caps): {e}");
+                }
+            }
+        }
+    }
+
     eprintln!("atd-mcp-bridge: connected; entering stdio loop");
 
     let bridge = Bridge::new(client);
