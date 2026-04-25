@@ -127,6 +127,14 @@ class ToolTrust(BaseModel):
     signature: list[int] | None = None
 
 
+class ToolErrorDef(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    code: str
+    description: str
+    retryable: bool
+
+
 class ToolDefinition(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -142,6 +150,7 @@ class ToolDefinition(BaseModel):
     resources: ToolResources
     trust: ToolTrust
     visibility: ToolVisibility = ToolVisibility.READ
+    errors: list[ToolErrorDef] = Field(default_factory=list)
 
 
 # ---------- ToolResult (tagged union on "status") ----------
