@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use atd_ref_server::builtin::builtin_registry;
-use atd_ref_server::server::{Server, ServerConfig};
+use atd_server::{Server, ServerConfig};
 
 use clap::Parser;
 
@@ -110,6 +110,7 @@ async fn main() -> std::process::ExitCode {
     config.default_call_timeout_ms = args.timeout_ms;
     config.granted_capabilities = args.grant_capabilities;
     config.audit_sink = audit_sink;
+    config.server_version = concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string();
 
     let registry = builtin_registry(args.enable_conformance_tool);
 

@@ -21,10 +21,10 @@ use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
 };
-use atd_ref_server::server::{Server, ServerConfig};
 use atd_runtime::middleware::RedactPathsMiddleware;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_runtime::tier::TierPolicy;
+use atd_server::{Server, ServerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -126,6 +126,7 @@ async fn spawn() -> ServerHandle {
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec!["exec".into(), "read".into()],
         audit_sink: None,
+        server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
     };
 
     // Hot tier overridden to 2 s so the cross-primitive test isn't flaky

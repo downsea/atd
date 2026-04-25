@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use atd_ref_server::builtin::builtin_registry;
-use atd_ref_server::server::{Server, ServerConfig};
+use atd_server::{Server, ServerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -33,6 +33,7 @@ async fn spawn() -> ServerHandle {
         default_call_timeout_ms: 5_000,
         granted_capabilities: vec![],
         audit_sink: None,
+        server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
     };
     let server = Server::new(builtin_registry(false), cfg);
     let task = tokio::spawn(server.run());

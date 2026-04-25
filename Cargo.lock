@@ -193,6 +193,7 @@ dependencies = [
  "atd-protocol",
  "atd-runtime",
  "atd-sdk",
+ "atd-server",
  "atd-tools-echo",
  "atd-tools-fs",
  "atd-tools-shell",

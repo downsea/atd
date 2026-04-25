@@ -63,7 +63,7 @@ pub(crate) async fn dispatch(
             *caps = Arc::new(atd_runtime::CapabilitySet::from_iter(granted.clone()));
             Response::HelloAck {
                 granted_capabilities: granted,
-                server_version: concat!("atd-server ", env!("CARGO_PKG_VERSION")).to_string(),
+                server_version: state.config.server_version.clone(),
                 supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
             }
         }
@@ -411,11 +411,7 @@ mod tests {
         fn definition(&self) -> &atd_protocol::ToolDefinition {
             &self.def
         }
-        fn call<'a>(
-            &'a self,
-            args: serde_json::Value,
-            _ctx: &'a CallContext,
-        ) -> CallFuture<'a> {
+        fn call<'a>(&'a self, args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
             Box::pin(async move { Ok(serde_json::json!({ "echoed": args })) })
         }
     }
@@ -473,6 +469,7 @@ mod tests {
                 default_call_timeout_ms: 60_000,
                 granted_capabilities: vec![],
                 audit_sink: None,
+                server_version: "atd-server-test 0.0.0".into(),
             },
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
@@ -648,8 +645,10 @@ mod tests {
 
     #[tokio::test]
     async fn run_tool_invalid_args_error_maps_to_error_response() {
-        let s =
-            test_state_with(vec![Arc::new(FailingTool::new("test:invalid", FailureMode::InvalidArgs))]);
+        let s = test_state_with(vec![Arc::new(FailingTool::new(
+            "test:invalid",
+            FailureMode::InvalidArgs,
+        ))]);
         let r = dispatch(
             &s,
             &fresh_tracker(),

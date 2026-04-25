@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use atd_ref_server::builtin::builtin_registry;
-use atd_ref_server::server::{Server, ServerConfig};
+use atd_server::{Server, ServerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 

@@ -22,6 +22,7 @@ path = "src/main.rs"
 [dependencies]
 atd-protocol = { path = "../atd-protocol", version = "0.2.0" }
 atd-runtime = { path = "../atd-runtime", version = "0.2.0" }
+atd-server = { path = "../atd-server", version = "0.2.0" }
 atd-tools-echo = { path = "../atd-tools-echo", version = "0.2.0" }
 atd-tools-fs = { path = "../atd-tools-fs", version = "0.2.0" }
 atd-tools-shell = { path = "../atd-tools-shell", version = "0.2.0" }

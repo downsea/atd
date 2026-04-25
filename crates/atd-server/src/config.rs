@@ -20,6 +20,13 @@ pub struct ServerConfig {
     /// disables audit entirely — no events are constructed, zero overhead.
     /// SP-operability-v1 C1.
     pub audit_sink: Option<Arc<dyn atd_runtime::AuditSink>>,
+    /// Identity string returned in the `Hello` handshake's `server_version`
+    /// field. Concretely the deployed server's name + version (e.g.
+    /// `"atd-ref-server 0.2.1"` or `"healthkit-server 1.4.0"`); the listener
+    /// crate's own version is not part of the wire identity.
+    /// Default: `concat!("atd-server ", env!("CARGO_PKG_VERSION"))` — used
+    /// only when no binary overrides it.
+    pub server_version: String,
 }
 
 impl Default for ServerConfig {
@@ -32,6 +39,7 @@ impl Default for ServerConfig {
             default_call_timeout_ms: 60_000,
             granted_capabilities: vec![],
             audit_sink: None,
+            server_version: concat!("atd-server ", env!("CARGO_PKG_VERSION")).to_string(),
         }
     }
 }

@@ -13,9 +13,9 @@ use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
-use atd_ref_server::server::{Server, ServerConfig};
 use atd_runtime::error::ToolCallError;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
+use atd_server::{Server, ServerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -110,6 +110,7 @@ async fn spawn(granted: Vec<String>) -> ServerHandle {
         default_call_timeout_ms: 5_000,
         granted_capabilities: granted,
         audit_sink: None,
+        server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
     };
 
     let server = Server::new(registry, cfg);
