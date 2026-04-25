@@ -1,0 +1,876 @@
+{
+  "$id": "https://atd.dev/schema/v0.1.0/atd-protocol-schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "definitions": {
+    "AtdError": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "ToolNotFound": {
+              "properties": {
+                "suggestions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "tool_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "suggestions",
+                "tool_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ToolNotFound"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "InvalidArguments": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "tool_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "reason",
+                "tool_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "InvalidArguments"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "CapabilityDenied": {
+              "properties": {
+                "granted": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "required": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "tool_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "granted",
+                "required",
+                "tool_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "CapabilityDenied"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "BindingUnavailable": {
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "tool_id": {
+                  "type": "string"
+                },
+                "tried": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "reason",
+                "tool_id",
+                "tried"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "BindingUnavailable"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Timeout": {
+              "properties": {
+                "after_ms": {
+                  "format": "uint64",
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                "tool_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after_ms",
+                "tool_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Timeout"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "NotImplemented": {
+              "properties": {
+                "feature": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "feature"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "NotImplemented"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "ProtocolError": {
+              "properties": {
+                "expected": {
+                  "type": "string"
+                },
+                "got": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expected",
+                "got"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ProtocolError"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "BindingProtocol": {
+      "enum": [
+        "Cli",
+        "Mcp",
+        "AppFunction",
+        "Rest"
+      ],
+      "type": "string"
+    },
+    "Request": {
+      "description": "Request frames sent from client → server.",
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "ping"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "SP-12 Hello handshake. Optional: pre-SP-12 servers do not recognize it; `AtdClient::hello` tolerates that and returns an empty granted set so callers can treat \"no capabilities\" and \"server too old\" identically.",
+          "properties": {
+            "client_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requested_capabilities": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "enum": [
+                "hello"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "tool_list"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "tool_id": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "tool_schema"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tool_id",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "args": true,
+            "dry_run": {
+              "type": "boolean"
+            },
+            "tool_id": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "run_tool"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "args",
+            "dry_run",
+            "tool_id",
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Response": {
+      "description": "Response frames sent from server → client.",
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "pong"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "granted_capabilities": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "server_version": {
+              "default": "",
+              "type": "string"
+            },
+            "supported_tiers": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": {
+              "enum": [
+                "hello_ack"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "tools": true,
+            "type": {
+              "enum": [
+                "tool_list"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "tools",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "schema": true,
+            "type": {
+              "enum": [
+                "tool_schema"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "schema",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "dry_run": {
+              "type": "boolean"
+            },
+            "result": true,
+            "success": {
+              "type": "boolean"
+            },
+            "tool_id": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "tool_result"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "dry_run",
+            "result",
+            "success",
+            "tool_id",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "format": "uint16",
+              "minimum": 0.0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "details": true,
+            "message": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "enum": [
+                "error"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "message",
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SafetyLevel": {
+      "enum": [
+        "Read",
+        "Write",
+        "Financial",
+        "Privacy",
+        "Physical",
+        "Destructive"
+      ],
+      "type": "string"
+    },
+    "ToolBinding": {
+      "properties": {
+        "config": true,
+        "protocol": {
+          "$ref": "#/definitions/BindingProtocol"
+        }
+      },
+      "required": [
+        "config",
+        "protocol"
+      ],
+      "type": "object"
+    },
+    "ToolCapability": {
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "intent_examples": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "actions",
+        "domain",
+        "intent_examples",
+        "tags"
+      ],
+      "type": "object"
+    },
+    "ToolDefinition": {
+      "properties": {
+        "bindings": {
+          "items": {
+            "$ref": "#/definitions/ToolBinding"
+          },
+          "type": "array"
+        },
+        "capability": {
+          "$ref": "#/definitions/ToolCapability"
+        },
+        "description": {
+          "type": "string"
+        },
+        "errors": {
+          "default": [],
+          "description": "Domain errors this tool may emit. Optional; missing on the wire = empty. Surfaces only via `describe`, never via `discover` (kept off `ToolSummary`).",
+          "items": {
+            "$ref": "#/definitions/ToolErrorDef"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "input_schema": true,
+        "name": {
+          "type": "string"
+        },
+        "output_schema": true,
+        "required_capabilities": {
+          "default": [],
+          "description": "Capabilities a caller must hold for this tool to be invoked. Enforced by the server's dispatch layer (SP-12). Empty = unrestricted. The existing `capability` field above is a *descriptor* (domain, actions, intent examples); this is the *enforcement* list — intentionally separate to avoid overloading the schema.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "$ref": "#/definitions/ToolResources"
+        },
+        "safety": {
+          "$ref": "#/definitions/ToolSafety"
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ToolTier"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Execution tier hint used by the dispatch layer to derive deadline and max-output budgets. Absent / unknown values default to `Warm` on the server side (SP-12 back-compat). The client-facing `ToolSummary` carries an equivalent field."
+        },
+        "trust": {
+          "$ref": "#/definitions/ToolTrust"
+        },
+        "version": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/definitions/ToolVisibility",
+          "default": "read"
+        }
+      },
+      "required": [
+        "bindings",
+        "capability",
+        "description",
+        "id",
+        "input_schema",
+        "name",
+        "output_schema",
+        "resources",
+        "safety",
+        "trust",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ToolErrorDef": {
+      "properties": {
+        "code": {
+          "description": "SCREAMING_SNAKE error code, e.g. \"FILE_NOT_FOUND\".",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "retryable"
+      ],
+      "type": "object"
+    },
+    "ToolResources": {
+      "properties": {
+        "estimated_tokens": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_concurrent": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "rate_limit_per_min": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "timeout_ms": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_concurrent",
+        "timeout_ms"
+      ],
+      "type": "object"
+    },
+    "ToolResult": {
+      "oneOf": [
+        {
+          "properties": {
+            "data": true,
+            "metadata": {
+              "$ref": "#/definitions/ToolResultMetadata"
+            },
+            "status": {
+              "enum": [
+                "success"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "data",
+            "metadata",
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "status": {
+              "enum": [
+                "error"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "retryable",
+            "status"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ToolResultMetadata": {
+      "description": "Metadata attached to a successful tool result.\n\nOnly `tool_id` is required — servers always echo it. All other fields are server-populated and optional: clients must not synthesize them, because a fabricated `timestamp`/`request_id` would silently masquerade as server truth. `timestamp` and `request_id` are kept as opaque strings so this crate has no dependency on a specific datetime or ULID implementation; callers that need typed access can parse with their preferred library.",
+      "properties": {
+        "binding": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BindingProtocol"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latency_ms": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "request_id": {
+          "description": "Opaque request identifier (ULID, UUID, or whatever the server emits).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "description": "ISO-8601 / RFC-3339 timestamp, server-populated.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tool_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "tool_id"
+      ],
+      "type": "object"
+    },
+    "ToolSafety": {
+      "properties": {
+        "data_sensitivity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dry_run": {
+          "type": "boolean"
+        },
+        "level": {
+          "$ref": "#/definitions/SafetyLevel"
+        },
+        "side_effects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "dry_run",
+        "level",
+        "side_effects"
+      ],
+      "type": "object"
+    },
+    "ToolSummary": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "domain": {
+          "default": "",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "input_schema": true,
+        "name": {
+          "default": "",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tier": {
+          "$ref": "#/definitions/ToolTier",
+          "default": "warm"
+        },
+        "visibility": {
+          "$ref": "#/definitions/ToolVisibility",
+          "default": "read"
+        }
+      },
+      "required": [
+        "description",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ToolTier": {
+      "enum": [
+        "hot",
+        "warm",
+        "cold"
+      ],
+      "type": "string"
+    },
+    "ToolTrust": {
+      "properties": {
+        "publisher": {
+          "type": "string"
+        },
+        "signature": {
+          "items": {
+            "format": "uint8",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "trust_level": {
+          "$ref": "#/definitions/TrustLevel"
+        }
+      },
+      "required": [
+        "publisher",
+        "trust_level"
+      ],
+      "type": "object"
+    },
+    "ToolVisibility": {
+      "enum": [
+        "read",
+        "write",
+        "dangerous",
+        "system"
+      ],
+      "type": "string"
+    },
+    "TrustLevel": {
+      "enum": [
+        "L0Unverified",
+        "L1SchemaValid",
+        "L2Tested",
+        "L3Verified",
+        "L4Certified"
+      ],
+      "type": "string"
+    }
+  },
+  "description": "Wire types for the ATD reference implementation. Generated from atd-protocol Rust types via schemars; do not hand-edit.",
+  "title": "ATD Protocol Schema"
+}
