@@ -759,7 +759,9 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Dry-run consistency across tools | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; server-side short-circuit documented in docs/protocol/dry-run-contract.md; shell.exec/pwsh ToolSafety.dry_run corrected to true. |
 | Per-call agent identity tracking | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; CallContext.caller_id populated from Hello.client_id; prerequisite for UCAN tokens (arch §9.3). |
 | Machine-readable `atd-protocol-schema.json` | Schema | ❌ | proposed SP | Q2 2026 | No adopter gate |
-| Conformance suite (SP-8 original) | Cross-cutting | ❌ | SP to be planned | Q2-Q3 2026 | Benefits from protocol schema being shipped first |
+| Conformance suite (sanitize / wire / behavior categories) | Cross-cutting | ✅ | SP-8 | 2026-04-24 | Landed; `atd-conformance` crate with 32 fixtures + `run_conformance` API + CLI binary; self-conformance integration test green. |
+| Conformance: capability-denied gated tool | Cross-cutting | ✅ | SP-8.1 | 2026-04-24 | Landed; `ref:conformance.denied_op` returns ERR_CAPABILITY_DENIED (1001); fixture restored to behavior category. |
+| Conformance: rate-limit fixture (`saturate_op`) | Cross-cutting | ✅ | SP-8.2 | 2026-04-25 | Landed; `ref:conformance.saturate_op` exercises ERR_RATE_LIMITED (1002) wire path. |
 | Ergonomic aliases DSL (SDK-only) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate; low priority |
 | Additional built-in middleware (pii_redact, injection_detect, image_meta_strip) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate |
 | Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
