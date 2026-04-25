@@ -143,6 +143,22 @@ Two evidence docs prove the independence and cross-vendor claims:
 - [Wire format](docs/protocol/wire-format.md) — length-prefixed JSON framing, message types, server bindings, full type definitions
 - [Error codes](docs/protocol/error-codes.md) — `AtdError` taxonomy, server error codes, retry strategy
 
+### Protocol schema
+
+The wire types are mirrored as a JSON Schema artifact at the repo
+root: [`atd-protocol-schema.json`](./atd-protocol-schema.json). Regenerate
+after editing types in `crates/atd-protocol/`:
+
+```bash
+cargo run -p atd-protocol --features schema --bin gen-schema
+```
+
+CI verifies the committed file is fresh and meta-schema-valid via:
+
+```bash
+cargo run -p atd-protocol --features schema --bin gen-schema -- --check
+```
+
 ### Known gaps + issues
 
 - [docs/issues/](docs/issues/) — honest gap tracking: 10 open items across schema, dispatch, and security layers. Each issue explains current state, impact, and proposed fix or deferral rationale.

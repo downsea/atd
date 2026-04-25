@@ -1,5 +1,7 @@
 # No machine-readable protocol schema
 
+**Status:** resolved by SP-protocol-schema (2026-04-25; tag `sp-protocol-schema`).
+
 **Layer:** schema
 **Status:** tracked
 **Effort:** ~0.5 day

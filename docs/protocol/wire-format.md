@@ -2,6 +2,7 @@
 
 **Protocol version:** 0.1.0
 **Source:** `crates/atd-protocol/src/` + `crates/atd-sdk/src/wire.rs` at tag `sp10-adapters`
+**Machine-readable counterpart:** [`/atd-protocol-schema.json`](../../atd-protocol-schema.json) — generated from the Rust types in `atd-protocol`; CI gates drift.
 **Transports:** Unix socket (implemented), stdio (planned), HTTP (Phase 2)
 
 This document is the authoritative reference for the ATD wire protocol. Implementers
