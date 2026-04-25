@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Server-side runtime for the ATD protocol: Tool trait, Registry, dispatch, Binding, Middleware, capability gate."
+readme = "README.md"
+keywords = ["atd", "agent", "tool-dispatch", "runtime", "server"]
+categories = ["api-bindings", "asynchronous"]
 
 [dependencies]
 atd-protocol = { path = "../atd-protocol", version = "0.2.0" }

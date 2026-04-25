@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Built-in echo tools for the ATD reference runtime."
+readme = "README.md"
+keywords = ["atd", "tool", "echo", "agent"]
+categories = ["api-bindings", "development-tools"]
 
 [dependencies]
 atd-protocol = { path = "../atd-protocol", version = "0.2.0" }

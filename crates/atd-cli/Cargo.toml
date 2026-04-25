@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Reference command-line client for the Agent Tool Dispatch (ATD) protocol."
+readme = "README.md"
+keywords = ["atd", "cli", "agent", "tool-dispatch"]
+categories = ["command-line-utilities", "development-tools"]
 
 [lib]
 name = "atd_cli"

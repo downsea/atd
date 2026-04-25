@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Reference server binary for the Agent Tool Dispatch (ATD) protocol — wires atd-runtime + atd-tools-* into an installable executable."
+readme = "README.md"
+keywords = ["atd", "agent", "server", "tool-dispatch", "reference"]
+categories = ["command-line-utilities", "api-bindings"]
 
 [lib]
 name = "atd_ref_server"
