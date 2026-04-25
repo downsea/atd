@@ -21,7 +21,7 @@ use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTier, ToolTrust, ToolVisibility, TrustLevel,
 };
-use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_ref_server::server::{Server, ServerConfig};
 use atd_runtime::middleware::RedactPathsMiddleware;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
 use atd_runtime::tier::TierPolicy;

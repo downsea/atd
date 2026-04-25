@@ -23,7 +23,7 @@ If your version of OpenClaw supports MCP servers (check the OpenClaw documentati
 **Step 1 — Build the bridge:**
 
 ```bash
-cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
+cargo build --release -p atd-ref-server -p atd-mcp-bridge
 ```
 
 **Step 2 — Start the ATD server:**

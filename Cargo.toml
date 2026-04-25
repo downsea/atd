@@ -11,7 +11,7 @@ members = [
     "crates/atd-cli",
     "crates/atd-conformance",
     "crates/atd-mcp-bridge",
-    "crates/atd-ref-server-bin",
+    "crates/atd-ref-server",
     "examples",
 ]
 

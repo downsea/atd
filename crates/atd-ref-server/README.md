@@ -8,7 +8,7 @@ Zero dependency on any specific client SDK or agent framework. In particular, ze
 
 ```bash
 # build
-cargo build --release -p atd-ref-server-bin --bin atd-ref-server
+cargo build --release -p atd-ref-server --bin atd-ref-server
 
 # run (defaults to $HOME/.atd-ref/server.sock)
 ./target/release/atd-ref-server &
@@ -38,7 +38,7 @@ Shell tools return `{exit_code, stdout, stdout_truncated, stderr, stderr_truncat
 ```bash
 # Find all Rust files under src/:
 atd --sock $HOME/.atd-ref/server.sock call ref:fs.glob \
-  --args '{"pattern": "**/*.rs", "path": "crates/atd-ref-server-bin/src"}'
+  --args '{"pattern": "**/*.rs", "path": "crates/atd-ref-server/src"}'
 
 # Regex search with glob filter:
 atd --sock $HOME/.atd-ref/server.sock call ref:fs.grep \
@@ -65,7 +65,7 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
 
 Post-`SP-refactor-v1`, built-in tools live in sibling crates under
 `crates/atd-tools-*/`. Each crate owns one domain (echo, fs, shell, web).
-The `atd-ref-server-bin` crate links them and wires them into a
+The `atd-ref-server` crate links them and wires them into a
 `Registry` in `builtin.rs`. To add a tool, pick the right crate (or
 create a new sibling `atd-tools-<domain>` crate) and:
 
@@ -101,7 +101,7 @@ create a new sibling `atd-tools-<domain>` crate) and:
    pub mod my_tool;
    ```
 
-3. **Register in `atd-ref-server-bin/src/builtin.rs`**:
+3. **Register in `atd-ref-server/src/builtin.rs`**:
 
    ```rust
    use atd_tools_fs::my_tool::MyTool;
@@ -111,7 +111,7 @@ create a new sibling `atd-tools-<domain>` crate) and:
 
 4. **Add unit tests** in the same file under `#[cfg(test)] mod tests`.
 
-5. **`cargo test -p atd-tools-fs -p atd-ref-server-bin`** — done.
+5. **`cargo test -p atd-tools-fs -p atd-ref-server`** — done.
 
 New external tools can live in entirely separate crates that depend on
 `atd-runtime` + `atd-protocol`; they don't need to live in this workspace.

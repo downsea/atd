@@ -25,7 +25,7 @@ The integration path is: `Client UI → atd-mcp-bridge (stdio) → Unix socket �
 ```bash
 git clone https://github.com/atd-protocol/atd-mvp
 cd atd-mvp
-cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
+cargo build --release -p atd-ref-server -p atd-mcp-bridge
 ```
 
 The binaries end up at `target/release/atd-ref-server` and `target/release/atd-mcp-bridge`. Note the **absolute paths** — you will paste these into the config files below.

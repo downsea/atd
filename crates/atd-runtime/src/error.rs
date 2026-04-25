@@ -8,7 +8,7 @@
 //! client-side and server-side errors classify different concerns.
 //!
 //! `#[non_exhaustive]` on the enum is load-bearing since this crate is now
-//! separate from `atd-ref-server-bin` (post-SP-refactor-v1): downstream
+//! separate from `atd-ref-server` (post-SP-refactor-v1): downstream
 //! match sites must include a wildcard arm so new variants added here
 //! don't break their compile without an explicit update.
 

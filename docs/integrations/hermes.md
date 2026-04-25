@@ -30,7 +30,7 @@ If Hermes is not installed, follow the [Hermes installation docs](https://github
 **ATD binaries built:**
 
 ```bash
-cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
+cargo build --release -p atd-ref-server -p atd-mcp-bridge
 ```
 
 Both binaries end up in `target/release/`. Verify:

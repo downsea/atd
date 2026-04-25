@@ -23,7 +23,7 @@ use atd_protocol::{
     BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolDefinition, ToolResources,
     ToolSafety, ToolTrust, ToolVisibility, TrustLevel,
 };
-use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_ref_server::server::{Server, ServerConfig};
 use atd_runtime::context::CallContext;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -1,4 +1,4 @@
-//! Spawns atd-ref-server-bin and runs the full conformance suite
+//! Spawns atd-ref-server and runs the full conformance suite
 //! against it. If the reference server drifts from the spec, this
 //! test fails on the next PR's `cargo test --workspace`.
 
@@ -80,7 +80,7 @@ async fn atd_ref_server_passes_conformance_suite() {
 ///
 /// Cargo's stable `CARGO_BIN_EXE_<name>` only exposes binaries from the
 /// *same* package as the test, so we can't use `env!` to find the
-/// ref-server binary (it lives in `atd-ref-server-bin`, a dev-dep).
+/// ref-server binary (it lives in `atd-ref-server`, a dev-dep).
 ///
 /// Instead we derive the target directory from the current test
 /// executable's own path: Cargo places integration tests in
@@ -98,8 +98,8 @@ fn ref_server_bin() -> PathBuf {
     assert!(
         bin.exists(),
         "atd-ref-server binary not found at {}. \
-         Cargo should have built it as part of the atd-ref-server-bin \
-         dev-dependency. Try: `cargo build -p atd-ref-server-bin`.",
+         Cargo should have built it as part of the atd-ref-server \
+         dev-dependency. Try: `cargo build -p atd-ref-server`.",
         bin.display()
     );
     bin

@@ -1,7 +1,7 @@
 //! End-to-end test: MCP client (this test) → atd-mcp-bridge → atd-ref-server.
 //!
 //! Both binaries must be pre-built in release mode:
-//!   cargo build --release -p atd-ref-server-bin -p atd-mcp-bridge
+//!   cargo build --release -p atd-ref-server -p atd-mcp-bridge
 //!
 //! Tests pipe raw MCP JSON-RPC through the bridge's stdio and validate the
 //! responses. They use no LLM and no external MCP client — just our own
@@ -58,7 +58,7 @@ impl Harness {
         if !ref_bin.exists() {
             return Err(format!(
                 "atd-ref-server release binary missing at {}.\n\
-                 build first: cargo build --release -p atd-ref-server-bin",
+                 build first: cargo build --release -p atd-ref-server",
                 ref_bin.display()
             )
             .into());

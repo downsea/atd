@@ -121,7 +121,7 @@ name = "atd-conformance"
 version = "0.1.0"
 dependencies = [
  "atd-protocol",
- "atd-ref-server-bin",
+ "atd-ref-server",
  "atd-sdk",
  "clap",
  "serde",
@@ -165,7 +165,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "atd-ref-server-bin"
+name = "atd-ref-server"
 version = "0.1.0"
 dependencies = [
  "atd-protocol",

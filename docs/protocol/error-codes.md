@@ -614,7 +614,7 @@ The reference server logs to stderr. If you launched it via `AtdClient::connect(
 For a manually launched server:
 
 ```bash
-RUST_LOG=atd_ref_server_bin=debug ./target/release/atd-ref-server --socket /tmp/atd.sock
+RUST_LOG=atd_ref_server=debug ./target/release/atd-ref-server --socket /tmp/atd.sock
 ```
 
 Relevant log fields:

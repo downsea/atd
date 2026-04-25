@@ -28,5 +28,5 @@ tokio = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-ref-server-bin = { path = "../atd-ref-server-bin", version = "0.1.0" }
+atd-ref-server = { path = "../atd-ref-server", version = "0.1.0" }
 tempfile = { workspace = true }

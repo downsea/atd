@@ -15,7 +15,7 @@ other MCP-speaking agent.
 ```bash
 git clone https://github.com/downsea/atd-mvp
 cd atd-mvp
-cargo build --release -p atd-ref-server-bin
+cargo build --release -p atd-ref-server
 cargo run --example hello_atd -p atd-examples
 ```
 

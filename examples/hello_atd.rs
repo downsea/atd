@@ -7,7 +7,7 @@
 //! format, the ref-server answers.
 //!
 //! Run:
-//!   cargo build --release -p atd-ref-server-bin
+//!   cargo build --release -p atd-ref-server
 //!   cargo run --example hello_atd
 //!
 //! Override the server (e.g., to use a third-party ATD server):
@@ -56,7 +56,7 @@ async fn acquire_server()
     if !binary.exists() {
         return Err(format!(
             "atd-ref-server release binary not found at {}.\n\
-             build it first: cargo build --release -p atd-ref-server-bin",
+             build it first: cargo build --release -p atd-ref-server",
             binary.display()
         )
         .into());

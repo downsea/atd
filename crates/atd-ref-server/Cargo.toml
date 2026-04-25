@@ -1,5 +1,5 @@
 [package]
-name = "atd-ref-server-bin"
+name = "atd-ref-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,13 +9,10 @@ rust-version.workspace = true
 description = "Reference server binary for the Agent Tool Dispatch (ATD) protocol — wires atd-runtime + atd-tools-* into an installable executable."
 
 [lib]
-name = "atd_ref_server_bin"
+name = "atd_ref_server"
 path = "src/lib.rs"
 
 [[bin]]
-# Binary name intentionally omits the `-bin` suffix: the installed command
-# is `atd-ref-server`. The `-bin` package suffix distinguishes this
-# executable crate from the library crates (atd-runtime, atd-tools-*).
 name = "atd-ref-server"
 path = "src/main.rs"
 

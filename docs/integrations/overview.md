@@ -349,8 +349,8 @@ Honest gaps, for expectations management:
   Rust or Python client source.
 
 - **Publishing your own tools:** run an ATD server exposing them.
-  Start from `atd-ref-server-bin` as a template
-  (`crates/atd-ref-server-bin/`) and link `atd-runtime` +
+  Start from `atd-ref-server` as a template
+  (`crates/atd-ref-server/`) and link `atd-runtime` +
   one of the `crates/atd-tools-*` crates. Each tool is roughly one file.
 
 ---

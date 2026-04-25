@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use atd_ref_server_bin::builtin::builtin_registry;
-use atd_ref_server_bin::server::{Server, ServerConfig};
+use atd_ref_server::builtin::builtin_registry;
+use atd_ref_server::server::{Server, ServerConfig};
 
 use clap::Parser;
 

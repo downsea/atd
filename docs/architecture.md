@@ -314,7 +314,7 @@ The binding trait's contract: given `args: serde_json::Value` and a `&CallContex
 | Component | Source | Status | Notes |
 |---|---|---|---|
 | `Hello` wire message (client → server on connect) | `crates/atd-sdk/src/protocol.rs` | ✅ (SP-12) | Client requests a subset of capabilities it plans to use |
-| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server-bin/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
+| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
 | `CapabilitySet` type + intersection logic | `crates/atd-runtime/src/capability.rs` | ✅ | — |
 | Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-runtime/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
 | Full UCAN-style tokens (delegation, revocation, signatures) | — | 🚫 | See [§9.3](#9-non-goals-explicit) |
@@ -644,7 +644,7 @@ The current crate layout (post-`SP-refactor-v1`) cleanly separates each logical 
 | **Built-in tools** (echo, fs, shell, web) | `atd-tools-echo`, `atd-tools-fs`, `atd-tools-shell`, `atd-tools-web` | ✅ | Split per-domain in SP-refactor-v1. |
 | **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
 | **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
-| **Ref-server binary** | `atd-ref-server-bin` (binary name `atd-ref-server`) | ✅ | Thin wrapper over `atd-runtime` + `atd-tools-*`. |
+| **Ref-server binary** | `atd-ref-server` (binary name `atd-ref-server`) | ✅ | Thin wrapper over `atd-runtime` + `atd-tools-*`. |
 | **Examples** | `examples/` (not published) | ✅ | |
 | **Conformance suite** (future) | not yet | ❌ | Future SP (SP-8) |
 
@@ -664,7 +664,7 @@ atd-protocol
            ├── atd-tools-fs
            ├── atd-tools-shell
            ├── atd-tools-web
-           └── atd-ref-server-bin (wires runtime + tools into an installable binary)
+           └── atd-ref-server (wires runtime + tools into an installable binary)
 ```
 
 Python SDK (`python/src/atd_client/`) mirrors `atd-protocol` + `atd-sdk` as a standalone Python package with its own sanitize + adapters. Python rename to `atd_sdk` is a deferred SP.
