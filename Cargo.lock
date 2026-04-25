@@ -233,6 +233,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-server"
+version = "0.2.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "atd-sdk",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "atd-tools-echo"
 version = "0.2.0"
 dependencies = [

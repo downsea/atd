@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/atd-protocol",
     "crates/atd-sdk",
+    "crates/atd-server",
     "crates/atd-runtime",
     "crates/atd-tools-echo",
     "crates/atd-tools-fs",
