@@ -33,3 +33,6 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --all-targets
+
+      - name: Verify atd-protocol-schema.json is fresh and valid
+        run: cargo run -p atd-protocol --features schema --bin gen-schema -- --check
