@@ -8,7 +8,6 @@ pub mod connection;
 pub mod error;
 pub mod server;
 
-// Re-exports populated in T2 once types exist:
-// pub use config::ServerConfig;
-// pub use error::ServerError;
-// pub use server::Server;
+pub use config::ServerConfig;
+pub use error::ServerError;
+pub use server::Server;
