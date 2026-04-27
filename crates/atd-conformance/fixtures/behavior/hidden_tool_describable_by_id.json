@@ -1,0 +1,11 @@
+{
+  "category": "behavior",
+  "name": "hidden_tool_describable_by_id",
+  "description": "Hidden tools are still individually describe-able by id — only Request::ToolList is filtered. Sends Request::ToolSchema for `ref:conformance.hidden_op` and expects ToolSchemaResponse with a schema. Sibling of hidden_visibility_excludes_from_tool_list and hidden_tool_callable_by_id.",
+  "setup": null,
+  "send": { "type": "tool_schema", "tool_id": "ref:conformance.hidden_op" },
+  "expect_response_matches": {
+    "type": "tool_schema",
+    "schema": "*"
+  }
+}

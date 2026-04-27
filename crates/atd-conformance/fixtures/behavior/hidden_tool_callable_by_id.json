@@ -1,0 +1,16 @@
+{
+  "category": "behavior",
+  "name": "hidden_tool_callable_by_id",
+  "description": "Hidden tools are still individually call-able by id — only discover/list is filtered. Sends Request::RunTool for `ref:conformance.hidden_op` (which has required_capabilities: []) and expects tool_result with success=true. Sibling of hidden_visibility_excludes_from_tool_list and hidden_tool_describable_by_id.",
+  "setup": null,
+  "send": {
+    "type": "run_tool",
+    "tool_id": "ref:conformance.hidden_op",
+    "args": {},
+    "dry_run": false
+  },
+  "expect_response_matches": {
+    "type": "tool_result",
+    "success": true
+  }
+}

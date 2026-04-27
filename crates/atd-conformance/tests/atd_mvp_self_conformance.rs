@@ -64,8 +64,8 @@ async fn atd_ref_server_passes_conformance_suite() {
     }
 
     assert!(
-        report.total >= 28 && report.total <= 35,
-        "expected ~28-32 cases, got {} (design spec §4.7)",
+        report.total >= 28 && report.total <= 40,
+        "expected ~28-40 cases, got {} (design spec §4.7; +3 in SP-tool-visibility-hidden)",
         report.total
     );
     assert_eq!(report.failed, 0, "all cases must pass");
