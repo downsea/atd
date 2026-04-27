@@ -11,7 +11,7 @@ use atd_protocol::{
 };
 use atd_runtime::context::CallContext;
 use atd_runtime::registry::{CallFuture, Tool};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn weather_def(id: &str, action: &str, description: &str) -> ToolDefinition {
     ToolDefinition {

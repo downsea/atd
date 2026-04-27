@@ -10,6 +10,7 @@ pub mod context;
 pub mod error;
 pub mod middleware;
 pub mod registry;
+pub mod secrets;
 pub mod tier;
 pub mod tracker;
 
@@ -20,5 +21,8 @@ pub use context::CallContext;
 pub use error::ToolCallError;
 pub use middleware::{Middleware, RedactPathsMiddleware};
 pub use registry::{RegisteredTool, Registry, Tool};
+pub use secrets::{
+    BrokerError, InMemoryTokenBroker, RedactedString, ResolveFuture, SecretBundle, TokenBroker,
+};
 pub use tier::{TierPolicy, tier_as_str, tier_from_opt_str};
 pub use tracker::{ReadTracker, ReadTrackerError};

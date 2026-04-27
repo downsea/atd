@@ -10,6 +10,14 @@ pub const ERR_CAPABILITY_DENIED: u16 = 1001;
 /// SP-operability-v1 C2.
 pub const ERR_RATE_LIMITED: u16 = 1002;
 
+/// Wire value of `code` on `Response::Error` when a configured
+/// `TokenBroker` returns `Err(_)` while resolving secrets for the
+/// caller. Server-side only; SDKs may surface this code but won't
+/// generate it. `retryable: true` because broker failures may be
+/// transient (network blip, secret manager hiccup).
+/// SP-token-broker-phase1.
+pub const ERR_BROKER_FAILED: u16 = 1003;
+
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]

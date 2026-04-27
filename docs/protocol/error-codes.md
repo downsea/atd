@@ -194,6 +194,18 @@ match client.call("ref:fs.write", args, opts).await {
 
 Note: in v0.1.0 the SDK does not yet surface this as a dedicated `AtdError::RateLimited` variant; it arrives as a generic wire-error response with `code == 1002`. Client retry code should key off the numeric code.
 
+### 2.3b `BrokerFailed` (wire code `1003` / `ERR_BROKER_FAILED`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | A configured `TokenBroker` returned `Err(_)` while resolving secrets for the caller (SP-token-broker-phase1). Dispatch returns immediately; `Tool::call` is never invoked. The audit `CallEvent` records `secrets_resolved: false`. |
+| **Wire mapping** | `Response::Error { code: Some(1003), message: "token broker error for <tool_id>: <reason>" }` — emitted by `atd-server::connection::dispatch` after the rate-limit check, before tool dispatch. |
+| **Retryable?** | `true` — broker failures are typically transient (network blip, secret manager hiccup); the client may retry. The broker decides for itself whether to cache or refresh. |
+| **Source line** | `crates/atd-protocol/src/messages.rs` (constant `ERR_BROKER_FAILED`); `crates/atd-server/src/connection.rs` (dispatch hook); `crates/atd-runtime/src/secrets.rs` (`BrokerError` enum). |
+| **Since** | SP-token-broker-phase1 |
+
+Server-side only: SDKs may surface this as a generic wire-error response, but no SDK generates a `1003` code.
+
 ### 2.4 `BindingUnavailable`
 
 ```rust

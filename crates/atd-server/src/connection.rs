@@ -103,7 +103,9 @@ pub(crate) async fn dispatch(
             // no-op when `audit_sink` is None (the default).
             let start = Instant::now();
             let audit_call_id = ulid::Ulid::new();
-            let emit = |outcome: atd_runtime::Outcome, tier: atd_runtime::tier::ToolTier| {
+            let emit = |outcome: atd_runtime::Outcome,
+                        tier: atd_runtime::tier::ToolTier,
+                        secrets_resolved: bool| {
                 if let Some(sink) = state.config.audit_sink.as_ref() {
                     sink.on_call(&atd_runtime::CallEvent {
                         ts: atd_runtime::audit::now_rfc3339(),
@@ -116,6 +118,7 @@ pub(crate) async fn dispatch(
                         tier: atd_runtime::tier_as_str(tier).to_string(),
                         dry_run,
                         schema_version: atd_runtime::SCHEMA_VERSION,
+                        secrets_resolved,
                     });
                 }
             };
@@ -126,6 +129,7 @@ pub(crate) async fn dispatch(
                 emit(
                     atd_runtime::Outcome::Success,
                     atd_runtime::tier::ToolTier::Warm,
+                    false,
                 );
                 return Response::ToolResultResponse {
                     tool_id: tool_id.clone(),
@@ -144,6 +148,7 @@ pub(crate) async fn dispatch(
                     emit(
                         atd_runtime::Outcome::ToolNotFound,
                         atd_runtime::tier::ToolTier::Warm,
+                        false,
                     );
                     return Response::Error {
                         message: format!("tool not found: {tool_id}"),
@@ -181,6 +186,7 @@ pub(crate) async fn dispatch(
                         missing: missing_sorted.clone(),
                     },
                     tier,
+                    false,
                 );
                 return Response::Error {
                     message: format!("capability denied for {tool_id}: missing {missing_sorted:?}"),
@@ -211,6 +217,7 @@ pub(crate) async fn dispatch(
                             retry_after_ms: None,
                         },
                         tier,
+                        false,
                     );
                     return Response::Error {
                         message: format!(
@@ -225,6 +232,35 @@ pub(crate) async fn dispatch(
                     };
                 }
             };
+
+            // SP-token-broker-phase1: resolve secrets via the configured
+            // TokenBroker (if any) using `caller_id` as the routing key.
+            // Returns ERR_BROKER_FAILED (1003) on broker error; missing
+            // bundle (`Ok(None)`) leaves `ctx.secrets()` as None and the
+            // tool falls back to its existing env/file mechanism.
+            let secrets = match state.config.token_broker.as_ref() {
+                None => None,
+                Some(broker) => match broker.resolve(caller_id.as_deref()).await {
+                    Ok(bundle) => bundle,
+                    Err(e) => {
+                        emit(
+                            atd_runtime::Outcome::ExecutionFailed {
+                                code: "broker_error".into(),
+                                retryable: true,
+                            },
+                            tier,
+                            false,
+                        );
+                        return Response::Error {
+                            message: format!("token broker error for {tool_id}: {e}"),
+                            code: Some(atd_protocol::ERR_BROKER_FAILED),
+                            retryable: Some(true),
+                            details: None,
+                        };
+                    }
+                },
+            };
+            let secrets_resolved = secrets.is_some();
             let tier_timeout = state.tier_policy.timeout(tier);
             let tier_max_output = state.tier_policy.max_output(tier);
 
@@ -237,6 +273,7 @@ pub(crate) async fn dispatch(
                 caps.clone(),
                 tier,
                 (*caller_id).clone(),
+                secrets,
             );
             // SP-12 Task 4: dispatch through the binding. NativeBinding (the
             // default for `Registry::register`) simply calls back into
@@ -250,7 +287,7 @@ pub(crate) async fn dispatch(
                     for mw in &state.middleware {
                         mw.on_result(&tool_id, entry.definition(), &mut data);
                     }
-                    emit(atd_runtime::Outcome::Success, tier);
+                    emit(atd_runtime::Outcome::Success, tier, secrets_resolved);
                     Response::ToolResultResponse {
                         tool_id,
                         result: data,
@@ -264,6 +301,7 @@ pub(crate) async fn dispatch(
                             message: msg.clone(),
                         },
                         tier,
+                        secrets_resolved,
                     );
                     Response::Error {
                         message: format!("invalid args for {tool_id}: {msg}"),
@@ -283,6 +321,7 @@ pub(crate) async fn dispatch(
                             retryable,
                         },
                         tier,
+                        secrets_resolved,
                     );
                     Response::ToolResultResponse {
                         tool_id,
@@ -302,6 +341,7 @@ pub(crate) async fn dispatch(
                             retryable: false,
                         },
                         tier,
+                        secrets_resolved,
                     );
                     Response::Error {
                         message: format!("internal error in {tool_id}: {msg}"),
@@ -317,6 +357,7 @@ pub(crate) async fn dispatch(
                             retryable: false,
                         },
                         tier,
+                        secrets_resolved,
                     );
                     Response::Error {
                         message: format!("unhandled tool error in {tool_id}: {other}"),
@@ -475,6 +516,7 @@ mod tests {
                 granted_capabilities: vec![],
                 audit_sink: None,
                 server_version: "atd-server-test 0.0.0".into(),
+                token_broker: None,
             },
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
@@ -802,6 +844,190 @@ mod tests {
                 assert!(message.contains("bug"));
             }
             _ => panic!("wrong variant, expected Response::Error"),
+        }
+    }
+
+    // ---- SP-token-broker-phase1: dispatch wiring tests ----
+
+    /// A stub tool that asserts on whether `ctx.secrets()` was populated.
+    /// Returns the name of the secret it found (or "none") in the response
+    /// so the test can verify both the propagation and the value.
+    struct SecretInspectorTool {
+        def: atd_protocol::ToolDefinition,
+    }
+    impl SecretInspectorTool {
+        fn new() -> Self {
+            Self {
+                def: stub_def("test:secret_inspector", "test"),
+            }
+        }
+    }
+    impl Tool for SecretInspectorTool {
+        fn definition(&self) -> &atd_protocol::ToolDefinition {
+            &self.def
+        }
+        fn call<'a>(&'a self, _args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a> {
+            let observed = ctx
+                .secrets()
+                .and_then(|b| b.get("oauth_token"))
+                .map(|v| v.expose().to_string());
+            Box::pin(async move {
+                Ok(serde_json::json!({
+                    "saw_secret": observed.is_some(),
+                    "value": observed,
+                }))
+            })
+        }
+    }
+
+    fn test_state_with_broker(broker: Arc<dyn atd_runtime::TokenBroker>) -> Arc<ServerState> {
+        let mut reg = Registry::new();
+        reg.register(Arc::new(SecretInspectorTool::new()));
+        Arc::new(ServerState {
+            registry: reg,
+            config: ServerConfig {
+                socket_path: PathBuf::from("/tmp/unused-broker-test.sock"),
+                cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                max_output_bytes: 1_048_576,
+                default_call_timeout_ms: 60_000,
+                granted_capabilities: vec![],
+                audit_sink: None,
+                server_version: "atd-server-test 0.0.0".into(),
+                token_broker: Some(broker),
+            },
+            tier_policy: atd_runtime::TierPolicy::defaults(),
+            middleware: vec![],
+        })
+    }
+
+    #[tokio::test]
+    async fn dispatch_with_broker_propagates_secrets_to_tool() {
+        use atd_runtime::secrets::{InMemoryTokenBroker, RedactedString, SecretBundle};
+        let mut bundle = SecretBundle::new();
+        bundle.insert("oauth_token".into(), RedactedString::new("tok-for-agent-A"));
+        let mut broker = InMemoryTokenBroker::new();
+        broker.insert("agent-A", bundle);
+
+        let state = test_state_with_broker(Arc::new(broker));
+        // Hello first to set caller_id = "agent-A".
+        let _ = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut Some("agent-A".into()),
+            Request::Hello {
+                client_id: Some("agent-A".into()),
+                requested_capabilities: vec![],
+            },
+        )
+        .await;
+
+        let mut caller = Some("agent-A".to_string());
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut caller,
+            Request::RunTool {
+                tool_id: "test:secret_inspector".into(),
+                args: serde_json::json!({}),
+                dry_run: false,
+            },
+        )
+        .await;
+        match r {
+            Response::ToolResultResponse {
+                result, success, ..
+            } => {
+                assert!(success);
+                assert_eq!(result["saw_secret"], serde_json::Value::Bool(true));
+                assert_eq!(result["value"], "tok-for-agent-A");
+            }
+            other => panic!("expected ToolResultResponse, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_without_broker_leaves_secrets_none() {
+        // No broker on ServerConfig — falls back to the default test_state.
+        let mut reg = Registry::new();
+        reg.register(Arc::new(SecretInspectorTool::new()));
+        let state = Arc::new(ServerState {
+            registry: reg,
+            config: ServerConfig {
+                socket_path: PathBuf::from("/tmp/unused-broker-test.sock"),
+                cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                max_output_bytes: 1_048_576,
+                default_call_timeout_ms: 60_000,
+                granted_capabilities: vec![],
+                audit_sink: None,
+                server_version: "atd-server-test 0.0.0".into(),
+                token_broker: None,
+            },
+            tier_policy: atd_runtime::TierPolicy::defaults(),
+            middleware: vec![],
+        });
+
+        let mut caller = Some("agent-A".to_string());
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut caller,
+            Request::RunTool {
+                tool_id: "test:secret_inspector".into(),
+                args: serde_json::json!({}),
+                dry_run: false,
+            },
+        )
+        .await;
+        match r {
+            Response::ToolResultResponse {
+                result, success, ..
+            } => {
+                assert!(success);
+                assert_eq!(result["saw_secret"], serde_json::Value::Bool(false));
+            }
+            other => panic!("expected ToolResultResponse, got {other:?}"),
+        }
+    }
+
+    /// A broker that always errors. Used to exercise ERR_BROKER_FAILED.
+    struct AlwaysErrorBroker;
+    impl atd_runtime::TokenBroker for AlwaysErrorBroker {
+        fn resolve<'a>(&'a self, _caller_id: Option<&'a str>) -> atd_runtime::ResolveFuture<'a> {
+            Box::pin(async {
+                Err(atd_runtime::secrets::BrokerError::Lookup(
+                    "synthetic test failure".into(),
+                ))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_with_broker_lookup_failure_returns_broker_error() {
+        let state = test_state_with_broker(Arc::new(AlwaysErrorBroker));
+        let mut caller = Some("agent-A".to_string());
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut caller,
+            Request::RunTool {
+                tool_id: "test:secret_inspector".into(),
+                args: serde_json::json!({}),
+                dry_run: false,
+            },
+        )
+        .await;
+        match r {
+            Response::Error {
+                code, retryable, ..
+            } => {
+                assert_eq!(code, Some(atd_protocol::ERR_BROKER_FAILED));
+                assert_eq!(retryable, Some(true));
+            }
+            other => panic!("expected Response::Error with broker code, got {other:?}"),
         }
     }
 }

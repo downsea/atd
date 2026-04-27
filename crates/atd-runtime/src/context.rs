@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::capability::CapabilitySet;
+use crate::secrets::SecretBundle;
 use crate::tier::ToolTier;
 use crate::tracker::ReadTracker;
 
@@ -36,6 +37,14 @@ pub struct CallContext {
     /// handshake; `None` for unit tests and in-process dispatch with no
     /// client-id source. Audit events copy this field into `CallEvent.caller_id`.
     pub caller_id: Option<String>,
+    /// Optional per-call secret bundle resolved by `ServerConfig::token_broker`
+    /// (SP-token-broker-phase1). `None` means either (a) no broker is
+    /// configured on this server, or (b) the broker returned `Ok(None)` for
+    /// this caller — both cases pass through to the tool's existing fallback
+    /// (env vars, saved file, etc.). Tools that need a secret access via
+    /// `ctx.secrets()`. Audit `CallEvent.secrets_resolved` is `true` iff
+    /// this is `Some(_)`.
+    pub secrets: Option<Arc<SecretBundle>>,
 }
 
 impl CallContext {
@@ -54,6 +63,7 @@ impl CallContext {
         capabilities: Arc<CapabilitySet>,
         tier: ToolTier,
         caller_id: Option<String>,
+        secrets: Option<Arc<SecretBundle>>,
     ) -> Self {
         Self {
             cwd,
@@ -64,12 +74,20 @@ impl CallContext {
             capabilities,
             tier,
             caller_id,
+            secrets,
         }
     }
 
     pub fn remaining_time(&self) -> Option<Duration> {
         self.deadline
             .map(|d| d.saturating_duration_since(Instant::now()))
+    }
+
+    /// Returns the resolved secret bundle, if any. `None` when no broker
+    /// is configured on the server, or when the broker returned `None`
+    /// for this caller.
+    pub fn secrets(&self) -> Option<&SecretBundle> {
+        self.secrets.as_deref()
     }
 }
 
@@ -88,6 +106,7 @@ impl CallContext {
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
             caller_id: None,
+            secrets: None,
         }
     }
 
@@ -104,6 +123,7 @@ impl CallContext {
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
             caller_id: None,
+            secrets: None,
         };
         (ctx, tracker)
     }
@@ -147,6 +167,7 @@ mod tests {
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
             caller_id: None,
+            secrets: None,
         };
         let r = ctx.remaining_time().unwrap();
         assert!(r <= Duration::from_secs(5));
@@ -164,6 +185,7 @@ mod tests {
             capabilities: Arc::new(CapabilitySet::empty()),
             tier: ToolTier::Warm,
             caller_id: None,
+            secrets: None,
         };
         assert_eq!(ctx.remaining_time().unwrap(), Duration::ZERO);
     }

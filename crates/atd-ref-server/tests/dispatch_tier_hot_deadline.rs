@@ -133,6 +133,7 @@ async fn spawn_with(registry: Registry, tier_policy: TierPolicy) -> ServerHandle
         granted_capabilities: vec![],
         audit_sink: None,
         server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
+        token_broker: None,
     };
 
     let mut server = Server::new(registry, cfg);

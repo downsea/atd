@@ -50,6 +50,7 @@ async fn main() -> std::process::ExitCode {
         granted_capabilities: vec![],
         audit_sink: None,
         server_version: concat!("atd-mock-weather-server ", env!("CARGO_PKG_VERSION")).into(),
+        token_broker: None,
     };
 
     eprintln!(

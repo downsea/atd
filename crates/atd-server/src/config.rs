@@ -27,6 +27,11 @@ pub struct ServerConfig {
     /// Default: `concat!("atd-server ", env!("CARGO_PKG_VERSION"))` — used
     /// only when no binary overrides it.
     pub server_version: String,
+    /// Optional `TokenBroker` for multi-tenant secret routing. `None`
+    /// (default) means the server runs single-tenant — `CallContext::secrets`
+    /// is always `None` and tools fall back to env vars / saved file.
+    /// SP-token-broker-phase1.
+    pub token_broker: Option<Arc<dyn atd_runtime::TokenBroker>>,
 }
 
 impl Default for ServerConfig {
@@ -40,6 +45,7 @@ impl Default for ServerConfig {
             granted_capabilities: vec![],
             audit_sink: None,
             server_version: concat!("atd-server ", env!("CARGO_PKG_VERSION")).to_string(),
+            token_broker: None,
         }
     }
 }

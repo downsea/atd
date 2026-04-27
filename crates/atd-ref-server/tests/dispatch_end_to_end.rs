@@ -127,6 +127,7 @@ async fn spawn() -> ServerHandle {
         granted_capabilities: vec!["exec".into(), "read".into()],
         audit_sink: None,
         server_version: concat!("atd-ref-server ", env!("CARGO_PKG_VERSION")).to_string(),
+        token_broker: None,
     };
 
     // Hot tier overridden to 2 s so the cross-primitive test isn't flaky

@@ -34,6 +34,13 @@ pub struct CallEvent {
     pub tier: String,
     pub dry_run: bool,
     pub schema_version: u32,
+    /// `true` iff a `TokenBroker` was configured AND it returned
+    /// `Ok(Some(_))` for this caller (SP-token-broker-phase1). Always
+    /// `false` for early-return paths (capability denied, dry-run,
+    /// rate-limited, tool-not-found) and for servers without a broker.
+    /// No key names or values are recorded.
+    #[serde(default)]
+    pub secrets_resolved: bool,
 }
 
 /// Outcome variants cover the full dispatch-return space for RunTool.
@@ -124,6 +131,7 @@ mod tests {
             tier: "warm".into(),
             dry_run: false,
             schema_version: SCHEMA_VERSION,
+            secrets_resolved: false,
         }
     }
 
