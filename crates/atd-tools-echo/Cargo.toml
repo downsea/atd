@@ -12,12 +12,12 @@ keywords = ["atd", "tool", "echo", "agent"]
 categories = ["api-bindings", "development-tools"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.2.1" }
-atd-runtime = { path = "../atd-runtime", version = "0.2.1" }
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.2.1", features = ["testing"] }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
 ulid = { workspace = true }

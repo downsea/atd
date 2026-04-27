@@ -547,10 +547,7 @@ mod tests {
             }
         }
 
-        let state = test_state_with(vec![
-            Arc::new(EchoStub::new()),
-            Arc::new(HiddenStub::new()),
-        ]);
+        let state = test_state_with(vec![Arc::new(EchoStub::new()), Arc::new(HiddenStub::new())]);
 
         // (1) tool_list MUST exclude the Hidden tool.
         let list = dispatch(

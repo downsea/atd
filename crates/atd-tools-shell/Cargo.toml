@@ -12,8 +12,8 @@ keywords = ["atd", "tool", "shell", "agent"]
 categories = ["api-bindings", "command-line-utilities"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.2.1" }
-atd-runtime = { path = "../atd-runtime", version = "0.2.1" }
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["process", "io-util", "rt-multi-thread", "macros", "time"] }
@@ -23,5 +23,5 @@ thiserror = { workspace = true }
 libc = "0.2"
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.2.1", features = ["testing"] }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
 tempfile = { workspace = true }

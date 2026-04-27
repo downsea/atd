@@ -12,8 +12,8 @@ keywords = ["atd", "server", "agent", "tool-dispatch", "unix-socket"]
 categories = ["api-bindings", "asynchronous", "network-programming"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.2.1" }
-atd-runtime = { path = "../atd-runtime", version = "0.2.1" }
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -21,6 +21,6 @@ thiserror = { workspace = true }
 ulid = { workspace = true }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.2.1", features = ["testing"] }
-atd-sdk = { path = "../atd-sdk", version = "0.2.1" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
+atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
 tempfile = { workspace = true }

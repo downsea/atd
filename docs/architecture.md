@@ -392,10 +392,12 @@ Every tool declares three classifications as part of its `ToolDefinition`. They 
 | Classification | Values | Declaring field |
 |---|---|---|
 | Safety level | `Read` / `Write` / `Financial` / `Privacy` / `Physical` / `Destructive` | `ToolSafety::level` |
-| Visibility | `Read` / `Write` / `Dangerous` / `System` | `ToolVisibility` (top-level) |
+| Visibility | `Read` / `Write` / `Dangerous` / `System` / `Hidden` | `ToolVisibility` (top-level) |
 | Trust level | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
 
 Status: ✅ implemented in `crates/atd-protocol/`. Every built-in tool declares all three. LLM adapters surface `Visibility` and `SafetyLevel` to agent-framework tool pickers where supported.
+
+**`Hidden` semantics.** A tool with `ToolVisibility::Hidden` is excluded from `Request::ToolList` discover responses but remains reachable via `Request::ToolSchema { tool_id }` and `Request::RunTool { tool_id, ... }`. Use this for vendor-side raw schema endpoints, integration-test tools, or debug helpers that would clutter an LLM's catalog. Hiding is server-enforced at the `atd-server::connection::dispatch` boundary; the SDK's `DiscoverFilter::visibility = Hidden` returns empty because the server never emits Hidden summaries. See SP-tool-visibility-hidden (§10).
 
 Trust signatures (`ToolTrust::signature`) are declarative-only in v1 (`📜 informational`). Full signature verification is 🚫 non-goal — see [§9.4](#9-non-goals-explicit).
 
@@ -776,6 +778,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
 | Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
 | Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. Full adopter arc (failure → fix → win) in [`docs/integrations/healthkit.md`](integrations/healthkit.md). |
+| `ToolVisibility::Hidden` variant + server-side discover filter | Wire / Dispatch | ✅ | SP-tool-visibility-hidden | 2026-04-27 | Landed; protocol bump 0.2.x → 0.3.0; one new variant in `atd-protocol::enums::ToolVisibility`; filter at `atd-server::connection::dispatch`'s `Request::ToolList` boundary; conformance covered via `ref:conformance.hidden_op` + 3 new fixtures using the new declarative `expect_tools_exclude` primitive. Replaces the per-binary `--expose-raw-tools` workaround that healthkit_cli v1.2.0 used; v1.3.0 of healthkit_cli will drop the flag and register raw tools as Hidden unconditionally. |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
