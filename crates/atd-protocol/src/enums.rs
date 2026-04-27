@@ -13,6 +13,13 @@ pub enum ToolVisibility {
     Dangerous,
     #[serde(alias = "System")]
     System,
+    /// Hidden from `Request::ToolList` discover responses, but still
+    /// reachable by id via `Request::ToolSchema` (describe) and
+    /// `Request::RunTool` (call). Use for tools that exist for
+    /// integration tests, debugging, or advanced humans, but would add
+    /// noise to an LLM's catalog.
+    #[serde(alias = "Hidden")]
+    Hidden,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -73,6 +80,20 @@ mod tests {
     #[test]
     fn visibility_default_is_read() {
         assert_eq!(ToolVisibility::default(), ToolVisibility::Read);
+    }
+
+    #[test]
+    fn visibility_hidden_serializes_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&ToolVisibility::Hidden).unwrap(),
+            "\"hidden\""
+        );
+    }
+
+    #[test]
+    fn visibility_hidden_round_trips() {
+        let parsed: ToolVisibility = serde_json::from_str("\"hidden\"").unwrap();
+        assert_eq!(parsed, ToolVisibility::Hidden);
     }
 
     #[test]

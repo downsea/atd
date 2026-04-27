@@ -67,6 +67,7 @@ fn parse_visibility(s: &str) -> Option<ToolVisibility> {
         "write" => Some(ToolVisibility::Write),
         "dangerous" => Some(ToolVisibility::Dangerous),
         "system" => Some(ToolVisibility::System),
+        "hidden" => Some(ToolVisibility::Hidden),
         _ => None,
     }
 }
@@ -85,6 +86,7 @@ fn visibility_str(v: ToolVisibility) -> &'static str {
         ToolVisibility::Write => "write",
         ToolVisibility::Dangerous => "dangerous",
         ToolVisibility::System => "system",
+        ToolVisibility::Hidden => "hidden",
     }
 }
 
