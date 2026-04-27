@@ -13,6 +13,8 @@ dedicated guide:
 - [Claude Desktop / Claude Code / Cursor](claude-code.md)
 - [OpenClaw](openclaw.md)
 
+If you're publishing tools (writing your own ATD server) rather than consuming them, the [Huawei HMS HealthKit case study](healthkit.md) walks through one adopter's failure → fix arc and the architectural lessons that came out of it.
+
 If you're choosing between options or evaluating coverage, read on.
 
 For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../architecture.md`](../architecture.md).

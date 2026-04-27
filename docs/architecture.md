@@ -775,7 +775,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
 | TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
 | Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
-| Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. |
+| Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. Full adopter arc (failure → fix → win) in [`docs/integrations/healthkit.md`](integrations/healthkit.md). |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
