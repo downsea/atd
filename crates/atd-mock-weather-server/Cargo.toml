@@ -1,0 +1,24 @@
+[package]
+name = "atd-mock-weather-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Mock weather ATD server — companion to atd-ref-server for the cross-vendor composition demo. Static canned data; not a real weather service."
+keywords = ["atd", "agent", "demo", "mock", "weather"]
+categories = ["command-line-utilities"]
+publish = false
+
+[[bin]]
+name = "atd-mock-weather-server"
+path = "src/main.rs"
+
+[dependencies]
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
+atd-server = { path = "../atd-server", version = "0.3.0" }
+clap = { version = "4", features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }

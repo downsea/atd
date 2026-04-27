@@ -175,6 +175,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-mock-weather-server"
+version = "0.3.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "atd-server",
+ "clap",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "atd-protocol"
 version = "0.3.0"
 dependencies = [

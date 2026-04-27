@@ -15,6 +15,8 @@ dedicated guide:
 
 If you're publishing tools (writing your own ATD server) rather than consuming them, the [Huawei HMS HealthKit case study](healthkit.md) walks through one adopter's failure → fix arc and the architectural lessons that came out of it.
 
+If you're evaluating ATD's cross-vendor composition story (one agent session, multiple ATD servers), the [cross-vendor pattern doc](cross-vendor-pattern.md) ships a runnable demo: healthkit + a mock weather server bridged into one agent platform.
+
 If you're choosing between options or evaluating coverage, read on.
 
 For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../architecture.md`](../architecture.md).
