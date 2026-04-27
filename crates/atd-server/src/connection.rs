@@ -68,7 +68,12 @@ pub(crate) async fn dispatch(
             }
         }
         Request::ToolList => {
-            let summaries = state.registry.summaries();
+            let summaries: Vec<_> = state
+                .registry
+                .summaries()
+                .into_iter()
+                .filter(|s| !matches!(s.visibility, atd_protocol::ToolVisibility::Hidden))
+                .collect();
             Response::ToolListResponse {
                 tools: serde_json::to_value(&summaries).unwrap_or_else(|_| serde_json::json!([])),
             }
@@ -512,6 +517,76 @@ mod tests {
                 assert_eq!(arr[0]["id"], "ref:echo.say");
             }
             _ => panic!("wrong variant"),
+        }
+    }
+
+    /// Hidden visibility tools are filtered out of `Request::ToolList`,
+    /// but `Request::ToolSchema` and `Request::RunTool` still work by id.
+    #[tokio::test]
+    async fn tool_list_excludes_hidden_visibility() {
+        struct HiddenStub {
+            def: atd_protocol::ToolDefinition,
+        }
+        impl HiddenStub {
+            fn new() -> Self {
+                let mut def = stub_def("ref:test.hidden_op", "test");
+                def.visibility = atd_protocol::ToolVisibility::Hidden;
+                Self { def }
+            }
+        }
+        impl Tool for HiddenStub {
+            fn definition(&self) -> &atd_protocol::ToolDefinition {
+                &self.def
+            }
+            fn call<'a>(
+                &'a self,
+                _args: serde_json::Value,
+                _ctx: &'a CallContext,
+            ) -> CallFuture<'a> {
+                Box::pin(async { Ok(serde_json::json!({"ok": true})) })
+            }
+        }
+
+        let state = test_state_with(vec![
+            Arc::new(EchoStub::new()),
+            Arc::new(HiddenStub::new()),
+        ]);
+
+        // (1) tool_list MUST exclude the Hidden tool.
+        let list = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::ToolList,
+        )
+        .await;
+        match list {
+            Response::ToolListResponse { tools } => {
+                let arr = tools.as_array().unwrap();
+                assert_eq!(arr.len(), 1, "Hidden tool leaked into tool_list: {arr:?}");
+                assert_eq!(arr[0]["id"], "ref:echo.say");
+            }
+            _ => panic!("wrong variant"),
+        }
+
+        // (2) tool_schema by id MUST still describe the Hidden tool.
+        let schema = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::ToolSchema {
+                tool_id: "ref:test.hidden_op".into(),
+            },
+        )
+        .await;
+        match schema {
+            Response::ToolSchemaResponse { schema } => {
+                assert_eq!(schema["id"], "ref:test.hidden_op");
+                assert_eq!(schema["visibility"], "hidden");
+            }
+            other => panic!("expected ToolSchemaResponse, got {other:?}"),
         }
     }
 
