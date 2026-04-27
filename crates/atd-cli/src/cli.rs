@@ -28,6 +28,52 @@ pub enum Command {
     Call(CallArgs),
     /// Check connectivity to the ATD server.
     Doctor(DoctorArgs),
+    /// Pull skill files from a connected ATD server (`<x>.skills.list/get`)
+    /// and write them to per-platform install paths.
+    Skills(SkillsCmd),
+}
+
+#[derive(Debug, clap::Args)]
+pub struct SkillsCmd {
+    #[command(subcommand)]
+    pub action: SkillsAction,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SkillsAction {
+    /// Sync skills from the connected ATD server to a per-platform directory.
+    Sync(SkillsSyncArgs),
+}
+
+#[derive(Debug, clap::Args)]
+pub struct SkillsSyncArgs {
+    /// Where to write the synced skills.
+    #[arg(long, value_enum)]
+    pub target: SyncTarget,
+    /// Override the target's default install directory (incompatible with stdout).
+    #[arg(long)]
+    pub out_dir: Option<PathBuf>,
+    /// List what would be written without writing.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum SyncTarget {
+    Hermes,
+    ClaudeCode,
+    Stdout,
+}
+
+impl SyncTarget {
+    pub fn default_out_dir(&self) -> Option<PathBuf> {
+        let home = std::env::var_os("HOME").map(PathBuf::from)?;
+        match self {
+            SyncTarget::Hermes => Some(home.join(".hermes/skills")),
+            SyncTarget::ClaudeCode => Some(home.join(".claude/skills")),
+            SyncTarget::Stdout => None,
+        }
+    }
 }
 
 #[derive(Debug, clap::Args)]
@@ -151,6 +197,46 @@ mod tests {
             s.contains("lukewarm"),
             "error should mention bad value, got: {s}"
         );
+    }
+
+    #[test]
+    fn cli_parses_skills_sync_with_target_and_out_dir() {
+        let cli = Cli::try_parse_from([
+            "atd",
+            "skills",
+            "sync",
+            "--target",
+            "hermes",
+            "--out-dir",
+            "/tmp/out",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Skills(SkillsCmd {
+                action: SkillsAction::Sync(args),
+            }) => {
+                assert!(matches!(args.target, SyncTarget::Hermes));
+                assert_eq!(
+                    args.out_dir
+                        .as_deref()
+                        .map(|p| p.to_string_lossy().into_owned()),
+                    Some("/tmp/out".into())
+                );
+                assert!(!args.dry_run);
+            }
+            _ => panic!("expected Skills(Sync) variant"),
+        }
+    }
+
+    #[test]
+    fn cli_parses_skills_sync_stdout_target() {
+        let cli = Cli::try_parse_from(["atd", "skills", "sync", "--target", "stdout"]).unwrap();
+        match cli.command {
+            Command::Skills(SkillsCmd {
+                action: SkillsAction::Sync(args),
+            }) => assert!(matches!(args.target, SyncTarget::Stdout)),
+            _ => panic!("expected Skills(Sync) variant"),
+        }
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! `atd` — reference command-line client for the ATD protocol.
 
-use atd_cli::cli::{Cli, Command};
+use atd_cli::cli::{Cli, Command, SkillsAction};
 use clap::Parser;
 
 #[tokio::main(flavor = "current_thread")]
@@ -47,6 +47,18 @@ async fn main() -> std::process::ExitCode {
             };
             let mut out = std::io::stdout().lock();
             match atd_cli::doctor::run(sock, args, &mut out).await {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(e) => fail(e),
+            }
+        }
+        Command::Skills(skills_cmd) => {
+            let SkillsAction::Sync(args) = skills_cmd.action;
+            let client = match atd_cli::connect::connect(cli.sock).await {
+                Ok(c) => c,
+                Err(e) => return fail(e),
+            };
+            let mut out = std::io::stdout().lock();
+            match atd_cli::skills::run(&client, args, &mut out).await {
                 Ok(()) => std::process::ExitCode::SUCCESS,
                 Err(e) => fail(e),
             }

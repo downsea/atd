@@ -7,3 +7,4 @@ pub mod connect;
 pub mod doctor;
 pub mod list;
 pub mod schema;
+pub mod skills;
