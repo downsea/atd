@@ -986,4 +986,62 @@ via MCP.
 
 ---
 
+## 11. Skills meta-tool convention
+
+This is a **convention**, not a wire-protocol message. ATD servers that
+publish skill files (e.g., SKILL.md content for agent platforms) expose
+two meta-tools at fixed ids:
+
+### 11.1 `<publisher>:<service>.skills.list`
+
+**Args:** `{}` (no fields)
+
+**Returns:** `Vec<SkillSummary>` where each entry is:
+
+```json
+{"name": "healthkit-heartrate", "description": "Query heart rate data", "version": null}
+```
+
+- `name: String` — slug, unique within the service. Lookup key for `skills.get`.
+- `description: String` — one-line summary; matches SKILL.md frontmatter `description` if present.
+- `version: Option<String>` — reserved for future per-skill semver; servers MAY omit.
+
+**Required capabilities:** none.
+
+### 11.2 `<publisher>:<service>.skills.get`
+
+**Args:** `{"name": "<slug>"}`
+
+**Returns:**
+
+```json
+{"name": "healthkit-heartrate", "content_md": "---\nname: healthkit-heartrate\n---\n…"}
+```
+
+`content_md` is the full skill file content, UTF-8, markdown by convention.
+
+**Errors:** Unknown name returns `ToolCallError::ExecutionFailed { code: "skill_not_found", retryable: false }`.
+
+**Required capabilities:** none.
+
+### 11.3 What this is NOT
+
+- Not a wire-level `Request::SkillList` / `Request::SkillGet` — pure tool-id naming. Adoption is opt-in.
+- Not a SKILL.md parsing contract — ATD does not validate frontmatter or markdown.
+- Not version-aware in v0 — `version` field is reserved but not enforced.
+
+### 11.4 Future evolution
+
+If 2+ vendor servers adopt this convention without divergence, a future
+SP can promote it to a wire-level `Request::SkillList` / `Request::SkillGet`.
+Until then, convention-only.
+
+### 11.5 See also
+
+- `atd skills sync` subcommand (atd-cli) — pulls skills via this convention into per-platform directories (hermes / claude-code / stdout)
+- `docs/superpowers/specs/2026-04-27-sp-skills-discovery-convention-design.md` — full design rationale
+- First adopter: `healthkit_cli` v1.3.0 — exposes 26 SKILL.md via `huawei:hms.healthkit.skills.list/get`
+
+---
+
 *End of wire format reference. See `docs/protocol/error-codes.md` for the full error taxonomy.*

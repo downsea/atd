@@ -602,7 +602,7 @@ The Skills layer (SKILL.md files + `atd-tools:` dependency declarations + progre
 ### 7.3 ATD's non-commitments
 
 - ATD does not parse SKILL.md
-- ATD does not manage skill installation
+- ATD does not own per-platform skill install paths or progressive-disclosure runtime; those are convention-driven (see §7.5) and easily overridable. ATD ships an optional `atd skills sync` helper that writes per-target paths derived from the [skills meta-tool convention](protocol/wire-format.md#11-skills-meta-tool-convention).
 - ATD does not store skill state across calls
 
 ### 7.4 Two consumption patterns
@@ -612,9 +612,11 @@ The Skills layer (SKILL.md files + `atd-tools:` dependency declarations + progre
 
 Both patterns traverse identical ATD dispatch. Skills adds orchestration on top; it does not modify dispatch.
 
-### 7.5 Future: SKILL.md generation from ATD tools
+### 7.5 Skills meta-tool convention + sync
 
-A future SP (proposed) adds `atd skills --target skillmd` to generate SKILL.md stubs from registered tools — enabling the 26+ SKILL.md-compatible platforms (Claude Code, Cursor, OpenClaw, VS Code Copilot, …) to consume ATD-hosted tool catalogs. This is an ATD-side generator; the Skills runtime side is unchanged.
+The [skills meta-tool convention](protocol/wire-format.md#11-skills-meta-tool-convention) (SP-skills-discovery-convention, 2026-04-27) standardizes how ATD servers publish their skills via two meta-tool ids — `<publisher>:<service>.skills.list` and `<publisher>:<service>.skills.get`. The `atd skills sync` subcommand (atd-cli) pulls those skills into per-platform directories (hermes, claude-code, stdout). First adopter: `healthkit_cli` v1.3.0, exposing 26 SKILL.md files via `huawei:hms.healthkit.skills.list/get`.
+
+Reverse direction — generating SKILL.md stubs FROM tool definitions for the 26+ SKILL.md-compatible platforms — remains a future SP candidate. This is an ATD-side generator; the Skills runtime side is unchanged.
 
 ### 7.6 See also
 
@@ -779,6 +781,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
 | Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. Full adopter arc (failure → fix → win) in [`docs/integrations/healthkit.md`](integrations/healthkit.md). |
 | `ToolVisibility::Hidden` variant + server-side discover filter | Wire / Dispatch | ✅ | SP-tool-visibility-hidden | 2026-04-27 | Landed; protocol bump 0.2.x → 0.3.0; one new variant in `atd-protocol::enums::ToolVisibility`; filter at `atd-server::connection::dispatch`'s `Request::ToolList` boundary; conformance covered via `ref:conformance.hidden_op` + 3 new fixtures using the new declarative `expect_tools_exclude` primitive. Replaces the per-binary `--expose-raw-tools` workaround that healthkit_cli v1.2.0 used; v1.3.0 of healthkit_cli will drop the flag and register raw tools as Hidden unconditionally. |
+| Skills meta-tool convention + `atd skills sync` | Skills (adjacent) | ✅ | SP-skills-discovery-convention | 2026-04-27 | Landed; convention defined in [`docs/protocol/wire-format.md`](protocol/wire-format.md#11-skills-meta-tool-convention) §11; `atd skills sync` subcommand ships in atd-cli with hermes / claude-code / stdout targets; `healthkit_cli` v1.3.0 first adopter, exposing 26 SKILL.md files via `huawei:hms.healthkit.skills.list/get`. §7.3 softened: ATD ships an optional sync helper but does not own per-platform install paths. Promotion to wire-level `Request::SkillList/Get` deferred until 2+ vendors adopt without divergence. |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
