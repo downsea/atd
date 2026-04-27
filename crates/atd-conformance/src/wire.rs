@@ -99,6 +99,30 @@ pub async fn run_behavior_case(case: &BehaviorCase, target: &Path) -> Outcome {
         if let Err(reason) = json_matches_subset(&case.expect_response_matches, &response) {
             return Ok::<Outcome, io::Error>(Outcome::Fail { reason });
         }
+        if let Some(excluded_ids) = &case.expect_tools_exclude {
+            let tools_array = match response.get("tools").and_then(|t| t.as_array()) {
+                Some(a) => a,
+                None => {
+                    return Ok::<Outcome, io::Error>(Outcome::Fail {
+                        reason: "expect_tools_exclude requires a `tools` array in the response"
+                            .into(),
+                    });
+                }
+            };
+            let present_ids: Vec<&str> = tools_array
+                .iter()
+                .filter_map(|t| t.get("id").and_then(|i| i.as_str()))
+                .collect();
+            for excluded in excluded_ids {
+                if present_ids.iter().any(|id| id == excluded) {
+                    return Ok::<Outcome, io::Error>(Outcome::Fail {
+                        reason: format!(
+                            "tool id '{excluded}' was expected to be EXCLUDED from tool_list, but appeared"
+                        ),
+                    });
+                }
+            }
+        }
         Ok(Outcome::Pass)
     })
     .await;

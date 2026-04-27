@@ -126,6 +126,13 @@ pub struct BehaviorCase {
     pub setup: Option<SetupStep>,
     pub send: serde_json::Value,
     pub expect_response_matches: serde_json::Value,
+    /// Optional list of tool ids that MUST NOT appear in the response's
+    /// `tools` array. Only meaningful for `tool_list` responses; if the
+    /// response has no `tools` array the assertion fails. Used to verify
+    /// visibility filters (e.g., that Hidden tools are excluded from
+    /// discover).
+    #[serde(default)]
+    pub expect_tools_exclude: Option<Vec<String>>,
 }
 
 /// Pre-send setup — currently only Hello handshake.
@@ -287,6 +294,50 @@ mod tests {
             ConformanceCase::Behavior(b) => {
                 assert!(b.setup.is_some());
             }
+            _ => panic!("expected Behavior variant"),
+        }
+    }
+
+    #[test]
+    fn behavior_case_parses_expect_tools_exclude() {
+        let dir = mk_tempdir_with(&[(
+            "behavior/exclude.json",
+            r#"{
+                "category": "behavior",
+                "name": "exclude",
+                "description": "exclude test",
+                "send": {"type": "tool_list"},
+                "expect_response_matches": {"type": "tool_list", "tools": "*"},
+                "expect_tools_exclude": ["ref:conformance.hidden_op"]
+            }"#,
+        )]);
+        let cases = load_fixtures(dir.path()).unwrap();
+        match &cases[0] {
+            ConformanceCase::Behavior(b) => {
+                assert_eq!(
+                    b.expect_tools_exclude.as_deref(),
+                    Some(&["ref:conformance.hidden_op".to_string()][..])
+                );
+            }
+            _ => panic!("expected Behavior variant"),
+        }
+    }
+
+    #[test]
+    fn behavior_case_expect_tools_exclude_defaults_to_none() {
+        let dir = mk_tempdir_with(&[(
+            "behavior/no_exclude.json",
+            r#"{
+                "category": "behavior",
+                "name": "no_exclude",
+                "description": "no exclude",
+                "send": {"type": "ping"},
+                "expect_response_matches": {"type": "pong"}
+            }"#,
+        )]);
+        let cases = load_fixtures(dir.path()).unwrap();
+        match &cases[0] {
+            ConformanceCase::Behavior(b) => assert!(b.expect_tools_exclude.is_none()),
             _ => panic!("expected Behavior variant"),
         }
     }
