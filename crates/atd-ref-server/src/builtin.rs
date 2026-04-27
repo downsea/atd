@@ -10,7 +10,7 @@ use atd_tools_web::WebFetchTool;
 
 /// Build the reference server's built-in tool registry.
 ///
-/// When `enable_conformance_tool` is `true`, additionally registers two
+/// When `enable_conformance_tool` is `true`, additionally registers
 /// test-only tools used by the `atd-conformance` suite:
 /// - `ref:conformance.denied_op` — requires the `conformance.denied`
 ///   capability so the suite can exercise `ERR_CAPABILITY_DENIED`
@@ -18,6 +18,9 @@ use atd_tools_web::WebFetchTool;
 /// - `ref:conformance.saturate_op` — declares `max_concurrent=1`; its
 ///   sole permit is leaked at startup by `main.rs`, so any client
 ///   call returns `ERR_RATE_LIMITED` (code 1002).
+/// - `ref:conformance.hidden_op` — registered with
+///   `ToolVisibility::Hidden`; the suite asserts that `tool_list`
+///   excludes it while `tool_schema` and `run_tool` keep working by id.
 ///
 /// Production deployments pass `false`.
 pub fn builtin_registry(enable_conformance_tool: bool) -> Registry {
@@ -41,9 +44,12 @@ pub fn builtin_registry(enable_conformance_tool: bool) -> Registry {
     }
 
     if enable_conformance_tool {
-        use crate::conformance::{ConformanceDeniedTool, ConformanceSaturatedTool};
+        use crate::conformance::{
+            ConformanceDeniedTool, ConformanceHiddenTool, ConformanceSaturatedTool,
+        };
         reg.register(Arc::new(ConformanceDeniedTool::new()));
         reg.register(Arc::new(ConformanceSaturatedTool::new()));
+        reg.register(Arc::new(ConformanceHiddenTool::new()));
     }
 
     reg
@@ -83,13 +89,13 @@ mod tests {
     }
 
     #[test]
-    fn builtin_registry_with_conformance_tools_adds_two() {
+    fn builtin_registry_with_conformance_tools_adds_three() {
         let default = builtin_registry(false);
         let extended = builtin_registry(true);
         assert_eq!(
             extended.count(),
-            default.count() + 2,
-            "enabling conformance tools should add exactly two tools"
+            default.count() + 3,
+            "enabling conformance tools should add exactly three tools"
         );
 
         // denied_op (SP-8.1)
@@ -108,9 +114,20 @@ mod tests {
         assert_eq!(saturate.tool.definition().resources.max_concurrent, 1);
         assert!(saturate.tool.definition().required_capabilities.is_empty());
 
-        // Default registry must NOT contain either
+        // hidden_op (SP-tool-visibility-hidden)
+        let hidden = extended
+            .get("ref:conformance.hidden_op")
+            .expect("hidden_op registered when flag is true");
+        assert_eq!(
+            hidden.tool.definition().visibility,
+            atd_protocol::ToolVisibility::Hidden
+        );
+        assert!(hidden.tool.definition().required_capabilities.is_empty());
+
+        // Default registry must NOT contain any of the three
         assert!(default.get("ref:conformance.denied_op").is_none());
         assert!(default.get("ref:conformance.saturate_op").is_none());
+        assert!(default.get("ref:conformance.hidden_op").is_none());
     }
 
     #[test]

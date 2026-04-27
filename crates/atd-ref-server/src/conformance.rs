@@ -181,6 +181,80 @@ impl Tool for ConformanceSaturatedTool {
     }
 }
 
+/// A trivial tool registered with `ToolVisibility::Hidden`. It exists
+/// purely so the `atd-conformance` suite can validate that the server
+/// excludes Hidden tools from `Request::ToolList` while still allowing
+/// describe-by-id and call-by-id. Enabled via `--enable-conformance-tool`.
+pub struct ConformanceHiddenTool {
+    def: ToolDefinition,
+}
+
+impl ConformanceHiddenTool {
+    pub fn new() -> Self {
+        Self {
+            def: ToolDefinition {
+                id: "ref:conformance.hidden_op".into(),
+                name: "conformance hidden op".into(),
+                description: "Test tool: registered as ToolVisibility::Hidden. \
+                     Exists only to let atd-conformance validate the \
+                     visibility filter at the Request::ToolList boundary. \
+                     Enabled via --enable-conformance-tool."
+                    .into(),
+                version: "0.0.0".into(),
+                capability: ToolCapability {
+                    domain: "conformance".into(),
+                    actions: vec!["hidden_op".into()],
+                    tags: vec!["test".into()],
+                    intent_examples: vec![],
+                },
+                input_schema: serde_json::json!({ "type": "object" }),
+                output_schema: serde_json::json!({ "type": "object" }),
+                bindings: vec![ToolBinding {
+                    protocol: BindingProtocol::Cli,
+                    config: serde_json::json!({}),
+                }],
+                safety: ToolSafety {
+                    level: SafetyLevel::Read,
+                    dry_run: false,
+                    side_effects: vec![],
+                    data_sensitivity: None,
+                },
+                resources: ToolResources {
+                    timeout_ms: 1000,
+                    max_concurrent: 1,
+                    rate_limit_per_min: None,
+                    estimated_tokens: None,
+                },
+                trust: ToolTrust {
+                    publisher: "atd-ref-server".into(),
+                    trust_level: TrustLevel::L0Unverified,
+                    signature: None,
+                },
+                visibility: ToolVisibility::Hidden,
+                required_capabilities: vec![],
+                tier: Some(ToolTier::Hot),
+                errors: vec![],
+            },
+        }
+    }
+}
+
+impl Default for ConformanceHiddenTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Tool for ConformanceHiddenTool {
+    fn definition(&self) -> &ToolDefinition {
+        &self.def
+    }
+
+    fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
+        Box::pin(async { Ok(serde_json::json!({"ok": true})) })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,5 +282,16 @@ mod tests {
         assert_eq!(d.trust.publisher, "atd-ref-server");
         assert_eq!(d.trust.trust_level, TrustLevel::L0Unverified);
         assert_eq!(d.tier, Some(ToolTier::Hot));
+    }
+
+    #[test]
+    fn hidden_op_definition_declares_hidden_visibility() {
+        let t = ConformanceHiddenTool::new();
+        let d = t.definition();
+        assert_eq!(d.id, "ref:conformance.hidden_op");
+        assert_eq!(d.visibility, ToolVisibility::Hidden);
+        assert!(d.required_capabilities.is_empty());
+        assert_eq!(d.trust.publisher, "atd-ref-server");
+        assert_eq!(d.trust.trust_level, TrustLevel::L0Unverified);
     }
 }
