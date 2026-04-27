@@ -130,9 +130,7 @@ async fn skills_sync_stdout_round_trips_two_stubs() {
     let sock_str = sock.to_str().unwrap().to_owned();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args([
-                "--sock", &sock_str, "skills", "sync", "--target", "stdout",
-            ])
+            .args(["--sock", &sock_str, "skills", "sync", "--target", "stdout"])
             .output()
             .expect("atd binary should run")
     })
@@ -247,15 +245,16 @@ async fn skills_sync_no_skills_tool_warns_and_exits_clean() {
     let sock_str = sock.to_str().unwrap().to_owned();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(bin)
-            .args([
-                "--sock", &sock_str, "skills", "sync", "--target", "stdout",
-            ])
+            .args(["--sock", &sock_str, "skills", "sync", "--target", "stdout"])
             .output()
             .expect("atd binary should run")
     })
     .await
     .unwrap();
-    assert!(output.status.success(), "exit must be clean even when no skills tool");
+    assert!(
+        output.status.success(),
+        "exit must be clean even when no skills tool"
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(
         stdout.contains("no *.skills.list tool found"),

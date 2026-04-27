@@ -33,9 +33,7 @@ pub async fn run(
         });
     }
 
-    let tools = client
-        .discover(None, DiscoverFilter::default())
-        .await?;
+    let tools = client.discover(None, DiscoverFilter::default()).await?;
 
     let list_ids: Vec<String> = tools
         .iter()
@@ -56,25 +54,25 @@ pub async fn run(
     let publishers = list_ids.len();
 
     for list_id in &list_ids {
-        let prefix = list_id
-            .strip_suffix(".skills.list")
-            .ok_or_else(|| AtdError::ProtocolError {
-                expected: "tool id ending in .skills.list".into(),
-                got: list_id.clone(),
-            })?;
+        let prefix =
+            list_id
+                .strip_suffix(".skills.list")
+                .ok_or_else(|| AtdError::ProtocolError {
+                    expected: "tool id ending in .skills.list".into(),
+                    got: list_id.clone(),
+                })?;
         let get_id = format!("{prefix}.skills.get");
 
         let entries = call_list(client, list_id).await?;
-        let dir_prefix = prefix.replace(':', "-").replace('.', "-");
+        let dir_prefix = prefix.replace([':', '.'], "-");
 
         for entry in &entries {
-            let name = entry
-                .get("name")
-                .and_then(Value::as_str)
-                .ok_or_else(|| AtdError::ProtocolError {
+            let name = entry.get("name").and_then(Value::as_str).ok_or_else(|| {
+                AtdError::ProtocolError {
                     expected: "skill summary entry with `name` field".into(),
                     got: entry.to_string(),
-                })?;
+                }
+            })?;
 
             let content = call_get(client, &get_id, name).await?;
             write_skill(
@@ -228,7 +226,7 @@ mod tests {
     #[test]
     fn dir_prefix_replaces_colon_and_dot() {
         let prefix = "huawei:hms.healthkit";
-        let normalized = prefix.replace(':', "-").replace('.', "-");
+        let normalized = prefix.replace([':', '.'], "-");
         assert_eq!(normalized, "huawei-hms-healthkit");
     }
 }
