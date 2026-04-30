@@ -7,7 +7,7 @@
 **Related:**
 - `docs/design.md` §0 (protocol independence), §2.1 (layering — currently delegates dispatch to ANOS)
 - `docs/whitepaper/atd-v3-skills-architecture-brief.md` §Slide 1 (the layer picture SP-12 partially materializes)
-- `docs/whitepaper/v3-multi-device.md` (v3 vision; explicitly **not** in scope)
+- `docs/whitepaper/atd-v3-multi-device.md` (v3 vision; explicitly **not** in scope)
 
 ---
 

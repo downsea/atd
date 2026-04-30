@@ -22,7 +22,7 @@ progress at time of writing.
 
 atd-mvp has accumulated three layers of truth that sometimes disagree:
 
-1. **ATD v3 whitepaper** (`docs/whitepaper/v3-multi-device.md`) — the
+1. **ATD v3 whitepaper** (`docs/whitepaper/atd-v3-multi-device.md`) — the
    protocol's long-term aspiration. Multi-device dispatch, distributed
    sessions, middleware, aliases, Skills layer.
 2. **Current code** (`crates/*/src/`) — SP-1 through SP-12 shipped.
@@ -148,7 +148,7 @@ Header metadata on the doc:
 recent relevant tag at doc-write time)
 **Scope:** normative architecture for the reference implementation
   (atd-mvp crates). Complements but does not replace the ATD
-  whitepaper (`docs/whitepaper/v3-multi-device.md`) or the wire
+  whitepaper (`docs/whitepaper/atd-v3-multi-device.md`) or the wire
   reference (`docs/protocol/wire-format.md`).
 **Authority:** Where this document disagrees with `docs/design.md`
   (which predates SP-1), this document is authoritative. Where it

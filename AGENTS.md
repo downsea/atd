@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Reading order
 
 1. [`docs/design.md`](docs/design.md) — approved MVP design spec, **read this first**
-2. [`docs/whitepaper/v2-dual-track.md`](docs/whitepaper/v2-dual-track.md) — primary whitepaper (decision-maker + developer)
-3. [`docs/whitepaper/v1-formal.md`](docs/whitepaper/v1-formal.md) — formal/theoretical backing (CAP, H/W/C, POSIX analogy)
+2. [`docs/whitepaper/atd-v2-dual-track.md`](docs/whitepaper/atd-v2-dual-track.md) — primary whitepaper (decision-maker + developer)
+3. [`docs/whitepaper/atd-v1-formal.md`](docs/whitepaper/atd-v1-formal.md) — formal/theoretical backing (CAP, H/W/C, POSIX analogy)
 4. [`docs/reference/`](docs/reference/) — ATD architecture + ANOS dispatch module reference
 5. [`docs/issues/`](docs/issues/) — 11 tracked gaps (dated 2026-04-21) in the ANOS reference server. These are **Phase 0/1 planning inputs**, not bugs to fix in this repo.
 

@@ -135,7 +135,7 @@ If SP-12 primitives are NOT all landed, mark the relevant sub-section as `⚠️
 
 **Version:** 1.0 — 2026-04-24
 **Implementation baseline:** `sp12-canonical-dispatch` (or the most recent commit on master containing the four dispatch primitives described in §4.2).
-**Scope:** Normative architecture for the **reference implementation** (`atd-mvp` crates). Complements but does not replace the ATD whitepaper (`docs/whitepaper/v3-multi-device.md`) or the wire reference (`docs/protocol/wire-format.md`).
+**Scope:** Normative architecture for the **reference implementation** (`atd-mvp` crates). Complements but does not replace the ATD whitepaper (`docs/whitepaper/atd-v3-multi-device.md`) or the wire reference (`docs/protocol/wire-format.md`).
 **Authority:** Where this document disagrees with `docs/design.md` (which predates SP-1), this document is authoritative. Where it disagrees with the v3 whitepaper on aspirational scope, the whitepaper remains authoritative for the protocol's long-term direction; this document is authoritative for what the reference implementation commits to.
 **License:** Apache-2.0.
 
@@ -205,14 +205,14 @@ Three reader classes:
 
 - Not the wire-level reference — see [`docs/protocol/wire-format.md`](protocol/wire-format.md).
 - Not a roadmap commitment calendar — see §10 for the directional path; specific dates depend on adopter timing.
-- Not a rewrite of the whitepaper — [`docs/whitepaper/v3-multi-device.md`](whitepaper/v3-multi-device.md) remains authoritative for the protocol's long-term aspirational scope. This document reconciles whitepaper direction with implementation reality.
+- Not a rewrite of the whitepaper — [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md) remains authoritative for the protocol's long-term aspirational scope. This document reconciles whitepaper direction with implementation reality.
 - Not a successor to `docs/design.md` in a way that deletes history — `design.md` is retained as the original Phase 0 spec for archival context; this document supersedes it as the current reference.
 
 ### 1.4 Relationship to existing documents
 
 | Document | Relationship |
 |---|---|
-| `docs/whitepaper/v3-multi-device.md` | Aspirational protocol scope. Whitepaper authoritative on long-term direction; this doc authoritative on reference-implementation commitments. |
+| `docs/whitepaper/atd-v3-multi-device.md` | Aspirational protocol scope. Whitepaper authoritative on long-term direction; this doc authoritative on reference-implementation commitments. |
 | `docs/whitepaper/atd-v3-skills-architecture-brief.md` | Source for the five-layer stack diagram replicated in §2. |
 | `docs/design.md` | Original Phase 0 spec. Superseded by this document for architecture questions; retained for history. |
 | `docs/protocol/wire-format.md` | Wire-level reference — byte framing, message types, full type tables. Refer out to it; this document does not repeat wire details. |
