@@ -182,7 +182,7 @@ function caseSlide(opts) {
   return s;
 }
 
-const TOTAL = 16;
+const TOTAL = 19;
 
 // ════════════════════════════════════════════════════════════════════════
 // Slide 1 — Title
@@ -660,7 +660,380 @@ caseSlide({
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 10 — Capability + Rate limit + Audit
+// Slide 10 — ATD 模块架构 (11-crate dependency graph)
+// ════════════════════════════════════════════════════════════════════════
+{
+  const s = contentSlide(LAYER.protocol);
+  addTitle(s, "ATD 模块架构", {
+    subtitle: "11 crates · 共享 atd-protocol · 客户端 / 服务端两侧分别落地",
+  });
+
+  // 三柱：客户端 / 共享 wire / 服务端
+  const colW = 2.95, colY = 1.05, colH = 3.0;
+
+  // ── 左：客户端 ────────────────────────────────────────────────────────
+  card(s, { x: 0.5, y: colY, w: colW, h: colH, railColor: C.teal });
+  s.addText("客户端 / 集成层", {
+    x: 0.7, y: colY + 0.08, w: colW - 0.4, h: 0.3,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: C.midnight, margin: 0,
+  });
+  const lhs = [
+    { name: "atd-mcp-bridge", desc: "binary · MCP/stdio ↔ ATD wire", bold: true },
+    { name: "atd-cli",        desc: "binary · `atd list/schema/call`", bold: true },
+    { name: "atd-sdk",        desc: "Rust crate · AtdClient + adapters", bold: true },
+    { name: "  · adapters",   desc: "openai / anthropic / langchain helpers", bold: false },
+  ];
+  lhs.forEach((c, i) => {
+    const y = colY + 0.5 + i * 0.6;
+    s.addText(c.name, {
+      x: 0.7, y, w: colW - 0.4, h: 0.28,
+      fontSize: 10.5, fontFace: FONT_MONO, bold: c.bold, color: C.deepBlue, margin: 0,
+    });
+    s.addText(c.desc, {
+      x: 0.7, y: y + 0.28, w: colW - 0.4, h: 0.28,
+      fontSize: 9, fontFace: FONT_BODY, color: C.slate, margin: 0,
+    });
+  });
+
+  // ── 中：共享 wire ─────────────────────────────────────────────────────
+  card(s, { x: 0.5 + colW + 0.15, y: colY, w: colW, h: colH, railColor: C.midnight });
+  s.addText("共享 wire 层", {
+    x: 0.7 + colW + 0.15, y: colY + 0.08, w: colW - 0.4, h: 0.3,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: C.midnight, margin: 0,
+  });
+  s.addText("atd-protocol", {
+    x: 0.7 + colW + 0.15, y: colY + 0.5, w: colW - 0.4, h: 0.3,
+    fontSize: 13, fontFace: FONT_MONO, bold: true, color: C.midnight, margin: 0,
+  });
+  const proto = [
+    "5 wire messages",
+    "ToolDefinition / Summary",
+    "CallContext / SecretBundle",
+    "ToolResult / errors",
+    "wire framing (length-prefix)",
+    "sanitize (id 非法字符)",
+  ];
+  proto.forEach((l, i) => {
+    s.addText("· " + l, {
+      x: 0.7 + colW + 0.15, y: colY + 0.85 + i * 0.31, w: colW - 0.4, h: 0.28,
+      fontSize: 9, fontFace: FONT_MONO, color: C.midnight, margin: 0,
+    });
+  });
+
+  // ── 右：服务端 ────────────────────────────────────────────────────────
+  card(s, { x: 0.5 + 2 * (colW + 0.15), y: colY, w: colW, h: colH, railColor: C.amber });
+  s.addText("服务端 / 工具层", {
+    x: 0.7 + 2 * (colW + 0.15), y: colY + 0.08, w: colW - 0.4, h: 0.3,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: C.midnight, margin: 0,
+  });
+  const rhs = [
+    { name: "atd-runtime",       desc: "dispatcher · capability · rate limit · audit · TokenBroker", bold: true },
+    { name: "atd-server",        desc: "Unix socket listener (uses runtime)", bold: true },
+    { name: "atd-tools-{echo,fs,shell,web}", desc: "built-in 工具 (4 crates)", bold: false },
+    { name: "atd-ref-server",    desc: "binary · 自带的 demo server (uses tools)", bold: true },
+  ];
+  rhs.forEach((c, i) => {
+    const y = colY + 0.5 + i * 0.6;
+    s.addText(c.name, {
+      x: 0.7 + 2 * (colW + 0.15), y, w: colW - 0.4, h: 0.28,
+      fontSize: 10.5, fontFace: FONT_MONO, bold: c.bold, color: C.amber, margin: 0,
+    });
+    s.addText(c.desc, {
+      x: 0.7 + 2 * (colW + 0.15), y: y + 0.28, w: colW - 0.4, h: 0.32,
+      fontSize: 9, fontFace: FONT_BODY, color: C.slate, margin: 0,
+    });
+  });
+
+  // ── 底栏：跨场景 + 测试 ─────────────────────────────────────────────────
+  const botY = 4.18;
+  card(s, { x: 0.5, y: botY, w: 9.0, h: 0.62, bg: "F1F5F9" });
+  s.addText("跨 vendor demo / 测试 / 第三方 adopter", {
+    x: 0.7, y: botY + 0.05, w: 4.5, h: 0.22,
+    fontSize: 9, fontFace: FONT_HEAD, bold: true, color: C.muted, margin: 0,
+  });
+  s.addText([
+    { text: "atd-mock-weather-server", options: { bold: true, color: C.purple, fontFace: FONT_MONO } },
+    { text: "  跨 vendor 组合 demo  ·  ", options: { color: C.slate } },
+    { text: "atd-conformance",          options: { bold: true, color: C.purple, fontFace: FONT_MONO } },
+    { text: "  35 fixtures  ·  ",        options: { color: C.slate } },
+    { text: "healthkit_cli",            options: { bold: true, color: C.green, fontFace: FONT_MONO } },
+    { text: "  外部 adopter (使用 atd-server + atd-runtime)", options: { color: C.slate } },
+  ], {
+    x: 0.7, y: botY + 0.27, w: 8.7, h: 0.32,
+    fontSize: 9.5, fontFace: FONT_BODY, margin: 0,
+  });
+
+  addFooter(s, 10, TOTAL);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Slide 11 — Deployment topology: healthkit ATD + Hermes
+// ════════════════════════════════════════════════════════════════════════
+{
+  const s = contentSlide(LAYER.runtime);
+  addTitle(s, "实测部署: healthkit ATD + Hermes", {
+    subtitle: "两进程 · 一 Unix socket · 一 OAuth · 一 audit log",
+  });
+
+  // ── 顶部：进程拓扑 ────────────────────────────────────────────────────
+  const topY = 1.0, topH = 1.55;
+
+  // Hermes process box
+  s.addShape(pres.shapes.RECTANGLE, {
+    x: 0.5, y: topY + 0.3, w: 1.7, h: 0.95,
+    fill: { color: C.deepBlue }, line: { color: C.deepBlue, width: 0 },
+  });
+  s.addText("Hermes Agent", {
+    x: 0.5, y: topY + 0.32, w: 1.7, h: 0.32,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: "FFFFFF",
+    align: "center", margin: 0,
+  });
+  s.addText("DeepSeek-chat\nLLM driver", {
+    x: 0.5, y: topY + 0.62, w: 1.7, h: 0.55,
+    fontSize: 9, fontFace: FONT_BODY, color: "CADCFC",
+    align: "center", margin: 0,
+  });
+
+  // arrow 1: stdio (Hermes ↔ bridge)
+  s.addShape(pres.shapes.RIGHT_ARROW, {
+    x: 2.25, y: topY + 0.65, w: 0.55, h: 0.3,
+    fill: { color: C.muted }, line: { color: C.muted, width: 0 },
+  });
+  s.addText("stdio\nMCP", {
+    x: 2.25, y: topY + 0.32, w: 0.55, h: 0.3,
+    fontSize: 7.5, fontFace: FONT_MONO, color: C.muted,
+    align: "center", margin: 0,
+  });
+
+  // bridge process box
+  s.addShape(pres.shapes.RECTANGLE, {
+    x: 2.85, y: topY + 0.3, w: 1.95, h: 0.95,
+    fill: { color: C.teal }, line: { color: C.teal, width: 0 },
+  });
+  s.addText("atd-mcp-bridge", {
+    x: 2.85, y: topY + 0.32, w: 1.95, h: 0.32,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: "FFFFFF",
+    align: "center", margin: 0,
+  });
+  s.addText("MCP↔wire 翻译器\nHermes 子进程 (spawn)", {
+    x: 2.85, y: topY + 0.62, w: 1.95, h: 0.55,
+    fontSize: 9, fontFace: FONT_BODY, color: "CADCFC",
+    align: "center", margin: 0,
+  });
+
+  // arrow 2: Unix socket
+  s.addShape(pres.shapes.RIGHT_ARROW, {
+    x: 4.85, y: topY + 0.65, w: 0.55, h: 0.3,
+    fill: { color: C.muted }, line: { color: C.muted, width: 0 },
+  });
+  s.addText("Unix socket\n/tmp/hk.sock", {
+    x: 4.85, y: topY + 0.28, w: 1.05, h: 0.35,
+    fontSize: 7.5, fontFace: FONT_MONO, color: C.muted,
+    align: "center", margin: 0,
+  });
+
+  // healthkit serve box
+  s.addShape(pres.shapes.RECTANGLE, {
+    x: 5.45, y: topY + 0.3, w: 2.0, h: 0.95,
+    fill: { color: C.green }, line: { color: C.green, width: 0 },
+  });
+  s.addText("healthkit serve", {
+    x: 5.45, y: topY + 0.32, w: 2.0, h: 0.32,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: "FFFFFF",
+    align: "center", margin: 0,
+  });
+  s.addText("ATD server (vendor)\n27 tools 注册", {
+    x: 5.45, y: topY + 0.62, w: 2.0, h: 0.55,
+    fontSize: 9, fontFace: FONT_BODY, color: "E0F2EE",
+    align: "center", margin: 0,
+  });
+
+  // arrow 3: HTTPS
+  s.addShape(pres.shapes.RIGHT_ARROW, {
+    x: 7.5, y: topY + 0.65, w: 0.55, h: 0.3,
+    fill: { color: C.muted }, line: { color: C.muted, width: 0 },
+  });
+  s.addText("HTTPS\nOAuth", {
+    x: 7.5, y: topY + 0.32, w: 0.55, h: 0.3,
+    fontSize: 7.5, fontFace: FONT_MONO, color: C.muted,
+    align: "center", margin: 0,
+  });
+
+  // HMS box
+  s.addShape(pres.shapes.RECTANGLE, {
+    x: 8.1, y: topY + 0.3, w: 1.4, h: 0.95,
+    fill: { color: C.slate }, line: { color: C.slate, width: 0 },
+  });
+  s.addText("HMS REST", {
+    x: 8.1, y: topY + 0.32, w: 1.4, h: 0.32,
+    fontSize: 11, fontFace: FONT_HEAD, bold: true, color: "FFFFFF",
+    align: "center", margin: 0,
+  });
+  s.addText("Huawei Cloud\n(external)", {
+    x: 8.1, y: topY + 0.62, w: 1.4, h: 0.55,
+    fontSize: 9, fontFace: FONT_BODY, color: "E2E8F0",
+    align: "center", margin: 0,
+  });
+
+  // ── 中部：4 张外挂 (token / audit / capability / register) ──────────────
+  const midY = 2.7;
+  const ext = [
+    {
+      x: 0.5, color: C.purple, title: "OAuth token",
+      lines: [
+        "~/.config/healthkit/", "  token.json",
+        "(fallback)",
+        "+ /tmp/hk-tokens/",
+        "  agent-A.json",
+        "  agent-B.json",
+        "(multi-tenant)",
+      ],
+    },
+    {
+      x: 2.85, color: C.amber, title: "Capability grant",
+      lines: [
+        "healthkit serve \\",
+        "  --grant-capability \\",
+        "    healthkit:read \\",
+        "  --grant-capability \\",
+        "    healthkit:write",
+        "",
+        "(server allow-list)",
+      ],
+    },
+    {
+      x: 5.2, color: C.deepBlue, title: "Audit log (JSONL)",
+      lines: [
+        "/tmp/hk-audit.jsonl",
+        "{ ts, call_id,",
+        "  tool_id, caller_id,",
+        "  granted_capabilities,",
+        "  outcome, duration_ms,",
+        "  secrets_resolved }",
+        "→ tail -f | jq",
+      ],
+    },
+    {
+      x: 7.55, color: C.teal, title: "Hermes 注册",
+      lines: [
+        "hermes mcp add \\",
+        "  healthkit \\",
+        "  --command \\",
+        "    atd-mcp-bridge \\",
+        "  --env \\",
+        "    ATD_SOCK=...sock \\",
+        "    ATD_REQUEST_CAPS=...",
+      ],
+    },
+  ];
+  ext.forEach((c) => {
+    card(s, { x: c.x, y: midY, w: 2.25, h: 2.05, railColor: c.color });
+    s.addText(c.title, {
+      x: c.x + 0.12, y: midY + 0.06, w: 2.0, h: 0.26,
+      fontSize: 10, fontFace: FONT_HEAD, bold: true, color: c.color, margin: 0,
+    });
+    c.lines.forEach((l, i) => {
+      s.addText(l, {
+        x: c.x + 0.12, y: midY + 0.34 + i * 0.22, w: 2.05, h: 0.2,
+        fontSize: 8.5, fontFace: FONT_MONO, color: C.midnight, margin: 0,
+      });
+    });
+  });
+
+  addFooter(s, 11, TOTAL);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Slide 12 — Case 5 完整交互时序 (sequence diagram)
+// ════════════════════════════════════════════════════════════════════════
+{
+  const s = contentSlide(LAYER.protocol);
+  addTitle(s, "完整交互时序 — Case v1.4.0 心率分析", {
+    subtitle: "从用户 prompt 到 audit log: ATD 在每一步做了什么",
+  });
+
+  // 4 lane headers
+  const lanes = [
+    { x: 0.5, w: 2.0, label: "User / LLM",       color: C.deepBlue },
+    { x: 2.55, w: 2.0, label: "atd-mcp-bridge",  color: C.teal },
+    { x: 4.6, w: 2.5, label: "healthkit serve\n(atd-runtime)",  color: C.amber },
+    { x: 7.15, w: 2.35, label: "外部 / 副效果", color: C.slate },
+  ];
+  lanes.forEach((L) => {
+    s.addShape(pres.shapes.RECTANGLE, {
+      x: L.x, y: 1.0, w: L.w, h: 0.4,
+      fill: { color: L.color }, line: { color: L.color, width: 0 },
+    });
+    s.addText(L.label, {
+      x: L.x, y: 1.0, w: L.w, h: 0.4,
+      fontSize: 10, fontFace: FONT_HEAD, bold: true, color: "FFFFFF",
+      align: "center", valign: "middle", margin: 0,
+    });
+  });
+
+  // sequence rows
+  const rows = [
+    { n: "1", lane: 0, text: '用户 prompt: "从医生角度…最近两个月心率"', color: C.midnight },
+    { n: "2", lane: 0, text: "DeepSeek 决定: 调 mcp_healthkit_*.heartrate {days:60}", color: C.deepBlue },
+    { n: "3", lane: 1, text: "Hermes → bridge: MCP tools/call (stdio)", color: C.teal },
+    { n: "4", lane: 1, text: "bridge → server: RunTool 帧 (length-prefixed JSON)", color: C.teal },
+    { n: "5", lane: 2, text: "Capability gate: granted ⊇ healthkit:read ✓", color: C.green },
+    { n: "6", lane: 2, text: "Rate limit: try_acquire_owned() ✓", color: C.green },
+    { n: "7", lane: 2, text: "TokenBroker.resolve(\"atd-mcp-bridge\") → SecretBundle", color: C.purple },
+    { n: "8", lane: 3, text: "→ HMS REST GET /heartrate (HTTPS, OAuth bearer)", color: C.slate },
+    { n: "9", lane: 2, text: "Tool::call() → 解析 HMS JSON → ToolResult", color: C.amber },
+    { n: "10", lane: 3, text: "→ /tmp/hk-audit.jsonl: append 1 row", color: C.deepBlue },
+    { n: "11", lane: 1, text: "server → bridge: ToolResultResponse (~24 KB)", color: C.teal },
+    { n: "12", lane: 0, text: "bridge → Hermes: MCP tool response (1169 ms 总耗时)", color: C.deepBlue },
+    { n: "13", lane: 0, text: "(LLM 同样调 .restinghr; 然后产出医生报告)", color: C.muted },
+  ];
+
+  const rowY = 1.5, rowH = 0.24;
+  rows.forEach((r, i) => {
+    const y = rowY + i * rowH;
+    if (i % 2 === 0) {
+      s.addShape(pres.shapes.RECTANGLE, {
+        x: 0.5, y, w: 9.0, h: rowH,
+        fill: { color: "F8FAFC" }, line: { color: "F8FAFC", width: 0 },
+      });
+    }
+    // step number
+    s.addText(r.n, {
+      x: 0.5, y, w: 0.25, h: rowH,
+      fontSize: 8.5, fontFace: FONT_HEAD, bold: true, color: C.muted,
+      align: "right", valign: "middle", margin: 0,
+    });
+    // active lane indicator
+    const L = lanes[r.lane];
+    s.addShape(pres.shapes.RECTANGLE, {
+      x: L.x, y: y + 0.04, w: 0.06, h: rowH - 0.08,
+      fill: { color: r.color }, line: { color: r.color, width: 0 },
+    });
+    // text spans the active lane and beyond
+    s.addText(r.text, {
+      x: L.x + 0.12, y, w: 9.5 - (L.x + 0.12), h: rowH,
+      fontSize: 9, fontFace: FONT_MONO, color: r.color,
+      valign: "middle", margin: 0,
+    });
+  });
+
+  // Audit log call-out at bottom
+  const auY = 4.65;
+  s.addShape(pres.shapes.RECTANGLE, {
+    x: 0.5, y: auY, w: 9.0, h: 0.32,
+    fill: { color: C.midnight }, line: { color: C.midnight, width: 0 },
+  });
+  s.addText('audit row (实测): {"ts":"…","tool_id":"huawei:hms.healthkit.heartrate","caller_id":"atd-mcp-bridge","outcome":"success","duration_ms":1169}', {
+    x: 0.65, y: auY, w: 8.7, h: 0.32,
+    fontSize: 8, fontFace: FONT_MONO, color: "CADCFC",
+    valign: "middle", margin: 0,
+  });
+
+  addFooter(s, 12, TOTAL);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Slide 13 — Capability + Rate limit + Audit
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.security);
@@ -723,11 +1096,11 @@ caseSlide({
     });
   });
 
-  addFooter(s, 10, TOTAL);
+  addFooter(s, 13, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 11 — TokenBroker / multi-tenant (with audit-log proof)
+// Slide 14 — TokenBroker / multi-tenant (with audit-log proof)
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.security);
@@ -804,11 +1177,11 @@ caseSlide({
     });
   });
 
-  addFooter(s, 11, TOTAL);
+  addFooter(s, 14, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 12 — Cross-vendor + Skills convention
+// Slide 15 — Cross-vendor + Skills convention
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.tools);
@@ -908,11 +1281,11 @@ caseSlide({
     });
   });
 
-  addFooter(s, 12, TOTAL);
+  addFooter(s, 15, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 13 — vs raw alternatives
+// Slide 16 — vs raw alternatives
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.neutral);
@@ -980,11 +1353,11 @@ caseSlide({
       fontSize: 10, fontFace: FONT_BODY, italic: true, color: C.green, align: "center", margin: 0,
     });
 
-  addFooter(s, 13, TOTAL);
+  addFooter(s, 16, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 14 — 5-layer architecture
+// Slide 17 — 5-layer architecture
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.neutral);
@@ -1024,11 +1397,11 @@ caseSlide({
     });
   });
 
-  addFooter(s, 14, TOTAL);
+  addFooter(s, 17, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 15 — Workspace + 5 min start
+// Slide 18 — Workspace + 5 min start
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = contentSlide(LAYER.tools);
@@ -1095,11 +1468,11 @@ caseSlide({
     });
   });
 
-  addFooter(s, 15, TOTAL);
+  addFooter(s, 18, TOTAL);
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Slide 16 — Closing
+// Slide 19 — Closing
 // ════════════════════════════════════════════════════════════════════════
 {
   const s = pres.addSlide();
