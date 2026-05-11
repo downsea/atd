@@ -650,6 +650,65 @@ mod tests {
         }
     }
 
+    // ---- Phase E: real InMemoryUcanRevocationStore × multi-link chain ----
+
+    #[test]
+    fn revoking_root_cid_via_in_memory_store_rejects_3_link_descendant() {
+        // U → A → B → C 3-link chain. Revoke the ROOT (U's UCAN) and
+        // confirm the LEAF (C's request) rejects with the root's CID
+        // surfaced. Exercises the real InMemoryUcanRevocationStore impl
+        // (vs the MockRevocationStore in `revoked_cid_rejects`) and the
+        // verifier's "consult on every link" guarantee.
+        use super::super::InMemoryUcanRevocationStore;
+
+        let sk_u = signing_key_for_seed(1);
+        let sk_a = signing_key_for_seed(2);
+        let sk_b = signing_key_for_seed(3);
+        let sk_c = signing_key_for_seed(4);
+        let exp = future_exp();
+
+        let root = payload_with(
+            &did_key_for(&sk_u),
+            &did_key_for(&sk_a),
+            &["records:read"],
+            &[],
+            exp,
+        );
+        let root_jwt = build_jwt(root, &sk_u);
+        let root_cid = compute_cid(&root_jwt);
+
+        let mid = payload_with(
+            &did_key_for(&sk_a),
+            &did_key_for(&sk_b),
+            &["records:read"],
+            &[root_jwt.clone()],
+            exp,
+        );
+        let mid_jwt = build_jwt(mid, &sk_a);
+
+        let leaf = payload_with(
+            &did_key_for(&sk_b),
+            &did_key_for(&sk_c),
+            &["records:read"],
+            &[mid_jwt],
+            exp,
+        );
+        let leaf_jwt = build_jwt(leaf, &sk_b);
+
+        // Pre-revoke: full 3-link chain verifies.
+        let store = Arc::new(InMemoryUcanRevocationStore::new());
+        let mut cfg = VerifyConfig::new(did_key_for(&sk_c));
+        cfg.revocation_store = Some(store.clone() as Arc<dyn UcanRevocationStore>);
+        assert!(verify_jwt(&leaf_jwt, &cfg, SystemTime::now()).is_ok());
+
+        // Revoke ROOT → leaf request rejects with root's CID.
+        store.revoke(&root_cid);
+        match verify_jwt(&leaf_jwt, &cfg, SystemTime::now()) {
+            Err(UcanVerifyError::Revoked { cid }) => assert_eq!(cid, root_cid),
+            other => panic!("expected Revoked at root cid, got {other:?}"),
+        }
+    }
+
     // ---- additional coverage ----------------------------------------------
 
     #[test]
