@@ -14,6 +14,7 @@ pub mod registry;
 pub mod secrets;
 pub mod tier;
 pub mod tracker;
+pub mod ucan;
 
 pub use audit::{AuditSink, CallEvent, JsonLinesAuditSink, Outcome, SCHEMA_VERSION};
 pub use binding::{Binding, CliBinding, NativeBinding};

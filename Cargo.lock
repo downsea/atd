@@ -224,6 +224,7 @@ name = "atd-runtime"
 version = "0.3.0"
 dependencies = [
  "atd-protocol",
+ "base64",
  "chrono",
  "regex",
  "serde",
