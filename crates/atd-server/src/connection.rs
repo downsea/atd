@@ -202,6 +202,8 @@ mod tests {
             audit_sink: None,
             server_version: "atd-server-test 0.0.0".into(),
             token_broker: None,
+            max_ucan_chain_depth: 5,
+            ucan_revocation_store: None,
         }
     }
 

@@ -103,6 +103,8 @@ impl ServerBuilder {
                     audit_sink: arc.audit_sink.clone(),
                     server_version: arc.server_version.clone(),
                     token_broker: arc.token_broker.clone(),
+                    max_ucan_chain_depth: arc.max_ucan_chain_depth,
+                    ucan_revocation_store: arc.ucan_revocation_store.clone(),
                 }
             }),
             tier_policy: self.tier_policy,

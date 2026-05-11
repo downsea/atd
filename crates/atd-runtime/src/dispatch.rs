@@ -71,6 +71,17 @@ pub struct SharedServerConfig {
     /// Optional `TokenBroker` for multi-tenant secret routing.
     /// SP-token-broker-phase1.
     pub token_broker: Option<Arc<dyn TokenBroker>>,
+    /// Maximum UCAN-lite chain depth accepted by the verifier. Default
+    /// `5` per SP-capability-v2 spec §4.6 — prevents stack-exhaustion
+    /// attacks via pathologically deep proof chains. Override via the
+    /// listener crate's CLI flag if a specific deployment justifies it.
+    pub max_ucan_chain_depth: u8,
+    /// Optional revocation store for UCAN-lite tokens (SP-capability-v2
+    /// §4.7). When `None`, no revocation check is performed; the
+    /// connection-scoped allow-list is the only authority bound.
+    /// Adopters wrap their existing revocation table (e.g. celia's
+    /// `consent.status='revoked'`) behind this trait.
+    pub ucan_revocation_store: Option<Arc<dyn crate::ucan::UcanRevocationStore>>,
 }
 
 impl SharedServerConfig {
@@ -86,6 +97,8 @@ impl SharedServerConfig {
             audit_sink: None,
             server_version: "atd-runtime-test 0.0.0".into(),
             token_broker: None,
+            max_ucan_chain_depth: 5,
+            ucan_revocation_store: None,
         }
     }
 }
@@ -129,18 +142,59 @@ pub async fn dispatch_request(
         Request::Hello {
             client_id,
             requested_capabilities,
-            ucan_tokens: _ucan_tokens,
+            ucan_tokens,
         } => {
-            // SP-capability-v2 Phase A: field accepted but not yet consumed.
-            // Phase C (atd-runtime dispatch wiring) will verify _ucan_tokens
-            // and union the result into `granted`. For now, ignoring the
-            // tokens preserves Phase A's "wire-format-only" scope.
-            *caller_id = client_id;
+            *caller_id = client_id.clone();
             let allow = CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
-            let (granted, _denied) = allow.intersect(&requested_capabilities);
-            *caps = Arc::new(CapabilitySet::from_iter(granted.clone()));
+            let (granted_strings_vec, _denied) = allow.intersect(&requested_capabilities);
+            let granted_strings = CapabilitySet::from_iter(granted_strings_vec);
+
+            // SP-capability-v2 Phase C: verify any presented UCAN-lite
+            // tokens and union the resulting caps with the SP-12 string
+            // allow-list result. Pre-SP-capability-v2 clients pass an
+            // empty `ucan_tokens` vec (per `#[serde(default)]`); their
+            // path is byte-identical to SP-12.
+            let granted_ucan = if ucan_tokens.is_empty() {
+                CapabilitySet::empty()
+            } else {
+                // Audience-pin requires a client_id — if the client sends
+                // ucan_tokens but no client_id, we cannot bind the audience
+                // and must reject. Spec §4.6 / §5.4 (1013 audience-mismatch
+                // family).
+                let expected_aud = match caller_id.as_ref() {
+                    Some(s) if !s.is_empty() => s.clone(),
+                    _ => {
+                        return Response::Error {
+                            message: "UCAN tokens require Hello.client_id (audience pin)"
+                                .to_string(),
+                            code: Some(atd_protocol::ERR_AUDIENCE_MISMATCH),
+                            retryable: Some(false),
+                            details: None,
+                        };
+                    }
+                };
+                let mut cfg = crate::ucan::VerifyConfig::new(expected_aud);
+                cfg.max_chain_depth = state.config.max_ucan_chain_depth;
+                cfg.revocation_store = state.config.ucan_revocation_store.clone();
+                match crate::ucan::verify_tokens(&ucan_tokens, &cfg, std::time::SystemTime::now()) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        let code = crate::ucan::wire_code(&e);
+                        return Response::Error {
+                            message: e.to_string(),
+                            code: Some(code),
+                            retryable: Some(false),
+                            details: None,
+                        };
+                    }
+                }
+            };
+
+            let granted_caps = granted_strings.union(&granted_ucan);
+            let granted_vec = granted_caps.granted();
+            *caps = Arc::new(granted_caps);
             Response::HelloAck {
-                granted_capabilities: granted,
+                granted_capabilities: granted_vec,
                 server_version: state.config.server_version.clone(),
                 supported_tiers: vec!["hot".into(), "warm".into(), "cold".into()],
             }

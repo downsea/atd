@@ -46,6 +46,10 @@ impl Server {
             audit_sink: config.audit_sink,
             server_version: config.server_version,
             token_broker: config.token_broker,
+            // SP-capability-v2: defaults applied here for now. A follow-up
+            // SP can flow these through ServerConfig so adopters override.
+            max_ucan_chain_depth: 5,
+            ucan_revocation_store: None,
         };
         Self {
             state: Arc::new(ServerState {
