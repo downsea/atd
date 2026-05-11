@@ -402,6 +402,43 @@ this subset to enforce each tool's `required_capabilities`.
   `atd_sdk`) demote this to "no capabilities granted" so a single
   `hello()` call works against any server version.
 
+#### SP-capability-v2 additive: `ucan_tokens` field
+
+A client holding one or more UCAN-lite tokens (JWT compact form, `alg=EdDSA`,
+`typ=ucan/1.0+jwt`) MAY include them as an additional Hello field:
+
+```json
+{
+  "type": "hello",
+  "client_id": "agent-B",
+  "requested_capabilities": ["records:read"],
+  "ucan_tokens": ["<A-signed-B UCAN JWT compact>"]
+}
+```
+
+When `ucan_tokens` is non-empty, the server verifies each chain
+independently (signature, audience pinning, attenuation, depth limit,
+revocation store) and unions the resulting capabilities with the SP-12
+string-allow-list result:
+
+```
+granted = (server_allow_list ∩ requested_capabilities) ∪ ucan_derived_caps
+```
+
+`ucan_tokens` MUST be omitted from the wire form when empty (serde
+`skip_serializing_if = "Vec::is_empty"`); pre-SP-capability-v2 servers
+that don't recognize the field will accept the empty-omitted form
+byte-identically to SP-12.
+
+Verification failures map to four error codes (see §4.7 below):
+- `1010 ERR_UCAN_INVALID` — parse, signature, alg, DID method, missing field, attenuation widening
+- `1011 ERR_UCAN_EXPIRED` — any link's `exp <= now()`
+- `1012 ERR_DELEGATION_TOO_DEEP` — chain depth > `ServerConfig.max_ucan_chain_depth` (default 5)
+- `1013 ERR_AUDIENCE_MISMATCH` — deepest UCAN's `aud` ≠ connection `client_id`
+
+Full UCAN-lite profile (Ed25519 only, `did:key` only, `cmd="atd-cap"`,
+`args.caps: Vec<String>`) defined in `SP-capability-v2` spec §4.
+
 ### 4.7 Capability-denied error (SP-12)
 
 When `run_tool` targets a tool whose `required_capabilities` are not a subset

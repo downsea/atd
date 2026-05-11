@@ -206,6 +206,46 @@ Note: in v0.1.0 the SDK does not yet surface this as a dedicated `AtdError::Rate
 
 Server-side only: SDKs may surface this as a generic wire-error response, but no SDK generates a `1003` code.
 
+### 2.3c `UcanInvalid` (wire code `1010` / `ERR_UCAN_INVALID`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | A `Hello.ucan_tokens` entry fails structural / signature validation: malformed JWT (≠ 3 segments), unsupported `alg` (anything but `EdDSA`), unsupported DID method (anything but `did:key`), bad Ed25519 signature, missing required UCAN field (`iss`/`aud`/`cmd`/`args`/`exp`/`nonce`), `cmd ≠ "atd-cap"`, or chain attenuation widening (child claims caps the parent didn't grant). SP-capability-v2. |
+| **Wire mapping** | `Response::Error { code: Some(1010), retryable: Some(false), message: "<reason>" }` |
+| **Retryable?** | `false` — deterministic; the same token will fail the same way. Client must re-issue. |
+| **Source line** | `crates/atd-protocol/src/messages.rs` (constant); verifier in `crates/atd-runtime/src/ucan/` (Phase B). |
+| **Since** | SP-capability-v2 |
+
+### 2.3d `UcanExpired` (wire code `1011` / `ERR_UCAN_EXPIRED`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | Any link in the UCAN chain has `exp <= now()` at verification time. Distinct from `1010` because the token was *valid* — it just lapsed. SP-capability-v2. |
+| **Wire mapping** | `Response::Error { code: Some(1011), retryable: Some(false) }` |
+| **Retryable?** | `false` — issuer must refresh / re-sign with a fresh `exp`. |
+| **Source line** | `crates/atd-protocol/src/messages.rs`; verifier (Phase B). |
+| **Since** | SP-capability-v2 |
+
+### 2.3e `DelegationTooDeep` (wire code `1012` / `ERR_DELEGATION_TOO_DEEP`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | UCAN chain length exceeds `ServerConfig.max_ucan_chain_depth` (default 5). Prevents stack-exhaustion attacks via pathologically deep proof chains. SP-capability-v2. |
+| **Wire mapping** | `Response::Error { code: Some(1012), retryable: Some(false), message: "chain depth N exceeds max M" }` |
+| **Retryable?** | `false` — issuer must shorten the chain. |
+| **Source line** | `crates/atd-protocol/src/messages.rs`; verifier (Phase B). |
+| **Since** | SP-capability-v2 |
+
+### 2.3f `AudienceMismatch` (wire code `1013` / `ERR_AUDIENCE_MISMATCH`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | The deepest UCAN in a presented chain has `aud` ≠ the connection's `client_id` (UDS) or bearer's caller (HTTP). Prevents intercepted-token replay by a third party. SP-capability-v2. |
+| **Wire mapping** | `Response::Error { code: Some(1013), retryable: Some(false) }` |
+| **Retryable?** | `false` — the token is addressed to a different audience; no retry helps. |
+| **Source line** | `crates/atd-protocol/src/messages.rs`; verifier (Phase B). |
+| **Since** | SP-capability-v2 |
+
 ### 2.4 `BindingUnavailable`
 
 ```rust

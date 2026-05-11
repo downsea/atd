@@ -606,6 +606,7 @@ mod tests {
             Request::Hello {
                 client_id: Some("agent-A".into()),
                 requested_capabilities: vec![],
+                ucan_tokens: vec![],
             },
         )
         .await;

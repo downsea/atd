@@ -18,6 +18,30 @@ pub const ERR_RATE_LIMITED: u16 = 1002;
 /// SP-token-broker-phase1.
 pub const ERR_BROKER_FAILED: u16 = 1003;
 
+/// Wire value of `code` on `Response::Error` when a `Hello.ucan_tokens`
+/// entry fails structural / signature validation: malformed JWT,
+/// unsupported `alg`, unsupported DID method, bad signature, missing
+/// required field, or chain-attenuation widening.
+/// `retryable: false` — deterministic; retry without changing the token
+/// is pointless. SP-capability-v2.
+pub const ERR_UCAN_INVALID: u16 = 1010;
+
+/// Wire value of `code` on `Response::Error` when a UCAN chain link has
+/// `exp <= now()`. `retryable: false` (re-issue required).
+/// SP-capability-v2.
+pub const ERR_UCAN_EXPIRED: u16 = 1011;
+
+/// Wire value of `code` on `Response::Error` when a UCAN chain exceeds
+/// `ServerConfig.max_ucan_chain_depth` (default 5).
+/// `retryable: false`. SP-capability-v2.
+pub const ERR_DELEGATION_TOO_DEEP: u16 = 1012;
+
+/// Wire value of `code` on `Response::Error` when the deepest UCAN's
+/// `aud` does not match the connection's `client_id` (or the bearer's
+/// caller). Prevents intercepted-token replay by a third party.
+/// `retryable: false`. SP-capability-v2.
+pub const ERR_AUDIENCE_MISMATCH: u16 = 1013;
+
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -30,12 +54,21 @@ pub enum Request {
     /// it; `AtdClient::hello` tolerates that and returns an empty granted
     /// set so callers can treat "no capabilities" and "server too old"
     /// identically.
+    ///
+    /// SP-capability-v2 (2026-05-11) adds the optional `ucan_tokens` field.
+    /// When non-empty, each element is a UCAN-lite JWT compact form
+    /// (`alg=EdDSA`, `typ=ucan/1.0+jwt`); the server's verifier produces
+    /// `granted = granted_strings ∪ granted_ucan`. Pre-SP-capability-v2
+    /// servers omit the field via serde default; their behaviour is byte-
+    /// identical to SP-12. Spec §4.2 + §5.2.
     #[serde(rename = "hello")]
     Hello {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         client_id: Option<String>,
         #[serde(default)]
         requested_capabilities: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        ucan_tokens: Vec<String>,
     },
 
     #[serde(rename = "tool_list")]

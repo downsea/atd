@@ -223,7 +223,7 @@
           "type": "object"
         },
         {
-          "description": "SP-12 Hello handshake. Optional: pre-SP-12 servers do not recognize it; `AtdClient::hello` tolerates that and returns an empty granted set so callers can treat \"no capabilities\" and \"server too old\" identically.",
+          "description": "SP-12 Hello handshake. Optional: pre-SP-12 servers do not recognize it; `AtdClient::hello` tolerates that and returns an empty granted set so callers can treat \"no capabilities\" and \"server too old\" identically.\n\nSP-capability-v2 (2026-05-11) adds the optional `ucan_tokens` field. When non-empty, each element is a UCAN-lite JWT compact form (`alg=EdDSA`, `typ=ucan/1.0+jwt`); the server's verifier produces `granted = granted_strings ∪ granted_ucan`. Pre-SP-capability-v2 servers omit the field via serde default; their behaviour is byte- identical to SP-12. Spec §4.2 + §5.2.",
           "properties": {
             "client_id": {
               "type": [
@@ -243,6 +243,12 @@
                 "hello"
               ],
               "type": "string"
+            },
+            "ucan_tokens": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -852,13 +858,24 @@
       "type": "object"
     },
     "ToolVisibility": {
-      "enum": [
-        "read",
-        "write",
-        "dangerous",
-        "system"
-      ],
-      "type": "string"
+      "oneOf": [
+        {
+          "enum": [
+            "read",
+            "write",
+            "dangerous",
+            "system"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Hidden from `Request::ToolList` discover responses, but still reachable by id via `Request::ToolSchema` (describe) and `Request::RunTool` (call). Use for tools that exist for integration tests, debugging, or advanced humans, but would add noise to an LLM's catalog.",
+          "enum": [
+            "hidden"
+          ],
+          "type": "string"
+        }
+      ]
     },
     "TrustLevel": {
       "enum": [

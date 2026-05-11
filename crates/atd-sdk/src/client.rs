@@ -85,6 +85,7 @@ impl AtdClient {
         let req = Request::Hello {
             client_id: client_id.map(|s| s.to_string()),
             requested_capabilities: requested,
+            ucan_tokens: Vec::new(),
         };
         match self.request(&req).await {
             Ok(Response::HelloAck {
@@ -741,6 +742,7 @@ mod tests {
             Request::Hello {
                 client_id,
                 requested_capabilities,
+                ..
             } => {
                 assert_eq!(client_id.as_deref(), Some("test"));
                 assert_eq!(requested_capabilities, vec!["exec", "admin"]);

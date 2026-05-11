@@ -129,7 +129,12 @@ pub async fn dispatch_request(
         Request::Hello {
             client_id,
             requested_capabilities,
+            ucan_tokens: _ucan_tokens,
         } => {
+            // SP-capability-v2 Phase A: field accepted but not yet consumed.
+            // Phase C (atd-runtime dispatch wiring) will verify _ucan_tokens
+            // and union the result into `granted`. For now, ignoring the
+            // tokens preserves Phase A's "wire-format-only" scope.
             *caller_id = client_id;
             let allow = CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
             let (granted, _denied) = allow.intersect(&requested_capabilities);
