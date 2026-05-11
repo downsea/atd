@@ -7,6 +7,7 @@ pub mod audit;
 pub mod binding;
 pub mod capability;
 pub mod context;
+pub mod dispatch;
 pub mod error;
 pub mod middleware;
 pub mod registry;
@@ -18,6 +19,7 @@ pub use audit::{AuditSink, CallEvent, JsonLinesAuditSink, Outcome, SCHEMA_VERSIO
 pub use binding::{Binding, CliBinding, NativeBinding};
 pub use capability::CapabilitySet;
 pub use context::CallContext;
+pub use dispatch::{ServerState, SharedServerConfig, dispatch_request, run_tool};
 pub use error::ToolCallError;
 pub use middleware::{Middleware, RedactPathsMiddleware};
 pub use registry::{RegisteredTool, Registry, Tool};

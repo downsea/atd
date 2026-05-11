@@ -4,6 +4,7 @@ members = [
     "crates/atd-protocol",
     "crates/atd-sdk",
     "crates/atd-server",
+    "crates/atd-server-http",
     "crates/atd-runtime",
     "crates/atd-tools-echo",
     "crates/atd-tools-fs",
@@ -33,3 +34,11 @@ thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 ulid = { version = "1", features = ["serde"] }
 tempfile = "3"
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "limit"] }
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "tokio", "http1"] }
+futures-util = "0.3"

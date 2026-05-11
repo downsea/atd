@@ -1,9 +1,19 @@
 //! `Server` — the listener and accept loop.
+//!
+//! SP-streamable-http §6.3: the dispatch state machine that was inlined
+//! here has moved to `atd-runtime::dispatch` so the HTTP listener
+//! (`atd-server-http`) can reuse it byte-for-byte. The Unix-socket server
+//! still owns the accept loop, socket-permissions setup, and the
+//! per-connection task — those are UDS-specific. `ServerState` is now a
+//! re-export of `atd_runtime::dispatch::ServerState`; `Server::new`
+//! builds a `SharedServerConfig` snapshot from the per-crate `ServerConfig`
+//! so HTTP and UDS see the same fields by composition.
 
 use std::sync::Arc;
 
 use tokio::net::UnixListener;
 
+use atd_runtime::dispatch::SharedServerConfig;
 use atd_runtime::registry::Registry;
 
 use crate::config::ServerConfig;
@@ -11,24 +21,40 @@ use crate::connection::handle_connection;
 
 pub struct Server {
     state: Arc<ServerState>,
+    /// Kept verbatim because `run()` reads `socket_path` from it after
+    /// `state` has been frozen into an `Arc`. UDS-specific config does not
+    /// belong on `SharedServerConfig` (HTTP doesn't need it) so it lives
+    /// here on the `Server` itself.
+    socket_path: std::path::PathBuf,
 }
 
-pub(crate) struct ServerState {
-    pub(crate) registry: Registry,
-    pub(crate) config: ServerConfig,
-    pub(crate) tier_policy: atd_runtime::TierPolicy,
-    pub(crate) middleware: Vec<Arc<dyn atd_runtime::Middleware>>,
-}
+/// Re-export of `atd_runtime::dispatch::ServerState`. The struct lives in
+/// `atd-runtime` so HTTP and UDS listeners hold the **same** state type;
+/// this alias preserves the historical
+/// `atd_server::server::ServerState` import path for existing call sites
+/// (notably `connection.rs::handle_connection`).
+pub(crate) type ServerState = atd_runtime::dispatch::ServerState;
 
 impl Server {
     pub fn new(registry: Registry, config: ServerConfig) -> Self {
+        let socket_path = config.socket_path.clone();
+        let shared = SharedServerConfig {
+            cwd: config.cwd,
+            max_output_bytes: config.max_output_bytes,
+            default_call_timeout_ms: config.default_call_timeout_ms,
+            granted_capabilities: config.granted_capabilities,
+            audit_sink: config.audit_sink,
+            server_version: config.server_version,
+            token_broker: config.token_broker,
+        };
         Self {
             state: Arc::new(ServerState {
                 registry,
-                config,
+                config: shared,
                 tier_policy: atd_runtime::TierPolicy::defaults(),
                 middleware: Vec::new(),
             }),
+            socket_path,
         }
     }
 
@@ -51,7 +77,7 @@ impl Server {
     }
 
     pub async fn run(self) -> std::io::Result<()> {
-        let sock = &self.state.config.socket_path;
+        let sock = &self.socket_path;
 
         // Ensure parent dir exists.
         if let Some(parent) = sock.parent() {
