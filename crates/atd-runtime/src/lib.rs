@@ -22,7 +22,8 @@ pub use error::ToolCallError;
 pub use middleware::{Middleware, RedactPathsMiddleware};
 pub use registry::{RegisteredTool, Registry, Tool};
 pub use secrets::{
-    BrokerError, InMemoryTokenBroker, RedactedString, ResolveFuture, SecretBundle, TokenBroker,
+    BearerIdentity, BrokerError, InMemoryTokenBroker, RedactedString, ResolveBearerFuture,
+    ResolveFuture, SecretBundle, TokenBroker,
 };
 pub use tier::{TierPolicy, tier_as_str, tier_from_opt_str};
 pub use tracker::{ReadTracker, ReadTrackerError};
