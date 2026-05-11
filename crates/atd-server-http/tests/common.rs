@@ -147,3 +147,88 @@ impl TokenBroker for FixedBroker {
         })
     }
 }
+
+// ==================== SP-capability-v2 Phase F helpers ====================
+
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use ed25519_dalek::{Signer, SigningKey};
+use serde_json::json;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub fn signing_key_for_seed(seed: u8) -> SigningKey {
+    let mut bytes = [0u8; 32];
+    bytes[0] = seed;
+    SigningKey::from_bytes(&bytes)
+}
+
+pub fn did_key_for(sk: &SigningKey) -> String {
+    let raw = sk.verifying_key().to_bytes();
+    let mut prefixed = Vec::with_capacity(34);
+    prefixed.extend_from_slice(&[0xed, 0x01]);
+    prefixed.extend_from_slice(&raw);
+    let mb = multibase::encode(multibase::Base::Base58Btc, &prefixed);
+    format!("did:key:{mb}")
+}
+
+pub fn build_jwt(payload: serde_json::Value, sk: &SigningKey) -> String {
+    let header = json!({"alg": "EdDSA", "typ": "ucan/1.0+jwt", "ucv": "1.0"});
+    let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
+    let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
+    let signed = format!("{h}.{p}");
+    let sig = sk.sign(signed.as_bytes());
+    let s = URL_SAFE_NO_PAD.encode(sig.to_bytes());
+    format!("{h}.{p}.{s}")
+}
+
+pub fn future_exp() -> i64 {
+    (SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 3600) as i64
+}
+
+pub fn payload_with(
+    iss: &str,
+    aud: &str,
+    caps: &[&str],
+    prf: &[String],
+    exp: i64,
+) -> serde_json::Value {
+    json!({
+        "iss":  iss,
+        "aud":  aud,
+        "sub":  iss,
+        "cmd":  "atd-cap",
+        "args": { "caps": caps, "with": [] },
+        "nonce": "phase-f-test-nonce",
+        "exp":  exp,
+        "prf":  prf
+    })
+}
+
+/// Build an `HttpServerConfig` wired with an `InMemoryTokenBroker`
+/// pre-registered with the given `did_key → caller_id` mappings.
+/// The broker accepts JWT-shape UCAN bearers and dispatches per
+/// SP-capability-v2 §4.5 / Phase D.
+pub fn http_config_with_ucan_broker(
+    require_bearer: bool,
+    audiences: Vec<(String, String)>,
+    server_allow_list: Vec<String>,
+) -> HttpServerConfig {
+    let mut broker = atd_runtime::InMemoryTokenBroker::new();
+    for (did, caller) in audiences {
+        broker.register_ucan_audience(did, caller);
+    }
+    let broker_arc: Arc<dyn atd_runtime::TokenBroker> = Arc::new(broker);
+
+    let mut shared = atd_runtime::dispatch::SharedServerConfig::for_test();
+    shared.token_broker = Some(broker_arc);
+    shared.granted_capabilities = server_allow_list;
+
+    let mut cfg = HttpServerConfig::default();
+    cfg.require_bearer = require_bearer;
+    cfg.shared = Arc::new(shared);
+    cfg
+}

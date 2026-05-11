@@ -24,3 +24,7 @@ ulid = { workspace = true }
 atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
 atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
 tempfile = { workspace = true }
+# SP-capability-v2 Phase F: integration tests construct UCAN-lite JWTs.
+base64 = "0.22"
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast"] }
+multibase = "0.9"

@@ -82,24 +82,63 @@ impl AtdClient {
         client_id: Option<&str>,
         requested: Vec<String>,
     ) -> Result<Vec<String>, AtdError> {
+        self.hello_with_ucan_tokens(client_id, requested, Vec::new())
+            .await
+    }
+
+    /// SP-capability-v2 extension of [`Self::hello`].
+    ///
+    /// Same handshake but also presents `ucan_tokens` — each entry a
+    /// UCAN-lite JWT compact form. The server verifies each chain
+    /// independently and replies with `granted_capabilities` =
+    /// `(server_allow_list ∩ requested) ∪ ucan_derived_caps`.
+    ///
+    /// On verifier failures the server returns a `Response::Error`
+    /// with one of codes `1010` (ERR_UCAN_INVALID) / `1011`
+    /// (ERR_UCAN_EXPIRED) / `1012` (ERR_DELEGATION_TOO_DEEP) / `1013`
+    /// (ERR_AUDIENCE_MISMATCH); this method surfaces that as
+    /// [`AtdError`] for the caller to inspect, **without** the
+    /// "pre-SP-12 demote to empty" fallback `hello()` uses — UCAN
+    /// failures are deterministic and the caller wants to know.
+    pub async fn hello_with_ucan_tokens(
+        &self,
+        client_id: Option<&str>,
+        requested: Vec<String>,
+        ucan_tokens: Vec<String>,
+    ) -> Result<Vec<String>, AtdError> {
+        let presenting_ucan = !ucan_tokens.is_empty();
         let req = Request::Hello {
             client_id: client_id.map(|s| s.to_string()),
             requested_capabilities: requested,
-            ucan_tokens: Vec::new(),
+            ucan_tokens,
         };
         match self.request(&req).await {
             Ok(Response::HelloAck {
                 granted_capabilities,
                 ..
             }) => Ok(granted_capabilities),
+            Ok(Response::Error { message, code, .. }) if presenting_ucan => {
+                // SP-capability-v2: surface UCAN verifier failures
+                // verbatim — they are deterministic; the back-compat
+                // demote to empty would hide the actual problem from
+                // the caller. ProtocolError is the closest fit in the
+                // current AtdError taxonomy; the wire code lands in
+                // `got` so callers can match on 1010-1013.
+                Err(AtdError::ProtocolError {
+                    expected: "hello_ack with verified UCAN".into(),
+                    got: format!("server error code={code:?} message={message}"),
+                })
+            }
             // Pre-SP-12 server: it doesn't know `hello`; it may reply with
             // a generic error. Demote to "no caps granted" rather than
             // failing — the caller can still call tools that declare no
-            // required_capabilities.
+            // required_capabilities. Only applied when not presenting UCAN.
             Ok(Response::Error { .. }) => Ok(vec![]),
-            // Protocol-level failure (e.g. wire decode): same back-compat
-            // treatment.
-            Err(AtdError::ProtocolError { .. }) => Ok(vec![]),
+            Err(AtdError::ProtocolError { .. }) if !presenting_ucan => Ok(vec![]),
+            Err(AtdError::ProtocolError { .. }) => Err(AtdError::ProtocolError {
+                expected: "hello_ack with verified UCAN".into(),
+                got: "protocol error".into(),
+            }),
             Ok(other) => Err(AtdError::ProtocolError {
                 expected: "hello_ack".into(),
                 got: format!("{other:?}"),
