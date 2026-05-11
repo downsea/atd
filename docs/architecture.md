@@ -160,7 +160,7 @@ Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/
 | Dispatch · ergonomic aliases | [§4.2.6](#426-ergonomic-aliases) | — | ❌ SDK-only; planned |
 | Security · classifications | [§5.1](#51-classification-taxonomy) | `crates/atd-protocol/` | ✅ |
 | Security · per-tool runtime controls | [§5.2](#52-per-tool-runtime-controls) | per-tool files in `crates/atd-tools-*/src/` | ✅ where applicable |
-| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` | ✅ v1 (allow-list); UCAN-lite 🔨 (SP-capability-v2 design landed, plan drafted) |
+| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` + `crates/atd-runtime/src/ucan/` | ✅ v1 (allow-list); ✅ UCAN-lite (SP-capability-v2, 2026-05-11) |
 | Security · audit logging | [§5.4](#54-audit-logging) | — | ❌ |
 | Security · rate limiting & concurrency | [§5.5](#55-rate-limiting-and-concurrency) | — | ❌ |
 | Security · dry-run consistency | [§5.6](#56-dry-run-consistency) | per-tool files | ⚠️ |
@@ -230,7 +230,7 @@ The schema layer does NOT own: dispatch behavior, security enforcement, binding 
 | `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
 | `ToolResources.max_concurrent` | same | 📜 | — | Same — declared, not enforced |
 | `ToolTrust.signature` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
-| UCAN payload types (`UcanPayload`, `UcanChain`, `DidKey`) | — | 🔨 | — | SP-capability-v2 spec ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)) §5 defines wire shape. Lands in `atd-protocol::ucan` when SP-capability-v2 plan executes. |
+| UCAN payload types (`UcanPayload`, `UcanHeader`, `UcanCapability`) | `crates/atd-runtime/src/ucan/types.rs` | ✅ | unit + integration tests | SP-capability-v2 landed 2026-05-11. Lives in `atd-runtime::ucan` (not `atd-protocol`) because the verifier consumes them server-side; protocol carries opaque JWT strings on the wire via `Hello.ucan_tokens`. |
 | Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-sdk/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
 | `ToolDefinition.output_schema` | `crates/atd-protocol/src/tool.rs` | ✅ | tool roundtrip tests | Was previously unlisted; surfaced in describe responses. |
 | `ToolErrorDef` / `ToolDefinition.errors[]` | `crates/atd-protocol/src/tool.rs` | ✅ | `tests/error_def_roundtrip.rs` | Added in SP-protocol-schema. Built-ins ship `errors: vec![]`; per-tool catalogs are a future SP. |
@@ -318,9 +318,9 @@ The binding trait's contract: given `args: serde_json::Value` and a `&CallContex
 | Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
 | `CapabilitySet` type + intersection logic | `crates/atd-runtime/src/capability.rs` | ✅ | — |
 | Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-runtime/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
-| UCAN-lite tokens (delegation, revocation, signatures) | — | 🔨 | SP-capability-v2 — design + plan landed, impl pending. Additive to the allow-list above. |
+| UCAN-lite tokens (delegation, revocation, signatures) | `crates/atd-runtime/src/ucan/` | ✅ (SP-capability-v2) | Landed 2026-05-11. JWT-shape + Ed25519 + did:key + chain attenuation + audience pin + revocation store. Additive to the allow-list above; granted = strings ∪ ucan. |
 
-The v1 capability gate is connection-scoped and allow-list-based — sufficient for the 80% case of "limit what an adopter's socket exposes." UCAN-lite tokens add per-call authorization with delegation chains and audience pinning, in flight as SP-capability-v2 (see §9.3 / §10). UCAN-lite is **additive**: existing SP-12 `--grant-capability` adopters keep working untouched; clients that supply `Hello.ucan_tokens` get `granted = granted_strings ∪ granted_ucan`.
+The v1 capability gate is connection-scoped and allow-list-based — sufficient for the 80% case of "limit what an adopter's socket exposes." UCAN-lite tokens (SP-capability-v2, landed 2026-05-11) add per-call authorization with delegation chains and audience pinning. UCAN-lite is **additive**: existing SP-12 `--grant-capability` adopters keep working untouched; clients that supply `Hello.ucan_tokens` get `granted = granted_strings ∪ granted_ucan`. See `crates/atd-runtime/src/ucan/` + §9.3 (gate-trigger note) + §10 row.
 
 #### 4.2.4 Result-middleware pipeline
 
@@ -417,13 +417,13 @@ Four specific runtime defenses run inside individual tools, not at the dispatch 
 
 v1's capability mechanism is the connection-scoped allow-list described in [§4.2.3](#423-capability-gate). Clients request capabilities via the `Hello` message; the server intersects with its `--grant-capability` allow-list; tools declaring `required_capabilities` outside the intersection are refused with `AtdError::CapabilityDenied` (code `1001`).
 
-UCAN-lite tokens (JWT-shape + Ed25519 + did:key; full v1.0 UCAN's DAG-CBOR rejected) are 🔨 in flight as SP-capability-v2 — see [§9.3](#9-non-goals-explicit) for the gate-trigger note (celia_phr Hermes orchestrator + sub-agent delegation) and [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design. UCAN is **additive** to the connection-scoped allow-list; adopters that don't supply tokens keep the SP-12 path unchanged.
+UCAN-lite tokens (JWT-shape + Ed25519 + did:key; full v1.0 UCAN's DAG-CBOR rejected) ✅ landed 2026-05-11 as SP-capability-v2 — see [§9.3](#9-non-goals-explicit) for the gate-trigger note (celia_phr Hermes orchestrator + sub-agent delegation), [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design, and `crates/atd-runtime/src/ucan/` for the impl. UCAN is **additive** to the connection-scoped allow-list; adopters that don't supply tokens keep the SP-12 path unchanged.
 
 | Component | Status | Notes |
 |---|---|---|
 | Connection-scoped allow-list | ✅ (SP-12) | See §4.2.3 |
-| UCAN delegation tree | 🔨 (SP-capability-v2) | Design landed; plan drafted; impl pending. See §9.3 for the status-change note, [§10](#10-evolution-path) for the row, and [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design. UCAN-lite = JWT-shape, Ed25519, did:key; additive to allow-list. |
-| Token revocation store | 🔨 (SP-capability-v2) | Per SP-capability-v2 §4.7: TTL is canonical bound; broker-internal revoke-list composes with SP-token-broker-phase2 §4.8; no on-chain anchoring. |
+| UCAN delegation tree | ✅ (SP-capability-v2, 2026-05-11) | UCAN-lite landed: JWT-shape + Ed25519 + did:key + 5-deep chain walker. See `crates/atd-runtime/src/ucan/{parse,verify}.rs`. Additive to the allow-list above. |
+| Token revocation store | ✅ (SP-capability-v2, 2026-05-11) | `UcanRevocationStore` trait + `InMemoryUcanRevocationStore` in `crates/atd-runtime/src/ucan/revocation.rs`. Consulted on every chain link during verification. Adopters wrap their durable store (e.g., celia's `consent.status='revoked'` rows) behind the same trait. |
 | Per-call agent identity tracking | ✅ (SP-operability-v1) | `CallContext.caller_id` populated from `Hello.client_id`; see `crates/atd-runtime/src/context.rs`. Prerequisite for UCAN tokens (§9.3). |
 
 ### 5.4 Audit logging
@@ -468,7 +468,7 @@ v1 security posture closes when:
 - Rate limiting + max_concurrent enforcement ✅ (landed — SP-operability-v1)
 - Dry-run consistency ✅ (landed — SP-operability-v1)
 - Per-call agent identity tracking ✅ (landed — SP-operability-v1)
-- UCAN-lite tokens 🔨 (SP-capability-v2 — design + plan landed, impl in flight; additive to allow-list)
+- UCAN-lite tokens ✅ (SP-capability-v2, 2026-05-11; additive to allow-list — granted = strings ∪ ucan)
 - Tool signature verification 🚫 (Phase 2)
 
 ### 5.8 Gap → SP mapping
@@ -479,7 +479,7 @@ v1 security posture closes when:
 | Rate limiting + max_concurrent | SP-operability-v1 | ✅ |
 | Dry-run consistency | SP-operability-v1 | ✅ |
 | Per-call agent identity | SP-operability-v1 | ✅ |
-| UCAN-lite tokens | SP-capability-v2 (design + plan landed, impl in flight) | 🔨 |
+| UCAN-lite tokens | SP-capability-v2 (landed 2026-05-11) | ✅ |
 | Tool signature verification | Phase 2 — see [§9.4](#9-non-goals-explicit) | 🚫 |
 
 ### 5.9 See also
@@ -746,7 +746,7 @@ UCAN's `aud` field (audience-pinned tokens) + chain attenuation (a child can str
 
 **What stays out of scope:** Full UCAN v1.0 normative compliance (DAG-CBOR rejected; JWT-shape adopted for HTTP-header ergonomics + JOSE infra reuse), multi-algorithm crypto, `did:web` / `did:agent`, OAuth shim, ZK / quorum signatures. See spec §3.
 
-**Tracked at §10 as:** `UCAN capability tokens (SP-capability-v2)` — design ✅, plan 🔨, implementation pending. Adopter validation: celia_phr (Hermes orchestrator delegation chain), healthkit_cli (passive — additive, no regression).
+**Tracked at §10 as:** `UCAN capability tokens (SP-capability-v2)` — design ✅, plan ✅, implementation ✅ landed 2026-05-11. Adopter validation pending: celia_phr (Hermes orchestrator delegation chain — see [`celia_phr/docs/sp-capability-v2-adopter.md`](file:///home/nan/code/pha/celia_phr/docs/sp-capability-v2-adopter.md)), healthkit_cli (passive — additive, no regression; see [`healthkit_cli/docs/sp-capability-v2-no-regression.md`](file:///home/nan/code/healthkit_cli/docs/sp-capability-v2-no-regression.md)).
 
 ### 9.4 Tool signature verification
 
@@ -814,7 +814,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
-| UCAN-lite capability tokens (SP-capability-v2) | Security | 🔨 | SP-capability-v2 | Q2 2026 | Design ✅ ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)); plan drafted ([`docs/superpowers/plans/2026-05-11-sp-capability-v2.md`](superpowers/plans/2026-05-11-sp-capability-v2.md)); impl pending. Gate triggered by celia_phr (Hermes orchestrator + sub-agent delegation). UCAN-lite = JWT-shape + Ed25519 + did:key only; additive to SP-12 string allow-list (Hello gains `ucan_tokens` field, granted = strings ∪ ucan). Replaces §9.3's prior 🚫 v1 deferral. |
+| UCAN-lite capability tokens (SP-capability-v2) | Security | ✅ | SP-capability-v2 | 2026-05-11 | Landed end-to-end across UDS + HTTP transports. Spec ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)) + plan ([`docs/superpowers/plans/2026-05-11-sp-capability-v2.md`](superpowers/plans/2026-05-11-sp-capability-v2.md)) + impl in `crates/atd-runtime/src/ucan/{parse,verify,revocation,types,error}.rs` + `Hello.ucan_tokens` wire field + 4 new wire codes (1010 INVALID / 1011 EXPIRED / 1012 TOO_DEEP / 1013 AUDIENCE_MISMATCH). Verified: 27 unit tests + 12 integration tests across atd-protocol/atd-runtime/atd-server/atd-server-http. Tag: `sp-capability-v2`. Gate triggered by celia_phr (Hermes orchestrator + sub-agent delegation). UCAN-lite = JWT-shape + Ed25519 + did:key only; additive to SP-12 string allow-list (Hello adds `ucan_tokens`, granted = strings ∪ ucan). Replaced §9.3's prior 🚫 v1 deferral. |
 | Tool signature verification | Security | 🚫 v1 | — | Phase 2 | Multi-publisher marketplace |
 | Multi-device routing | Dispatch | 🚫 v1 | — | Phase 2 | Device-vendor adopter |
 | Distributed sessions | Dispatch | 🚫 v1 | — | Phase 2 | Multi-device lands first |
