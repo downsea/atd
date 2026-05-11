@@ -17,8 +17,12 @@
 
 pub mod error;
 pub mod parse;
+pub mod revocation;
 pub mod types;
+pub mod verify;
 
-pub use error::UcanParseError;
+pub use error::{UcanParseError, UcanVerifyError, wire_code};
 pub use parse::parse_jwt;
+pub use revocation::UcanRevocationStore;
 pub use types::{UcanCapability, UcanHeader, UcanPayload};
+pub use verify::{VerifyConfig, compute_cid, verify_jwt, verify_tokens};

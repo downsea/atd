@@ -22,11 +22,17 @@ pub enum UcanParseError {
 
     /// Header or payload base64url-decode failed.
     #[error("base64url decode failed in {segment}: {reason}")]
-    Base64Decode { segment: &'static str, reason: String },
+    Base64Decode {
+        segment: &'static str,
+        reason: String,
+    },
 
     /// Header or payload JSON deserialize failed.
     #[error("JSON parse failed in {segment}: {reason}")]
-    JsonParse { segment: &'static str, reason: String },
+    JsonParse {
+        segment: &'static str,
+        reason: String,
+    },
 
     /// `header.alg != "EdDSA"`. Spec §4.3.
     #[error("unsupported alg: expected EdDSA, got {0:?}")]
@@ -65,5 +71,97 @@ impl UcanParseError {
             segment,
             reason: e.to_string(),
         }
+    }
+}
+
+/// Errors returned by [`crate::ucan::verify_jwt`] / `verify_tokens`.
+///
+/// Parse-stage failures bubble up as `Parse(_)` → wire code
+/// `ERR_UCAN_INVALID = 1010`. Other verify-stage failures map to:
+///
+/// | Variant | Wire code |
+/// |---|---|
+/// | `Parse`, `BadSignature`, `WideningAttenuation`, `MultiParentNotSupported`, `MalformedDidKey`, `MalformedSignature`, `ChainBroken` | 1010 ERR_UCAN_INVALID |
+/// | `Expired` | 1011 ERR_UCAN_EXPIRED |
+/// | `ChainTooDeep` | 1012 ERR_DELEGATION_TOO_DEEP |
+/// | `AudienceMismatch` | 1013 ERR_AUDIENCE_MISMATCH |
+/// | `Revoked` | 1010 ERR_UCAN_INVALID (with revoked-cid hint) |
+///
+/// All `retryable: false` (deterministic).
+#[derive(Debug, Error)]
+pub enum UcanVerifyError {
+    /// Underlying parse failure (any [`UcanParseError`] variant).
+    #[error("UCAN parse error: {0}")]
+    Parse(#[from] UcanParseError),
+
+    /// Ed25519 signature verification failed for the named token CID.
+    #[error("Ed25519 signature verification failed for token {cid}")]
+    BadSignature { cid: String },
+
+    /// Signature segment failed to base64url-decode or had wrong length.
+    #[error("malformed signature on token {cid}: {reason}")]
+    MalformedSignature { cid: String, reason: String },
+
+    /// `did:key:z...` failed to decode (bad multibase, wrong multicodec
+    /// prefix, or wrong key length).
+    #[error("malformed did:key in {field}: {reason}")]
+    MalformedDidKey { field: &'static str, reason: String },
+
+    /// A link's `exp <= now()`. Distinct from `Parse` because the token
+    /// was well-formed — it just lapsed.
+    #[error("UCAN expired at link {cid}: exp={exp}, now={now}")]
+    Expired { cid: String, exp: i64, now: i64 },
+
+    /// Child claims caps the parent did not grant.
+    #[error("attenuation widening at link {cid}: parent={parent:?}, child={child:?}")]
+    WideningAttenuation {
+        cid: String,
+        parent: Vec<String>,
+        child: Vec<String>,
+    },
+
+    /// Link N's `iss` doesn't match link N-1's `aud`. The chain is broken.
+    #[error(
+        "chain broken between {parent_cid} (aud={parent_aud}) and {child_cid} (iss={child_iss})"
+    )]
+    ChainBroken {
+        parent_cid: String,
+        parent_aud: String,
+        child_cid: String,
+        child_iss: String,
+    },
+
+    /// The leaf's `aud` doesn't match the configured expected audience.
+    #[error("audience mismatch: leaf.aud={leaf_aud}, expected={expected}")]
+    AudienceMismatch { leaf_aud: String, expected: String },
+
+    /// The chain exceeds the configured `max_chain_depth`.
+    #[error("chain too deep: depth={depth}, max={max}")]
+    ChainTooDeep { depth: u8, max: u8 },
+
+    /// A link's CID was in the revocation store.
+    #[error("UCAN revoked: cid={cid}")]
+    Revoked { cid: String },
+
+    /// `prf` field has more than one parent. UCAN v1.0 spec allows
+    /// multi-parent; SP-capability-v2 v1 supports single-chain only.
+    #[error("multi-parent UCAN not supported in v1 (link {cid} has {n_parents} parents)")]
+    MultiParentNotSupported { cid: String, n_parents: usize },
+}
+
+/// Wire-code mapping per [`UcanVerifyError`] variant.
+///
+/// Returns `(code, retryable)` for use by dispatch when converting a
+/// verify error into a `Response::Error`. All verify errors are
+/// non-retryable (deterministic on the same input).
+pub fn wire_code(err: &UcanVerifyError) -> u16 {
+    use atd_protocol::{
+        ERR_AUDIENCE_MISMATCH, ERR_DELEGATION_TOO_DEEP, ERR_UCAN_EXPIRED, ERR_UCAN_INVALID,
+    };
+    match err {
+        UcanVerifyError::Expired { .. } => ERR_UCAN_EXPIRED,
+        UcanVerifyError::ChainTooDeep { .. } => ERR_DELEGATION_TOO_DEEP,
+        UcanVerifyError::AudienceMismatch { .. } => ERR_AUDIENCE_MISMATCH,
+        _ => ERR_UCAN_INVALID,
     }
 }

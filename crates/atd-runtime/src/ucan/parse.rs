@@ -213,7 +213,10 @@ mod tests {
         let tok = "!!!.aaaa.bbbb";
         assert!(matches!(
             parse_jwt(tok),
-            Err(UcanParseError::Base64Decode { segment: "header", .. })
+            Err(UcanParseError::Base64Decode {
+                segment: "header",
+                ..
+            })
         ));
     }
 

@@ -21,10 +21,14 @@ thiserror = { workspace = true }
 ulid = { workspace = true }
 regex = "1"
 
-# SP-capability-v2: UCAN-lite JWT compact-form decoding.
-# Phase B.1 (ucan::parse) needs base64url. Phase B.2 (ucan::verify) will add
-# ed25519-dalek (signature) + multibase (did:key key extraction).
+# SP-capability-v2: UCAN-lite JWT compact-form parse + verify.
+# Phase B.1: base64. Phase B.2: ed25519-dalek (signature verify) +
+# multibase (did:key public-key extraction) + sha2 (UCAN CID hashing
+# for revocation-store keying).
 base64 = "0.22"
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast"] }
+multibase = "0.9"
+sha2 = "0.10"
 
 [features]
 testing = []

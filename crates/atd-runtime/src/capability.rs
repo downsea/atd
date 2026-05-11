@@ -47,6 +47,16 @@ impl CapabilitySet {
         }
         (granted, denied)
     }
+
+    /// Union two capability sets. Used by SP-capability-v2 dispatch to
+    /// combine SP-12 string-allow-list results with UCAN-derived caps
+    /// (spec §4.2: `granted = granted_strings ∪ granted_ucan`). Returns
+    /// a new set; neither input is mutated.
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            granted: self.granted.union(&other.granted).cloned().collect(),
+        }
+    }
 }
 
 impl FromIterator<String> for CapabilitySet {
