@@ -323,7 +323,7 @@ ATD_SOCK=/tmp/my-atd.sock \
 
 **stdio vs HTTP confusion**
 
-The bridge speaks MCP over stdio (stdin/stdout), not HTTP. Clients that support only HTTP-based MCP servers cannot use `atd-mcp-bridge`. All three clients covered in this guide (Claude Desktop, Claude Code, Cursor) support stdio-based MCP servers. HTTP transport is planned for ATD Phase 2 but is not yet available.
+The bridge speaks MCP over stdio (stdin/stdout), not HTTP. Clients that support only HTTP-based MCP servers cannot use `atd-mcp-bridge` — but ATD itself now has an HTTP transport (the `atd-server-http` crate, landed 2026-05-11 via SP-streamable-http + SP-1.B). Such clients can point at an ATD server speaking HTTP directly, without going through the stdio bridge. All three clients covered in this guide (Claude Desktop, Claude Code, Cursor) still default to stdio-based MCP servers and use `atd-mcp-bridge` as the easiest path.
 
 ---
 

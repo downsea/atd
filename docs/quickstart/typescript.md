@@ -34,7 +34,7 @@ export class AtdClient {
 - `discover` will support the same `query` + `filter` parameters as the Rust and Python SDKs. Filtering will be applied client-side.
 - `call` uses a generic `T` type parameter for the success data payload. The default is `unknown`, which requires callers to narrow the type themselves.
 - `ToolResult<T>` will be a discriminated union: `{ success: true; data: T; metadata: ToolResultMetadata } | { success: false; code: string; message: string; retryable: boolean }`.
-- Transport in Phase 1 will be Unix socket (same as Rust/Python). HTTP transport is Phase 2.
+- Transport in Phase 1 will be Unix socket (same as Rust/Python). HTTP transport landed 2026-05-11 on the server side (`atd-server-http` crate, SP-streamable-http + SP-1.B); the TS SDK can target either Unix socket (matching Rust/Python ergonomics) or HTTP (matching browser/Node fetch ergonomics) once concrete TS adopter requirements surface.
 - The package will be published as `@atd-protocol/client` on npm.
 
 The full planned API including `DiscoverFilter`, `CallOptions`, `ToolSummary`, `ToolDefinition`, and the error types follows the same semantics as the Rust reference implementation. See `crates/atd-client/src/` for the authoritative behavior specification.

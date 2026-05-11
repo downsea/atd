@@ -319,12 +319,12 @@ minimal client.
 
 Honest gaps, for expectations management:
 
-- **REST-only agents without MCP support** — no HTTP transport in
-  v0.1.0. Unix socket / stdio only. Phase 2 plans HTTP; no timeline.
 - **Cloud-only agent platforms (e.g., closed SaaS without local agent
-  access)** — ATD is a local-dispatch protocol. Cloud integration
-  requires the vendor to embed `atd-sdk` or an MCP bridge in
-  their runtime.
+  access)** — ATD's HTTP transport (`atd-server-http`, landed 2026-05-11
+  via SP-streamable-http + SP-1.B) opens this surface. First cloud-hosted
+  adopter is `celia_phr`. TLS termination + OAuth/OIDC remain adopter-side;
+  ATD owns transport + bearer plumbing. See architecture §10 and
+  `crates/atd-server-http/`.
 - **Agent platforms that require Apache-2.0-incompatible licensing** —
   ATD is Apache-2.0. Dual-licensed integrations are possible but not
   shipped.

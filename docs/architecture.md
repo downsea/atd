@@ -160,7 +160,7 @@ Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/
 | Dispatch · ergonomic aliases | [§4.2.6](#426-ergonomic-aliases) | — | ❌ SDK-only; planned |
 | Security · classifications | [§5.1](#51-classification-taxonomy) | `crates/atd-protocol/` | ✅ |
 | Security · per-tool runtime controls | [§5.2](#52-per-tool-runtime-controls) | per-tool files in `crates/atd-tools-*/src/` | ✅ where applicable |
-| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` | ✅ v1 (allow-list); full HMAC/UCAN 🚫 |
+| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` | ✅ v1 (allow-list); UCAN-lite 🔨 (SP-capability-v2 design landed, plan drafted) |
 | Security · audit logging | [§5.4](#54-audit-logging) | — | ❌ |
 | Security · rate limiting & concurrency | [§5.5](#55-rate-limiting-and-concurrency) | — | ❌ |
 | Security · dry-run consistency | [§5.6](#56-dry-run-consistency) | per-tool files | ⚠️ |
@@ -230,7 +230,7 @@ The schema layer does NOT own: dispatch behavior, security enforcement, binding 
 | `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
 | `ToolResources.max_concurrent` | same | 📜 | — | Same — declared, not enforced |
 | `ToolTrust.signature` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
-| `CapabilityToken` / UCAN types | — | 🚫 | — | See [§9.3](#9-non-goals-explicit) |
+| UCAN payload types (`UcanPayload`, `UcanChain`, `DidKey`) | — | 🔨 | — | SP-capability-v2 spec ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)) §5 defines wire shape. Lands in `atd-protocol::ucan` when SP-capability-v2 plan executes. |
 | Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-sdk/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
 | `ToolDefinition.output_schema` | `crates/atd-protocol/src/tool.rs` | ✅ | tool roundtrip tests | Was previously unlisted; surfaced in describe responses. |
 | `ToolErrorDef` / `ToolDefinition.errors[]` | `crates/atd-protocol/src/tool.rs` | ✅ | `tests/error_def_roundtrip.rs` | Added in SP-protocol-schema. Built-ins ship `errors: vec![]`; per-tool catalogs are a future SP. |
@@ -318,9 +318,9 @@ The binding trait's contract: given `args: serde_json::Value` and a `&CallContex
 | Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
 | `CapabilitySet` type + intersection logic | `crates/atd-runtime/src/capability.rs` | ✅ | — |
 | Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-runtime/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
-| Full UCAN-style tokens (delegation, revocation, signatures) | — | 🚫 | See [§9.3](#9-non-goals-explicit) |
+| UCAN-lite tokens (delegation, revocation, signatures) | — | 🔨 | SP-capability-v2 — design + plan landed, impl pending. Additive to the allow-list above. |
 
-The v1 capability gate is connection-scoped and allow-list-based. Token-based per-call authorization is deferred; the allow-list closes the 80% case of "limit what an adopter's socket exposes" without the cryptographic complexity of full UCAN.
+The v1 capability gate is connection-scoped and allow-list-based — sufficient for the 80% case of "limit what an adopter's socket exposes." UCAN-lite tokens add per-call authorization with delegation chains and audience pinning, in flight as SP-capability-v2 (see §9.3 / §10). UCAN-lite is **additive**: existing SP-12 `--grant-capability` adopters keep working untouched; clients that supply `Hello.ucan_tokens` get `granted = granted_strings ∪ granted_ucan`.
 
 #### 4.2.4 Result-middleware pipeline
 
@@ -417,13 +417,13 @@ Four specific runtime defenses run inside individual tools, not at the dispatch 
 
 v1's capability mechanism is the connection-scoped allow-list described in [§4.2.3](#423-capability-gate). Clients request capabilities via the `Hello` message; the server intersects with its `--grant-capability` allow-list; tools declaring `required_capabilities` outside the intersection are refused with `AtdError::CapabilityDenied` (code `1001`).
 
-Cryptographically signed, delegatable UCAN-style tokens are 🚫 non-goal for v1; see [§9.3](#9-non-goals-explicit) for the deferral rationale and for the interim multi-tenant workaround (separate sockets per access tier).
+UCAN-lite tokens (JWT-shape + Ed25519 + did:key; full v1.0 UCAN's DAG-CBOR rejected) are 🔨 in flight as SP-capability-v2 — see [§9.3](#9-non-goals-explicit) for the gate-trigger note (celia_phr Hermes orchestrator + sub-agent delegation) and [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design. UCAN is **additive** to the connection-scoped allow-list; adopters that don't supply tokens keep the SP-12 path unchanged.
 
 | Component | Status | Notes |
 |---|---|---|
 | Connection-scoped allow-list | ✅ (SP-12) | See §4.2.3 |
-| UCAN delegation tree | 🚫 | See [§9.3](#9-non-goals-explicit) |
-| Token revocation store | 🚫 | Same |
+| UCAN delegation tree | 🔨 (SP-capability-v2) | Design landed; plan drafted; impl pending. See §9.3 for the status-change note, [§10](#10-evolution-path) for the row, and [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design. UCAN-lite = JWT-shape, Ed25519, did:key; additive to allow-list. |
+| Token revocation store | 🔨 (SP-capability-v2) | Per SP-capability-v2 §4.7: TTL is canonical bound; broker-internal revoke-list composes with SP-token-broker-phase2 §4.8; no on-chain anchoring. |
 | Per-call agent identity tracking | ✅ (SP-operability-v1) | `CallContext.caller_id` populated from `Hello.client_id`; see `crates/atd-runtime/src/context.rs`. Prerequisite for UCAN tokens (§9.3). |
 
 ### 5.4 Audit logging
@@ -468,7 +468,7 @@ v1 security posture closes when:
 - Rate limiting + max_concurrent enforcement ✅ (landed — SP-operability-v1)
 - Dry-run consistency ✅ (landed — SP-operability-v1)
 - Per-call agent identity tracking ✅ (landed — SP-operability-v1)
-- Full UCAN tokens 🚫 (Phase 2)
+- UCAN-lite tokens 🔨 (SP-capability-v2 — design + plan landed, impl in flight; additive to allow-list)
 - Tool signature verification 🚫 (Phase 2)
 
 ### 5.8 Gap → SP mapping
@@ -479,7 +479,7 @@ v1 security posture closes when:
 | Rate limiting + max_concurrent | SP-operability-v1 | ✅ |
 | Dry-run consistency | SP-operability-v1 | ✅ |
 | Per-call agent identity | SP-operability-v1 | ✅ |
-| UCAN tokens | Phase 2 — see [§9.3](#9-non-goals-explicit) | 🚫 |
+| UCAN-lite tokens | SP-capability-v2 (design + plan landed, impl in flight) | 🔨 |
 | Tool signature verification | Phase 2 — see [§9.4](#9-non-goals-explicit) | 🚫 |
 
 ### 5.9 See also
@@ -646,11 +646,13 @@ The current crate layout (post-`SP-refactor-v1`) cleanly separates each logical 
 | **Rust SDK** | `atd-sdk` | ✅ | Renamed from `atd-client` in SP-refactor-v1. Adapters feature-gated. |
 | **Python SDK** | `python/src/atd_client/` | ⚠️ pending Python-mirror SP | Still named `atd_client`; rename deferred. |
 | **Runtime** (`Tool` trait, `Registry`, dispatch, binding, middleware, tier, capability) | `atd-runtime` | ✅ | Extracted from `atd-ref-server` in SP-refactor-v1. Transport-agnostic. |
-| **Server transport** (Unix-socket listener, accept loop, per-connection task) | `atd-server` | ✅ | Extracted from `atd-ref-server` in SP-listener-extract (triggered by `healthkit_cli` first-vendor-server signal). Pair with `atd-runtime` to host any ATD-speaking server. |
+| **Server transport (Unix socket)** (Unix-socket listener, accept loop, per-connection task) | `atd-server` | ✅ | Extracted from `atd-ref-server` in SP-listener-extract (triggered by `healthkit_cli` first-vendor-server signal). Pair with `atd-runtime` to host any ATD-speaking server. |
+| **Server transport (HTTP)** (HTTP listener + MCP JSON-RPC translator + bearer auth) | `atd-server-http` | ✅ | Landed via SP-streamable-http + SP-1.B (2026-05-11). Sibling of `atd-server`; consumes the same `atd-runtime::Registry`. First adopter: `celia_phr` (`celia-cli` migrated its `/mcp` route to delegate here). |
 | **Built-in tools** (echo, fs, shell, web) | `atd-tools-echo`, `atd-tools-fs`, `atd-tools-shell`, `atd-tools-web` | ✅ | Split per-domain in SP-refactor-v1. |
 | **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
 | **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
 | **Ref-server binary** | `atd-ref-server` (binary name `atd-ref-server`) | ✅ | Slim wiring of `atd-server` + `atd-runtime` + `atd-tools-*` into the reference / demo binary. |
+| **Cross-vendor demo bin** | `atd-mock-weather-server` | ✅ | 3 canned `mock:weather.*` tools for the cross-vendor composition demo (SP-cross-vendor-mock-demo). Boots side-by-side with `healthkit_cli` via `scripts/cross-vendor-demo.sh`. |
 | **Examples** | `examples/` (not published) | ✅ | |
 | **Conformance suite** (future) | not yet | ❌ | Future SP (SP-8) |
 
@@ -670,13 +672,24 @@ atd-protocol
            ├── atd-tools-fs
            ├── atd-tools-shell
            ├── atd-tools-web
-           └── atd-server (Unix-socket listener + connection task)
+           ├── atd-server (Unix-socket listener + connection task)
+           │       ▲
+           │       ├── atd-ref-server (slim binary: wires runtime + tools + server)
+           │       │       ▲
+           │       │       └── atd-mock-weather-server (cross-vendor demo bin;
+           │       │           SP-cross-vendor-mock-demo)
+           │       │
+           │       └── + vendor servers (e.g. healthkit_cli's atd_server)
+           │           depend directly on atd-runtime + atd-server,
+           │           skip atd-ref-server entirely
+           │
+           └── atd-server-http (HTTP listener + MCP JSON-RPC translator
+                                + bearer auth via TokenBroker)
                    ▲
-                   └── atd-ref-server (slim binary: wires runtime + tools + server)
-                       │
-                       └── + future vendor servers (e.g. healthkit-server)
-                           depend directly on atd-runtime + atd-server,
-                           skip atd-ref-server entirely
+                   └── + vendor HTTP servers (e.g. celia_phr's celia-cli)
+                       depend on atd-runtime + atd-server-http;
+                       first cloud-hosted adopter, triggered HTTP-transport
+                       gate (architecture §9.7 → §10).
 ```
 
 Python SDK (`python/src/atd_client/`) mirrors `atd-protocol` + `atd-sdk` as a standalone Python package with its own sanitize + adapters. Python rename to `atd_sdk` is a deferred SP.
@@ -718,15 +731,22 @@ These are intentional exclusions for v1.x. Each entry states: what the non-goal 
 
 **Re-opens when:** Multi-device routing lands AND an adopter has a cross-device agent use case (e.g., start on watch, finish on phone).
 
-### 9.3 Full UCAN capability tokens
+### 9.3 ~~Full UCAN capability tokens~~ — gate triggered 2026-05-11; tracked under §10 as SP-capability-v2
 
-**What:** Cryptographically signed, delegation-tree-based, revocable capability tokens per the UCAN spec.
+**Status change (2026-05-11):** Previously deferred under the gate "multi-tenant deployment needs per-agent authorization finer than per-socket." That gate framing was incorrect — the *real* gate is **sub-agent delegation**, which a concrete adopter (`celia_phr`) has been articulating for some time:
 
-**Why deferred:** The v1 connection-scoped allow-list (§4.2.3) closes the single-tenant use case. Full UCAN's complexity is justified only when multi-tenant deployments with agent-to-agent delegation actually exist. Implementing UCAN before the use case risks wrong primitives.
+> "Agent A may delegate read-only access to Patient X to its sub-agent B."
+> — celia `ATD_FUTURE_ISSUES.md:30-32`
 
-**Interim workaround:** Run multiple ATD sockets per access tier (dev / prod / read-only). Each socket grants a different `--grant-capability` allow-list. Documented in [`docs/integrations/overview.md`](integrations/overview.md).
+Today celia's RBAC is a flat exact-string match: two agents collaborating on one PHR session must both appear in the `consent` table independently — the user must re-pair B from scratch even though A already holds a superset authority and wants to lend a subset. **Hermes's "orchestrator + N specialised children" workflow is held back by exactly this.**
 
-**Re-opens when:** A multi-tenant deployment needs per-agent authorization finer than per-socket.
+UCAN's `aud` field (audience-pinned tokens) + chain attenuation (a child can strip caps but cannot add them) map 1:1 to celia's existing `consent.scope` column without semantic translation — see [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) §1.2 + §4.5.
+
+**What lands:** A UCAN-lite profile (JWT-shape on the wire, Ed25519 only, `did:key` only) additive to the SP-12 string allow-list. `Hello` gains an optional `ucan_tokens` field; when non-empty, granted caps = `granted_strings ∪ granted_ucan`. SP-12 adopters keep working untouched.
+
+**What stays out of scope:** Full UCAN v1.0 normative compliance (DAG-CBOR rejected; JWT-shape adopted for HTTP-header ergonomics + JOSE infra reuse), multi-algorithm crypto, `did:web` / `did:agent`, OAuth shim, ZK / quorum signatures. See spec §3.
+
+**Tracked at §10 as:** `UCAN capability tokens (SP-capability-v2)` — design ✅, plan 🔨, implementation pending. Adopter validation: celia_phr (Hermes orchestrator delegation chain), healthkit_cli (passive — additive, no regression).
 
 ### 9.4 Tool signature verification
 
@@ -752,13 +772,17 @@ These are intentional exclusions for v1.x. Each entry states: what the non-goal 
 
 **Re-opens when:** Never, likely. ATD and Skills are designed to coexist, not merge.
 
-### 9.7 HTTP transport for the wire protocol
+### 9.7 ~~HTTP transport for the wire protocol~~ — moved to §10 (gate triggered 2026-05-11)
 
-**What:** Running the ATD wire protocol over HTTP/JSON (as opposed to Unix socket + stdio).
+**Status change (2026-05-11):** This non-goal opened. The gate condition ("a cloud-hosted ATD deployment surfaces a real need") was triggered by the `celia_phr` adopter in 2026-05. Three SPs cover the evolution:
 
-**Why deferred:** HTTP is a Phase 2 goal per `docs/design.md`. Requires: routing / auth / TLS / path structure / streaming decisions. No current adopter needs it; MCP bridge covers most remote-reach cases.
+- [`SP-streamable-http`](superpowers/specs/2026-05-11-sp-streamable-http-design.md) — HTTP transport design (MCP JSON-RPC translator, origin gate, SSE for streaming)
+- [`SP-token-broker-phase2`](superpowers/specs/2026-05-11-sp-token-broker-phase2-design.md) — bearer auth wire integration (`BearerIdentity` + `resolve_bearer`)
+- **SP-1.B implementation** — no formal plan was drafted; landed directly as commits `db3287c` (phase-2 spec) → `dcdfd92` (`BearerIdentity` + `resolve_bearer`) → `0448aad` (HTTP transport body in new `atd-server-http` crate, see §8.2)
 
-**Re-opens when:** A cloud-hosted ATD deployment surfaces a real need. Meanwhile, wrap ATD in an HTTP service if needed — the Unix socket is still beneath.
+The corresponding §10 row is now ✅ instead of 🚫. The historical 🚫 deferral rationale is preserved in git at tag `whitepaper-atd-v3`. Adopters seeking the HTTP transport contract should read SP-streamable-http and the `atd-server-http` crate, not this section.
+
+**Open Phase-2 follow-ups (still 🚫 v1):** TLS termination, OAuth/OIDC integration, request signing — these remain adopter-side (Celia's `CeliaConsentTokenBroker` is the reference adopter pattern). ATD owns transport + bearer plumbing; adopters own credential issuance.
 
 ## 10. Evolution path
 
@@ -784,15 +808,18 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | Skills meta-tool convention + `atd skills sync` | Skills (adjacent) | ✅ | SP-skills-discovery-convention | 2026-04-27 | Landed; convention defined in [`docs/protocol/wire-format.md`](protocol/wire-format.md#11-skills-meta-tool-convention) §11; `atd skills sync` subcommand ships in atd-cli with hermes / claude-code / stdout targets; `healthkit_cli` v1.3.0 first adopter, exposing 26 SKILL.md files via `huawei:hms.healthkit.skills.list/get`. §7.3 softened: ATD ships an optional sync helper but does not own per-platform install paths. Promotion to wire-level `Request::SkillList/Get` deferred until 2+ vendors adopt without divergence. |
 | Cross-vendor composition demo (`atd-mock-weather-server`) | Cross-cutting | ✅ | SP-cross-vendor-mock-demo | 2026-04-27 | Landed; new bin crate `atd-mock-weather-server` with 3 canned `mock:weather.*` tools; `scripts/cross-vendor-demo.sh` boots healthkit + mock-weather side-by-side; [`docs/integrations/cross-vendor-pattern.md`](integrations/cross-vendor-pattern.md) documents the composition pattern. Closes #5 option (a). Real second-vendor adopter (#5 (b)/(c)) deferred; live LLM transcript capture is a human follow-up. |
 | `TokenBroker` extension point (Phase 1) | Dispatch | ✅ | SP-token-broker-phase1 | 2026-04-27 | Landed; `atd-runtime::TokenBroker` trait + `RedactedString` + `InMemoryTokenBroker` reference impl; plumbed through `ServerConfig::token_broker` and `CallContext::secrets`; new `ERR_BROKER_FAILED = 1003` wire code; audit `CallEvent` gains `secrets_resolved: bool`. No protocol message change. Closes Phase 1 of #4; Phase 2 (healthkit_cli adoption) and Phase 3 (live two-tenant demo) deferred to follow-up SPs. |
+| `TokenBroker` Phase 2 — bearer auth on the wire | Dispatch (security) | 🔨 | SP-token-broker-phase2 | 2026-05-11 | Design landed (`db3287c`); `BearerIdentity` + `TokenBroker::resolve_bearer` runtime trait landed (`dcdfd92`). Adopter integration validated via `celia_phr`'s `CeliaConsentTokenBroker` (11 smoke tests green). No formal plan; remaining work tracked as commits on master. |
+| HTTP transport (`atd-server-http` crate) | Dispatch (transport) | ✅ | SP-streamable-http + SP-1.B | 2026-05-11 | Landed; design at [`docs/superpowers/specs/2026-05-11-sp-streamable-http-design.md`](superpowers/specs/2026-05-11-sp-streamable-http-design.md); ref impl in `crates/atd-server-http/` (commits `758ce40` spec / `dcdfd92` runtime / `0448aad` body). MCP JSON-RPC translator + origin gate + bearer auth. Replaces §9.7's prior 🚫 v1 deferral — gate condition ("cloud-hosted adopter") triggered by `celia_phr` 2026-05. Phase-2 follow-ups still 🚫: TLS termination, OAuth/OIDC, request signing — adopter-side. |
+| Medical middleware suite (FHIR validation + PHI redaction) | Dispatch (middleware) | 📜 | SP-medical-middleware | 2026-05-11 | Design only ([`docs/superpowers/specs/2026-05-11-sp-medical-middleware-design.md`](superpowers/specs/2026-05-11-sp-medical-middleware-design.md), `c269ce8`); no implementation yet. Tracked here because middleware suite would land in `atd-runtime` and become a built-in option; first adopter would be `celia_phr` (PHR domain). |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
 | AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
-| Full UCAN capability tokens | Security | 🚫 v1 | — | Phase 2 | Multi-tenant adopter |
+| UCAN-lite capability tokens (SP-capability-v2) | Security | 🔨 | SP-capability-v2 | Q2 2026 | Design ✅ ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)); plan drafted ([`docs/superpowers/plans/2026-05-11-sp-capability-v2.md`](superpowers/plans/2026-05-11-sp-capability-v2.md)); impl pending. Gate triggered by celia_phr (Hermes orchestrator + sub-agent delegation). UCAN-lite = JWT-shape + Ed25519 + did:key only; additive to SP-12 string allow-list (Hello gains `ucan_tokens` field, granted = strings ∪ ucan). Replaces §9.3's prior 🚫 v1 deferral. |
 | Tool signature verification | Security | 🚫 v1 | — | Phase 2 | Multi-publisher marketplace |
 | Multi-device routing | Dispatch | 🚫 v1 | — | Phase 2 | Device-vendor adopter |
 | Distributed sessions | Dispatch | 🚫 v1 | — | Phase 2 | Multi-device lands first |
 | Native Skills-layer integration | Cross-cutting | 🚫 forever | — | — | Intentionally separate project |
-| HTTP transport | Dispatch | 🚫 v1 | — | Phase 2 | Cloud-hosted ATD adopter |
+| ~~HTTP transport~~ | Dispatch | ✅ | SP-streamable-http + SP-1.B | 2026-05-11 | **Moved up** — see HTTP transport row above. Gate condition triggered by `celia_phr` adopter; row retained as a marker of the 🚫→✅ transition. |
 
 ### 10.1 Update cadence
 
