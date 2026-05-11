@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use atd_runtime::secrets::BearerIdentity;
 use atd_server_http::HttpServerConfig;
-use common::{echo_registry, spawn_server, FixedBroker};
+use common::{FixedBroker, echo_registry, spawn_server};
 
 use http_body_util::BodyExt;
 use hyper::body::Bytes;
@@ -50,8 +50,7 @@ fn config_with_broker(require_bearer: bool, token: &str, caller: &str) -> HttpSe
         expires_at: None,
         cache_until: None,
     };
-    let broker: Arc<dyn atd_runtime::TokenBroker> =
-        Arc::new(FixedBroker::new(token, identity));
+    let broker: Arc<dyn atd_runtime::TokenBroker> = Arc::new(FixedBroker::new(token, identity));
 
     let mut shared = atd_runtime::dispatch::SharedServerConfig::for_test();
     shared.token_broker = Some(broker);

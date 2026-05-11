@@ -20,7 +20,10 @@ fn post_url(addr: std::net::SocketAddr) -> String {
 }
 
 async fn post_json(
-    client: &Client<hyper_util::client::legacy::connect::HttpConnector, http_body_util::Full<Bytes>>,
+    client: &Client<
+        hyper_util::client::legacy::connect::HttpConnector,
+        http_body_util::Full<Bytes>,
+    >,
     url: &str,
     body: serde_json::Value,
 ) -> (hyper::StatusCode, serde_json::Value) {

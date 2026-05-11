@@ -22,12 +22,12 @@ mod common;
 use std::sync::Arc;
 
 use atd_protocol::Response;
+use atd_runtime::TierPolicy;
 use atd_runtime::capability::CapabilitySet;
 use atd_runtime::dispatch::{ServerState, SharedServerConfig};
 use atd_runtime::tracker::ReadTracker;
-use atd_runtime::TierPolicy;
 use atd_server_http::HttpServerConfig;
-use common::{echo_registry, spawn_server, EchoStub};
+use common::{EchoStub, echo_registry, spawn_server};
 
 use http_body_util::BodyExt;
 use hyper::body::Bytes;

@@ -244,8 +244,7 @@ fn build_caps(state: &ServerState, identity: Option<&BearerIdentity>) -> Capabil
     let Some(id) = identity else {
         return CapabilitySet::empty();
     };
-    let allow =
-        CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
+    let allow = CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
     let (granted, _denied) = allow.intersect(&id.granted_capabilities);
     CapabilitySet::from_iter(granted)
 }
@@ -310,10 +309,7 @@ pub fn wrap_tool_response(id: Option<Value>, resp: Response) -> axum::response::
                 json!({"jsonrpc":"2.0", "error": {"code": jsonrpc_code, "message": "serialise"}})
             });
             if !data.is_empty() {
-                if let Some(err_obj) = value
-                    .get_mut("error")
-                    .and_then(|e| e.as_object_mut())
-                {
+                if let Some(err_obj) = value.get_mut("error").and_then(|e| e.as_object_mut()) {
                     err_obj.insert("data".into(), Value::Object(data));
                 }
             }
@@ -342,7 +338,7 @@ mod tests {
     fn stub_def(id: &str) -> atd_protocol::ToolDefinition {
         use atd_protocol::{
             BindingProtocol, SafetyLevel, ToolBinding, ToolCapability, ToolResources, ToolSafety,
-            ToolTrust, ToolTier, ToolVisibility, TrustLevel,
+            ToolTier, ToolTrust, ToolVisibility, TrustLevel,
         };
         let _ = ToolTier::Warm; // ensure import path is correct
         atd_protocol::ToolDefinition {
@@ -463,10 +459,12 @@ mod tests {
         let resp = handle_tools_call(Some(json!(4)), &state, None, params).await;
         let body = body_to_json(resp).await;
         assert_eq!(body["error"]["code"], -32602);
-        assert!(body["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("missing"));
+        assert!(
+            body["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("missing")
+        );
     }
 
     #[tokio::test]
@@ -477,9 +475,11 @@ mod tests {
         let body = body_to_json(resp).await;
         // Wrapped in JSON-RPC error (Response::Error → -32603 / tool not found message).
         assert_eq!(body["error"]["code"], -32603);
-        assert!(body["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("tool not found"));
+        assert!(
+            body["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("tool not found")
+        );
     }
 }

@@ -78,11 +78,11 @@ mod tests {
             &headers_with_origin("https://localhost:8443"),
             &[]
         ));
-        assert!(origin_allowed(&headers_with_origin("tauri://localhost"), &[]));
         assert!(origin_allowed(
-            &headers_with_origin("tauri://custom"),
+            &headers_with_origin("tauri://localhost"),
             &[]
         ));
+        assert!(origin_allowed(&headers_with_origin("tauri://custom"), &[]));
     }
 
     #[test]

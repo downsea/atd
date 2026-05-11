@@ -64,9 +64,7 @@ pub async fn resolve_bearer(
     };
 
     let Some(broker) = broker else {
-        return BearerOutcome::Rejected(
-            "token broker not configured for HTTP bearer auth".into(),
-        );
+        return BearerOutcome::Rejected("token broker not configured for HTTP bearer auth".into());
     };
 
     match broker.resolve_bearer(token).await {
@@ -81,7 +79,9 @@ pub async fn resolve_bearer(
         }
         Err(BrokerError::Expired) => BearerOutcome::Rejected("bearer expired".into()),
         Err(BrokerError::Revoked(msg)) => BearerOutcome::Rejected(format!("bearer revoked: {msg}")),
-        Err(BrokerError::Lookup(msg)) => BearerOutcome::Rejected(format!("bearer malformed: {msg}")),
+        Err(BrokerError::Lookup(msg)) => {
+            BearerOutcome::Rejected(format!("bearer malformed: {msg}"))
+        }
         Err(BrokerError::Internal(msg)) => {
             BearerOutcome::Rejected(format!("broker internal error: {msg}"))
         }
@@ -212,7 +212,10 @@ mod tests {
     #[tokio::test]
     async fn non_bearer_authorization_header_treated_as_missing() {
         let mut h = HeaderMap::new();
-        h.insert("authorization", HeaderValue::from_static("Basic Zm9vOmJhcg=="));
+        h.insert(
+            "authorization",
+            HeaderValue::from_static("Basic Zm9vOmJhcg=="),
+        );
         // No "Bearer " prefix → treated as if header absent.
         let outcome = resolve_bearer(&h, None, false).await;
         assert!(matches!(outcome, BearerOutcome::Anonymous));
