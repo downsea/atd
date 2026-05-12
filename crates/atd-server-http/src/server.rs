@@ -107,6 +107,8 @@ impl ServerBuilder {
                     ucan_revocation_store: arc.ucan_revocation_store.clone(),
                     frame_deadline_active_ms: arc.frame_deadline_active_ms,
                     frame_deadline_handshake_ms: arc.frame_deadline_handshake_ms,
+                    cursor_signing_key: arc.cursor_signing_key,
+                    cursor_ttl_seconds: arc.cursor_ttl_seconds,
                 }
             }),
             tier_policy: self.tier_policy,

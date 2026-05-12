@@ -54,6 +54,12 @@ impl Server {
             // and can be tuned via a future ServerConfig surfacing.
             frame_deadline_active_ms: 30_000,
             frame_deadline_handshake_ms: 5_000,
+            // SP-pagination-v1 §4.5: random signing key per process so cursor
+            // forgery requires a process-memory compromise. Operators wanting
+            // cross-instance cursors (load-balanced deployments) override via
+            // ATD_CURSOR_SIGNING_KEY env (Phase D wires the env read).
+            cursor_signing_key: atd_runtime::cursor::random_signing_key(),
+            cursor_ttl_seconds: 300,
         };
         Self {
             state: Arc::new(ServerState {

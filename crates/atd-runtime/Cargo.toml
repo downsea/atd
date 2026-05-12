@@ -30,5 +30,15 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std", "f
 multibase = "0.9"
 sha2 = "0.10"
 
+# SP-pagination-v1: stateless HMAC-signed cursors.
+# CBOR over JSON because the cursor is 512-byte-capped on the wire —
+# CBOR packs the CursorPayload at ~80B vs JSON's 200B, leaving headroom
+# for opaque_state. `hmac` is a thin SHA-256 wrapper over the existing
+# sha2 dep.
+ciborium = "0.2"
+hmac = "0.12"
+getrandom = "0.2"
+serde_bytes = "0.11"
+
 [features]
 testing = []

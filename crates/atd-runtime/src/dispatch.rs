@@ -93,6 +93,18 @@ pub struct SharedServerConfig {
     /// retry path can reissue against a less contended worker. Default
     /// `5_000` ms. SP-concurrency-baseline §5.2.
     pub frame_deadline_handshake_ms: u64,
+    /// HMAC signing key for paginated-result cursors. SP-pagination-v1 §4.5.
+    /// Production: random per server startup (so cursor forgery requires
+    /// process-state compromise). Multi-instance load-balanced deployments
+    /// share a key via env (`ATD_CURSOR_SIGNING_KEY=base64...`); the
+    /// listener crates apply this on `Server::new`. Test fixtures use a
+    /// fixed zero key — safe because they don't span processes.
+    pub cursor_signing_key: [u8; 32],
+    /// Time-to-live for paginated-result cursors, in seconds. Cursors older
+    /// than this fail verification with `ERR_CURSOR_EXPIRED` (1020).
+    /// Default `300`s (5 minutes) — long enough for one human "think"
+    /// round-trip without indefinite server-side state retention.
+    pub cursor_ttl_seconds: u64,
 }
 
 impl SharedServerConfig {
@@ -112,6 +124,8 @@ impl SharedServerConfig {
             ucan_revocation_store: None,
             frame_deadline_active_ms: 30_000,
             frame_deadline_handshake_ms: 5_000,
+            cursor_signing_key: [0u8; 32],
+            cursor_ttl_seconds: 300,
         }
     }
 }

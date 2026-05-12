@@ -228,6 +228,8 @@ mod tests {
             ucan_revocation_store: None,
             frame_deadline_active_ms: 30_000,
             frame_deadline_handshake_ms: 5_000,
+            cursor_signing_key: [0u8; 32],
+            cursor_ttl_seconds: 300,
         }
     }
 
