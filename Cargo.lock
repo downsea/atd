@@ -140,6 +140,7 @@ dependencies = [
 name = "atd-conformance"
 version = "0.3.0"
 dependencies = [
+ "atd-middleware-fhir",
  "atd-protocol",
  "atd-ref-server",
  "atd-runtime",
