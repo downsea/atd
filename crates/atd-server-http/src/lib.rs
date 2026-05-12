@@ -34,7 +34,11 @@ pub mod error;
 pub mod mcp;
 pub mod origin;
 pub mod server;
+pub mod sse_refresh;
 
 pub use config::HttpServerConfig;
 pub use error::HttpServerError;
 pub use server::{Server, ServerBuilder};
+pub use sse_refresh::{
+    AuthLostReason, DEFAULT_REFRESH_CADENCE, RefreshEvent, spawn_bearer_refresh,
+};
