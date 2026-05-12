@@ -2,7 +2,7 @@
 
 **Version:** 1.0 — 2026-04-24
 **Implementation baseline:** `sp12-canonical-dispatch` (or the most recent commit on master containing the four dispatch primitives described in §4.2).
-**Scope:** Normative architecture for the **reference implementation** (`atd-mvp` crates). Complements but does not replace the ATD whitepaper (`docs/whitepaper/atd-v3-multi-device.md`) or the wire reference (`docs/protocol/wire-format.md`).
+**Scope:** Normative architecture for the **reference implementation** (the `atd-*` crate family in this repository). Complements but does not replace the ATD whitepaper (`docs/whitepaper/atd-v3-multi-device.md`) or the wire reference (`docs/protocol/wire-format.md`).
 **Authority:** Where this document disagrees with `docs/design.md` (which predates SP-1), this document is authoritative. Where it disagrees with the v3 whitepaper on aspirational scope, the whitepaper remains authoritative for the protocol's long-term direction; this document is authoritative for what the reference implementation commits to.
 **License:** Apache-2.0.
 
@@ -823,7 +823,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 
 ### 10.1 Update cadence
 
-This document is maintained by the atd-mvp maintainers (see `CODEOWNERS`). Expected cadence:
+This document is maintained by the ATD maintainers (see `CODEOWNERS`). Expected cadence:
 
 - **Per major SP:** The SP's plan includes a step to update this document's relevant status tables.
 - **Per minor SP:** Update only if status glyphs change or new issues are filed.

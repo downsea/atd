@@ -7,6 +7,7 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Mock weather ATD server — companion to atd-ref-server for the cross-vendor composition demo. Static canned data; not a real weather service."
+readme = "README.md"
 keywords = ["atd", "agent", "demo", "mock", "weather"]
 categories = ["command-line-utilities"]
 publish = false

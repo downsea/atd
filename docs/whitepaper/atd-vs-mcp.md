@@ -191,6 +191,6 @@ MCP stdio 是流，没有"connection 概念"，也没有 server 端的 per-sessi
 
 - [`atd-introduction.pptx`](atd-introduction.pptx) — Slide 11 部署架构 / Slide 12 完整交互时序 / Slide 13 三方比较表
 - [`atd-v3-multi-device.md`](atd-v3-multi-device.md) — v3 whitepaper（multi-device 视角下 ATD 协议形式化）
-- [`../architecture.md`](../architecture.md) — atd-mvp 参考实现的架构文档
+- [`../architecture.md`](../architecture.md) — ATD 参考实现的架构文档
 - [`../protocol/wire-format.md`](../protocol/wire-format.md) — wire-level 协议规范
 - [`~/proj/healthkit_cli/docs/case-study-v1.4.0/case-study.md`](../../../healthkit_cli/docs/case-study-v1.4.0/case-study.md) — v1.4.0 doctor-perspective HR 分析（实证 baseline）

@@ -46,7 +46,7 @@ const FONT_MONO = "Courier New";
 
 const pres = new pptxgen();
 pres.layout  = "LAYOUT_16x9";
-pres.author  = "atd-mvp maintainers";
+pres.author  = "ATD maintainers";
 pres.title   = "ATD — Agent Tool Dispatch Protocol";
 pres.subject = "Introduction grounded in 5 Hermes case studies";
 
@@ -56,7 +56,7 @@ const FOOT_Y  = SLIDE_H - 0.32;
 // ─── helpers ──────────────────────────────────────────────────────────────
 function addFooter(slide, pageNum, total, opts = {}) {
   const color = opts.light ? "8FA1B8" : C.muted;
-  slide.addText("ATD Introduction   ·   atd-mvp v0.3.0   ·   Apache-2.0", {
+  slide.addText("ATD Introduction   ·   reference impl v0.3.0   ·   Apache-2.0", {
     x: 0.45, y: FOOT_Y, w: 7.8, h: 0.28,
     fontSize: 9, fontFace: FONT_BODY, color, margin: 0,
   });

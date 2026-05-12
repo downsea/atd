@@ -7,6 +7,7 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 description = "Streamable-HTTP (MCP JSON-RPC) transport for ATD-speaking servers — pair with atd-runtime, sibling of atd-server (Unix-socket transport)."
+readme = "README.md"
 keywords = ["atd", "mcp", "http", "transport", "agent"]
 categories = ["api-bindings", "asynchronous", "network-programming"]
 

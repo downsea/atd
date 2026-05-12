@@ -1,8 +1,8 @@
-# atd-mvp · Tracked Issues
+# ATD · Tracked Issues
 
-Honest gap-tracking for atd-mvp. Each issue documents a discrepancy between
-what `docs/design.md` promises (or what the type surface implies) and what
-the runtime actually delivers.
+Honest gap-tracking for the ATD reference implementation. Each issue
+documents a discrepancy between what `docs/design.md` promises (or
+what the type surface implies) and what the runtime actually delivers.
 
 ## Status vocabulary
 

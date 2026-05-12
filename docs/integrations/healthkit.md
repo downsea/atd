@@ -19,7 +19,7 @@ When the maintainer wanted to make this surface reachable from agents (Hermes, C
 - One process feeds many agent platforms simultaneously (Hermes + Claude Code share `/tmp/hk.sock` in this case study)
 - Audit log unification across all callers
 - Capability gate (`healthkit:read` / `healthkit:write`) enforced at the server, not per-client
-- No bespoke wire protocol — the [atd-mvp listener](../architecture.md#84-current-crate-map) handles connect / discover / describe / call / dry-run for free
+- No bespoke wire protocol — the [ATD listener](../architecture.md#84-current-crate-map) handles connect / discover / describe / call / dry-run for free
 
 The integration path:
 
@@ -214,7 +214,7 @@ tail -f /tmp/hk-audit.jsonl | jq
 - Case study artifacts: [`docs/case-study-v1.2.0.md`](https://github.com/downsea/healthkit_cli/blob/main/docs/case-study-v1.2.0.md), [`docs/case-study-v1.2.0/`](https://github.com/downsea/healthkit_cli/tree/main/docs/case-study-v1.2.0) (q1–q4 transcripts + audit.jsonl)
 - Changelog: [`CHANGELOG.md`](https://github.com/downsea/healthkit_cli/blob/main/CHANGELOG.md)
 
-**This repo (atd-mvp):**
+**This repo (ATD reference implementation):**
 
 - Architecture doc: [`docs/architecture.md`](../architecture.md) — see §10 for the SP-listener-extract row this case triggered
 - Integration overview: [`docs/integrations/overview.md`](overview.md)

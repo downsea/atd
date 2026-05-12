@@ -42,8 +42,9 @@ Add to `claude_desktop_config.json`:
 ```
 
 Then run any ATD server at `/tmp/my-atd.sock` (e.g., `atd-ref-server`
-from the `atd-mvp` repo) and restart Claude Desktop. The ATD tools will
-appear in Claude's tool list.
+from the [ATD repository](https://github.com/downsea/atd-mvp)) and
+restart Claude Desktop. The ATD tools will appear in Claude's tool
+list.
 
 ## What you need elsewhere
 

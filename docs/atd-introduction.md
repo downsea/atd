@@ -262,7 +262,7 @@ healthkit_cli 的 `healthkit serve` 是 ~150 行 glue（一半是命令行参数
 
 ---
 
-## 7. Workspace 实现（atd-mvp v0.3.0）
+## 7. Workspace 实现（ATD reference impl v0.3.0）
 
 13 个 crate，378 测试 passing，Apache-2.0：
 

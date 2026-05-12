@@ -1,14 +1,22 @@
-# atd-mvp
+# ATD — Agent Tool Dispatch
 
 [![CI](https://github.com/downsea/atd-mvp/actions/workflows/ci.yml/badge.svg)](https://github.com/downsea/atd-mvp/actions/workflows/ci.yml)
 
 **The reference implementation of the Agent Tool Dispatch (ATD) protocol.**
 
 ATD is a neutral, cross-vendor wire protocol for letting any LLM agent
-call any tool on any server. atd-mvp is the reference: a Rust client
-SDK, a Rust reference server with 9 real tools, and an MCP bridge that
-makes all of this work with Claude Desktop, Cursor, Hermes, and any
-other MCP-speaking agent.
+call any tool on any server. This repository hosts the reference
+implementation: a Rust client SDK, a Rust reference server with 9 real
+tools, and an MCP bridge that makes all of this work with Claude
+Desktop, Cursor, Hermes, and any other MCP-speaking agent.
+
+> **Naming.** The protocol is **Agent Tool Dispatch (ATD)** — that's the
+> public-facing brand and the name of every published crate (`atd-protocol`,
+> `atd-sdk`, `atd-runtime`, ...). This repository's directory name
+> (`atd-mvp`) is an internal handle that pre-dates the brand and is
+> retained to avoid breaking existing path-based dependencies; future
+> work will rename it to `atd` once adopters have migrated to crates.io
+> versions.
 
 ## Quick start
 
