@@ -29,4 +29,6 @@ clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
 atd-ref-server = { path = "../atd-ref-server", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
+atd-server = { path = "../atd-server", version = "0.3.0" }
 tempfile = { workspace = true }
