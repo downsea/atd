@@ -1,12 +1,27 @@
 # healthkit_cli — perf-v1 adopter validation (concurrency + pagination)
 
 **Layer:** adopter (cross-project: healthkit_cli ↔ atd-mvp)
-**Status:** ready-for-healthkit
+**Status:** closed-verified (2026-05-12)
 **Effort:** ~1 day total (15 min concurrency rebuild + ~6h pagination migration of 1-3 tools)
 **Filed:** 2026-05-12
+**Closed:** 2026-05-12
 **Related SPs:** [`sp-concurrency-baseline`](../superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [`sp-pagination-v1`](../superpowers/specs/2026-05-12-sp-pagination-v1-design.md) (perf-v1 axis 2)
 **Related ADRs:** [ADR-0002 — concurrency baseline](../adr/0002-concurrency-baseline.md) · [ADR-0003 — pagination v1](../adr/0003-pagination-v1.md)
 **Sibling adopter issue:** [`2026-05-12-celia-concurrency-adopter-validation.md`](2026-05-12-celia-concurrency-adopter-validation.md)
+
+## Resolution (2026-05-12)
+
+healthkit_cli delivered everything the issue asked for; full evidence is in their adopter doc:
+
+- **Doc:** `healthkit_cli/docs/sp-pagination-v1-adopter.md` (explicit back-link to this issue file).
+- **Concurrency (passive):** rebuilt against atd-mvp `050598b` (perf-v1 tip). `cargo test --workspace` 218 unit + 7 integration tests green. No source edits.
+- **Pagination (active):** `activities` (`ActivityRecord`) helper opted into `Tool::supports_pagination` + `Tool::call_paginated` (commit `03799ce`); `HealthRecord` family followed in commit `e186c99`. Cursor `opaque_state` is a fixed 16-byte big-endian `(next_start_ms, target_end_ms)` — well under `MAX_OPAQUE_STATE_BYTES` (256).
+- **Tests:** 4 unit (codec round-trip / short-input rejection / encoding cap / per-class opt-in matrix) + 2 wire-level integration (3-page walk + 1-page terminal). All green.
+- **Pre-v1.4.0 work tag pending** on healthkit side; the work itself is merged on healthkit's `master`.
+
+**Note on remaining tools:** the issue suggested migrating up to 3 high-volume tools. healthkit landed 2 (Activities + HealthRecord 4-variant), which together cover the original "3MB+ JSON payload" concern. Daily / Sleep / ECG can opt in later when actual payload pressure shows up — gated migration is correct posture.
+
+**Closing rationale:** primary migration target shipped with adopter doc + tests; concurrency baseline validated by rebuild. This was the load-bearing adopter for SP-pagination-v1; the SP is now empirically validated outside the conformance suite.
 
 ## Summary
 
