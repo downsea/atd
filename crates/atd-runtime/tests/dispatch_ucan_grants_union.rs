@@ -91,6 +91,7 @@ fn server_state_with_allow_list(allow: Vec<String>) -> Arc<ServerState> {
         config: cfg,
         tier_policy: TierPolicy::default(),
         middleware: Vec::<Arc<dyn Middleware>>::new(),
+        metrics: Arc::new(atd_runtime::MetricsCounters::default()),
     })
 }
 

@@ -64,6 +64,15 @@ pub enum Outcome {
 /// sink's own backpressure (no queuing here). Must not panic.
 pub trait AuditSink: Send + Sync {
     fn on_call(&self, event: &CallEvent);
+    /// Total events dropped because the sink's queue was full. Default `0`
+    /// for sinks that don't queue (custom synchronous adopter impls).
+    /// `JsonLinesAuditSink` overrides with its `Arc<AtomicU64>` counter so
+    /// `Server::metrics_snapshot()` (SP-concurrency-baseline §5.7) can
+    /// surface the count without coupling the metrics module to the
+    /// concrete sink type.
+    fn drops(&self) -> u64 {
+        0
+    }
 }
 
 /// Default channel capacity. 1024 events × ~500 bytes ≈ 512 KB peak buffer;
@@ -150,6 +159,9 @@ impl AuditSink for JsonLinesAuditSink {
                 self.drops.fetch_add(1, Ordering::Relaxed);
             }
         }
+    }
+    fn drops(&self) -> u64 {
+        self.drops.load(Ordering::Relaxed)
     }
 }
 

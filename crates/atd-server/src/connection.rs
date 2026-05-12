@@ -241,6 +241,7 @@ mod tests {
             config: shared_test_config(),
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
         })
     }
 
@@ -611,6 +612,7 @@ mod tests {
             config,
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
         })
     }
 
@@ -672,6 +674,7 @@ mod tests {
             config: shared_test_config(),
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
         });
 
         let mut caller = Some("agent-A".to_string());

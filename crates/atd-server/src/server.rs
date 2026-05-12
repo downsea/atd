@@ -61,6 +61,7 @@ impl Server {
                 config: shared,
                 tier_policy: atd_runtime::TierPolicy::defaults(),
                 middleware: Vec::new(),
+                metrics: Arc::new(atd_runtime::MetricsCounters::default()),
             }),
             socket_path,
         }
@@ -149,6 +150,10 @@ impl Server {
 
         loop {
             let (stream, _) = listener.accept().await?;
+            self.state
+                .metrics
+                .accepted_connections
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let state = self.state.clone();
             tokio::spawn(async move {
                 if let Err(e) = handle_connection(state, stream).await {
@@ -156,5 +161,16 @@ impl Server {
                 }
             });
         }
+    }
+
+    /// SP-concurrency-baseline §G7 — capture a snapshot of the per-server
+    /// metrics counters. Folds in the audit sink's drop count (if a sink is
+    /// installed) so adopters don't need to track it separately.
+    pub fn metrics_snapshot(&self) -> atd_runtime::MetricsSnapshot {
+        let mut s = self.state.metrics.snapshot();
+        if let Some(sink) = self.state.config.audit_sink.as_ref() {
+            s.audit_drops_total = sink.drops();
+        }
+        s
     }
 }

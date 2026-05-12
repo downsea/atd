@@ -128,6 +128,11 @@ pub struct ServerState {
     pub config: SharedServerConfig,
     pub tier_policy: TierPolicy,
     pub middleware: Vec<Arc<dyn Middleware>>,
+    /// SP-concurrency-baseline §5.7 — hot-path counters. Updated by the
+    /// dispatch error arms below, by the per-transport accept loops
+    /// (atd-server / atd-server-http), and by Phase F follow-up wiring
+    /// in audit. Always present; counters default to zero.
+    pub metrics: Arc<crate::metrics::MetricsCounters>,
 }
 
 /// Run the full `Request` state machine and produce a `Response`.
@@ -144,6 +149,24 @@ pub struct ServerState {
 /// branches are still useful in introspection-only contexts and remain
 /// available via the same fn.
 pub async fn dispatch_request(
+    state: &Arc<ServerState>,
+    tracker: &Arc<ReadTracker>,
+    caps: &mut Arc<CapabilitySet>,
+    caller_id: &mut Option<String>,
+    req: Request,
+) -> Response {
+    state
+        .metrics
+        .dispatched_requests
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let resp = dispatch_request_inner(state, tracker, caps, caller_id, req).await;
+    if let Response::Error { code: Some(c), .. } = &resp {
+        state.metrics.record_error(*c);
+    }
+    resp
+}
+
+async fn dispatch_request_inner(
     state: &Arc<ServerState>,
     tracker: &Arc<ReadTracker>,
     caps: &mut Arc<CapabilitySet>,
@@ -288,6 +311,10 @@ pub async fn run_tool(
     let audit_call_id = ulid::Ulid::new();
     let emit = |outcome: crate::audit::Outcome, tier: ToolTier, secrets_resolved: bool| {
         if let Some(sink) = state.config.audit_sink.as_ref() {
+            state
+                .metrics
+                .audit_events_total
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             sink.on_call(&crate::audit::CallEvent {
                 ts: crate::audit::now_rfc3339(),
                 call_id: audit_call_id.to_string(),

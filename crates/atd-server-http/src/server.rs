@@ -111,6 +111,7 @@ impl ServerBuilder {
             }),
             tier_policy: self.tier_policy,
             middleware: self.middleware,
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
         });
 
         let app_state = HttpAppState {

@@ -467,6 +467,7 @@ mod tests {
             config: SharedServerConfig::for_test(),
             tier_policy: TierPolicy::defaults(),
             middleware: vec![],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
         })
     }
 
