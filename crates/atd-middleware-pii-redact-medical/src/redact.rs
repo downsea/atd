@@ -284,8 +284,10 @@ mod tests {
     #[test]
     fn generic_json_mode_skips_fhir_paths() {
         let mut v = json!({"user": "alice", "email": "a@b.com", "name": "Alice"});
-        let mut cfg = PiiRedactConfig::default();
-        cfg.fhir_aware = false;
+        let cfg = PiiRedactConfig {
+            fhir_aware: false,
+            ..PiiRedactConfig::default()
+        };
         redact_value(&mut v, &cfg);
         // /name FHIR path skipped — "Alice" preserved as plain string.
         assert_eq!(v["name"], "Alice");
@@ -312,8 +314,10 @@ mod tests {
             "resourceType": "Patient",
             "note": [{"text": "SSN 555-12-3456"}]
         });
-        let mut cfg = PiiRedactConfig::default();
-        cfg.disable_regex_phi = true;
+        let cfg = PiiRedactConfig {
+            disable_regex_phi: true,
+            ..PiiRedactConfig::default()
+        };
         redact_value(&mut v, &cfg);
         assert!(
             v["note"][0]["text"]
@@ -361,8 +365,10 @@ mod tests {
     #[test]
     fn ip_regex_catches_v4_address() {
         let mut v = json!({"trace": "client 192.168.1.100 connected"});
-        let mut cfg = PiiRedactConfig::default();
-        cfg.fhir_aware = false;
+        let cfg = PiiRedactConfig {
+            fhir_aware: false,
+            ..PiiRedactConfig::default()
+        };
         redact_value(&mut v, &cfg);
         let s = v["trace"].as_str().unwrap();
         assert!(s.contains("[REDACTED:IP]"));
