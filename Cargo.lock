@@ -142,7 +142,9 @@ version = "0.3.0"
 dependencies = [
  "atd-protocol",
  "atd-ref-server",
+ "atd-runtime",
  "atd-sdk",
+ "atd-server",
  "clap",
  "serde",
  "serde_json",

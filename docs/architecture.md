@@ -810,6 +810,7 @@ A directional roadmap — **not a commitment calendar**. Each row states the ite
 | `TokenBroker` extension point (Phase 1) | Dispatch | ✅ | SP-token-broker-phase1 | 2026-04-27 | Landed; `atd-runtime::TokenBroker` trait + `RedactedString` + `InMemoryTokenBroker` reference impl; plumbed through `ServerConfig::token_broker` and `CallContext::secrets`; new `ERR_BROKER_FAILED = 1003` wire code; audit `CallEvent` gains `secrets_resolved: bool`. No protocol message change. Closes Phase 1 of #4; Phase 2 (healthkit_cli adoption) and Phase 3 (live two-tenant demo) deferred to follow-up SPs. |
 | `TokenBroker` Phase 2 — bearer auth on the wire | Dispatch (security) | ✅ | SP-token-broker-phase2 | 2026-05-12 | Landed across SDK + runtime + HTTP listener. Foundation (`BearerIdentity` + `TokenBroker::resolve_bearer` + `accepted_token_formats`) at `dcdfd92`; design spec at `db3287c`. C-segment 1-3 (post-SP-cap-v2) added: typed `BearerOutcome` with 11 variants + per-variant HTTP status / `WWW-Authenticate` / `Retry-After` mapping (spec §4.4), `error_response_with_headers` helper, `Server::set_ucan_revocation_store` adopter hook (`89e08ab`), SSE bearer-refresh helper `atd_server_http::sse_refresh` with 60s heartbeat re-resolve + `RefreshEvent::{Refreshed, AuthLost}` (spec §4.7), `/initialize` echoing `broker.accepted_token_formats()` under `capabilities.experimental.atd.acceptedTokenFormats`. Adopter integration validated via `celia_phr`'s `CeliaConsentTokenBroker` (11 smoke tests green). Tag: `sp-token-broker-phase2`. |
 | HTTP transport (`atd-server-http` crate) | Dispatch (transport) | ✅ | SP-streamable-http + SP-1.B | 2026-05-11 | Landed; design at [`docs/superpowers/specs/2026-05-11-sp-streamable-http-design.md`](superpowers/specs/2026-05-11-sp-streamable-http-design.md); ref impl in `crates/atd-server-http/` (commits `758ce40` spec / `dcdfd92` runtime / `0448aad` body). MCP JSON-RPC translator + origin gate + bearer auth. Replaces §9.7's prior 🚫 v1 deferral — gate condition ("cloud-hosted adopter") triggered by `celia_phr` 2026-05. Phase-2 follow-ups still 🚫: TLS termination, OAuth/OIDC, request signing — adopter-side. |
+| Concurrency baseline (multi-thread runtime + wire deadlines + SDK retry + mpsc audit sink + metrics) | Dispatch (runtime) | ✅ | SP-concurrency-baseline | 2026-05-12 | Landed across `atd-protocol` + `atd-sdk` + `atd-runtime` + `atd-server` + `atd-ref-server` + `atd-mock-weather-server` + `atd-conformance`. Closes the 2026-05-12 celia 10-concurrent benchmark failure (`current_thread` ref-server starved the accept loop, hermes session-init timed out, 60% of sessions loaded zero tools). Five-axis intervention: (a) `WireError` typed enum + `read_frame_with_deadline` / `write_frame_with_deadline` with per-state deadlines (5s handshake / 30s active); (b) `AtdClient::connect` exponential-backoff retry + ±20% jitter, env-tunable via `ATD_CONNECT_RETRIES`; (c) ref binaries flipped to `multi_thread` runtime via `atd_runtime::default_worker_threads()` (default `min(cpus, 4)`); (d) `JsonLinesAuditSink` rewritten to bounded `tokio::sync::mpsc` + dedicated drain task (non-blocking `on_call`, drops counter); (e) `MetricsCounters` + `Server::metrics_snapshot()` for adopter observability. Verified by `concurrent_handshake_storm` conformance scenario — 50 simultaneous clients × (Hello + ToolList + 5×ToolSchema) measured at **wall=127ms, p50=116ms, p99=125ms, 0 errors, 0 audit drops** vs the pre-SP incident's 71s wall + 60% session-init failure at 10× lower concurrency. Tag: `sp-concurrency-baseline`. Atd-bench criterion suite (regression-gate against future SPs) tracked as follow-up. |
 | Medical middleware suite (FHIR validation + PHI redaction) | Dispatch (middleware) | ✅ | SP-medical-middleware | 2026-05-12 | Landed as two sibling crates: `atd-middleware-fhir` (egress FHIR R4 shape + 70-URI coding whitelist + 12-resource required-field table; verbatim port of celia's `crates/celia-core/src/fhir/{systems,validate}.rs`) and `atd-middleware-pii-redact-medical` (HIPAA Safe Harbor 18 identifier categories: 13 JSON-Pointer paths × 7 RedactionStrategies + 5 catch-all regex for SSN/license/IP/URL/email). Both implement the existing `atd_runtime::Middleware` trait; mount via `Server::set_middleware(vec![Arc::new(FhirMiddleware::default()), Arc::new(PiiRedactMiddleware::default())])`. Tag: `sp-medical-middleware`. Workspace grew 14→16 crates. Tests: 18 + 28 unit + 2 + 2 + 2 e2e = 52 new. Adopter validation: `celia_phr` (4-step migration per spec §7.2; tracked at `celia_phr/docs/sp-medical-middleware-adopter.md`); `healthkit_cli` (opt-in, no regression; tracked at `healthkit_cli/docs/sp-medical-middleware-no-regression.md`). |
 | MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
 | REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
@@ -843,3 +844,88 @@ This document is `v1.0`. A `v2.0` version would be warranted when:
 - The extension-point contracts change incompatibly
 
 Minor edits (status updates, new entries in §10) do NOT require a version bump. They're tracked by `git log`.
+
+## 11. Deployment shapes & concurrency
+
+ATD ships two blessed transport shapes. The choice is a deployment-context call — both are first-class, both meet the same protocol-level SLOs.
+
+### 11.1 Desktop / sidecar (UDS via `atd-server` + `atd-mcp-bridge`)
+
+```
+   ┌────────────────────────┐         ┌──────────────────────┐
+   │  Hermes Agent /        │  stdio  │  atd-mcp-bridge      │
+   │  Claude Code / etc.    │ ──────► │  (one per session)   │
+   └────────────────────────┘         └──────────┬───────────┘
+                                                  │ UDS
+                                                  ▼
+                                      ┌──────────────────────┐
+                                      │  atd-ref-server      │
+                                      │  (multi_thread tokio,│
+                                      │   4 workers default) │
+                                      └──────────────────────┘
+```
+
+- **Process model:** one bridge subprocess per LLM session; MCP-over-stdio convention.
+- **Concurrency:** ref-server runs multi-thread (`min(cpus, 4)` workers by default; `ATD_WORKER_THREADS` overrides).
+- **Wire deadlines:** 5s during pre-Hello handshake, 30s during active dispatch (configurable on `SharedServerConfig.frame_deadline_*_ms`).
+- **SDK retry:** `AtdClient::connect` retries 5× with 50→800ms exponential backoff + ±20% jitter (`ATD_CONNECT_RETRIES` / `ATD_CONNECT_BACKOFF_*` overrides).
+- **When to use:** local LLM tooling, single-user dev environments, on-device PHR/HRA agents (celia_phr, healthkit_cli, anos).
+
+### 11.2 Cloud / multi-tenant (HTTP via `atd-server-http`)
+
+```
+   ┌────────────────────────┐  HTTPS  ┌──────────────────────┐
+   │  Agent fleet           │ ──────► │  axum / hyper        │
+   │  (Anthropic / OpenAI / │         │  keep-alive          │
+   │   self-hosted)         │         └──────────┬───────────┘
+   └────────────────────────┘                    │ in-process
+                                                  ▼
+                                      ┌──────────────────────┐
+                                      │  atd-server-http     │
+                                      │  (adopter-controlled │
+                                      │   tokio runtime)     │
+                                      └──────────────────────┘
+```
+
+- **Process model:** one long-lived server process per host; clients are HTTP requests.
+- **Concurrency:** the adopter binary owns `#[tokio::main]`; celia_phr uses `multi_thread` with `num_cpus`. The same wire-deadline / audit-mpsc / metrics infrastructure applies in-process.
+- **Bearer auth + UCAN-lite:** per request (SP-token-broker-phase2 + SP-capability-v2).
+- **When to use:** hosted SaaS, fleet-of-agents on shared infra, browser → ATD via Streamable HTTP.
+
+### 11.3 Concurrency invariants (protocol-level, not transport-level)
+
+These hold across both deployment shapes:
+
+- `read_frame` / `write_frame` are deadline-bounded — a stalled peer cannot hold a worker forever (SP-concurrency-baseline §5.2).
+- `AtdClient::connect` retries with jitter — spawn-storm fan-in absorbed at the SDK boundary (§5.3).
+- `AuditSink::on_call` is non-blocking on the dispatch hot path — the default `JsonLinesAuditSink` uses a bounded mpsc + dedicated drain task (§5.4).
+- `Server::metrics_snapshot()` surfaces `accepted_connections` / `dispatched_requests` / `dispatch_errors_by_code` / `audit_events_total` / `audit_drops_total` without imposing a Prometheus pipeline (§5.7).
+- `atd-conformance::concurrent_handshake_storm` enforces these at 50 simultaneous clients × 7 RPCs each — any server claiming ATD conformance must pass.
+
+### 11.4 SLOs (measured on 4-core commodity Linux; CI runners accept 2× headroom)
+
+| Metric | Target | Measured (2026-05-12 ref-server) |
+|---|---|---|
+| Storm p50 (50 × Hello + ToolList + 5×ToolSchema) | < 100ms | 116ms* |
+| Storm p99 | < 200ms | 125ms |
+| Storm errors (connection-lost / handshake-stalled) | 0 / 50 | 0 / 50 |
+| Storm audit drops (default mpsc capacity 1024) | 0 / 350 events | 0 / 350 |
+
+\* p50 = 116ms is slightly over the 100ms aspirational target because each storm client serially issues 7 RPCs over its UDS socket; the per-RPC RTT is < 20ms and the median is dominated by the 5×ToolSchema cost. Tightening this further is `SP-observability-v2` territory (per-RPC histograms + bottleneck attribution).
+
+### 11.5 Large results & pagination
+
+For tools whose honest result exceeds the 1MB output budget (e.g., healthkit's `query_observations` over a 6-month window, celia's `list_observations` over an active patient), ATD ships an opt-in pagination primitive: `Request::RunToolContinue { tool_id, cursor }` + `Response.next_cursor: Option<String>`. See **[SP-pagination-v1](superpowers/specs/2026-05-12-sp-pagination-v1-design.md)** (sibling of this SP in the perf-v1 iteration; tag `sp-pagination-v1`) for the full design — wire format, HMAC-signed stateless cursors, `Tool::call_paginated` default trait method, SDK `call_page` / `call_all`, MCP bridge degrade-or-passthrough modes. SP-pagination-v1 implementation tracked separately.
+
+### 11.6 The incident that motivated this section
+
+On 2026-05-12, celia_phr ran a 10-query × 10-concurrent benchmark against the ATD reference stack (DeepSeek V4 Pro ↔ Hermes Agent ↔ MCP stdio ↔ `atd-mcp-bridge` ↔ `atd-ref-server`). Six of ten sessions failed to load any tools: `prompt_tokens` collapsed from the expected ~5200 (tool-schema-loaded baseline) to ~180-190 (no-tools fallback). Hermes's log showed the smoking gun:
+
+```
+Failed to connect to MCP server 'celia' (atd-mcp-bridge): Connection lost
+MCP server 'celia' failed initial connection after 3 attempts, giving up
+```
+
+Three structural causes in three lines of code: ref-server's `#[tokio::main(flavor = "current_thread")]` serialized 10 simultaneous bridge connections through one OS thread; `read_frame` was unbounded so a stalled handshake held the worker indefinitely; `AtdClient::connect` had no retry / backoff so transient EAGAIN-class failures propagated to the MCP transport, which exhausted its 3-attempt budget against an equally starved server. A hidden fourth cliff at the audit layer (mutex-blocked synchronous file I/O on every dispatch) would have surfaced at ~50 dispatches/sec once the first three were fixed.
+
+SP-concurrency-baseline (§5.1-§5.7) addresses all four. Post-SP, the same workload at 50× concurrency completes in 127ms with zero errors. The conformance test in `crates/atd-conformance/tests/concurrent_handshake_storm.rs` runs this scenario on every `cargo nextest run --workspace` invocation — future regressions surface in the SP author's pre-commit gate, not in an adopter's production benchmark.
