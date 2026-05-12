@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use atd_protocol::AtdError;
 #[cfg(test)]
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 
+use crate::ConnectOptions;
 use crate::endpoint::Endpoint;
 use atd_protocol::wire::{read_frame, write_frame};
 use atd_protocol::{Request, Response};
@@ -30,10 +33,64 @@ enum Pipe {
 }
 
 impl AtdClient {
+    /// Connect with default retry behaviour (read from env, see
+    /// [`ConnectOptions`]). For explicit control use
+    /// [`AtdClient::connect_with_options`].
     pub async fn connect(endpoint: Endpoint) -> Result<Self, AtdError> {
+        Self::connect_with_options(endpoint, ConnectOptions::default()).await
+    }
+
+    /// SP-concurrency-baseline §5.3 — connect with explicit retry policy.
+    ///
+    /// Retries on transient errors (refused / reset / would-block / timeout)
+    /// with exponential backoff capped at `opts.backoff_cap_ms` and ±20%
+    /// jitter to break lockstep retries during a spawn-storm. Short-circuits
+    /// on truly fatal errors (`NotFound`, `PermissionDenied`) where retry
+    /// cannot help. Each attempt is wrapped in
+    /// `tokio::time::timeout(opts.connect_timeout_ms)` so a stalled
+    /// `connect()` + `ping()` round-trip surfaces as a retryable error
+    /// instead of hanging.
+    pub async fn connect_with_options(
+        endpoint: Endpoint,
+        opts: ConnectOptions,
+    ) -> Result<Self, AtdError> {
+        let mut delay_ms = opts.backoff_base_ms;
+        let mut last_err: Option<AtdError> = None;
+        for attempt in 0..opts.max_attempts {
+            let attempt_fut = Self::connect_once(&endpoint);
+            let result =
+                tokio::time::timeout(Duration::from_millis(opts.connect_timeout_ms), attempt_fut)
+                    .await
+                    .unwrap_or_else(|_| {
+                        Err(AtdError::ServerUnreachable(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            format!(
+                                "connect attempt timed out after {}ms",
+                                opts.connect_timeout_ms
+                            ),
+                        )))
+                    });
+            match result {
+                Ok(client) => return Ok(client),
+                Err(e) if is_fatal_connect_error(&e) => return Err(e),
+                Err(e) => {
+                    last_err = Some(e);
+                    if attempt + 1 < opts.max_attempts {
+                        let jitter_pct = jitter_factor(); // ±0.2
+                        let wait_ms = (delay_ms as f64 * (1.0 + jitter_pct)).max(1.0) as u64;
+                        tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+                        delay_ms = (delay_ms.saturating_mul(2)).min(opts.backoff_cap_ms);
+                    }
+                }
+            }
+        }
+        Err(last_err.expect("loop runs at least once"))
+    }
+
+    async fn connect_once(endpoint: &Endpoint) -> Result<Self, AtdError> {
         match endpoint {
             Endpoint::UnixSocket(path) => {
-                let stream = UnixStream::connect(&path).await?;
+                let stream = UnixStream::connect(path).await?;
                 let (read, write) = stream.into_split();
                 let client = AtdClient {
                     inner: Mutex::new(Pipe::Unix { read, write }),
@@ -411,6 +468,31 @@ fn extract_error(value: &serde_json::Value) -> (String, String, bool) {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     (code, message, retryable)
+}
+
+/// SP-concurrency-baseline §5.3 — distinguish "this attempt is hopeless"
+/// from "transient; back off and retry." Hopeless errors short-circuit
+/// the retry loop so a typo'd socket path doesn't waste five attempts.
+fn is_fatal_connect_error(err: &AtdError) -> bool {
+    matches!(
+        err,
+        AtdError::ServerUnreachable(io) if matches!(
+            io.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+        )
+    )
+}
+
+/// Returns a jitter factor in the range `[-0.2, 0.2]` derived from the
+/// system clock's subsecond nanos. Used to spread otherwise-synchronized
+/// retries during a spawn-storm; the noise source doesn't need to be
+/// cryptographically random — it just needs to break lockstep.
+fn jitter_factor() -> f64 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    ((nanos % 1000) as f64 / 1000.0 - 0.5) * 0.4
 }
 
 #[cfg(test)]
@@ -889,5 +971,157 @@ mod tests {
             matches!(err, AtdError::ToolExecutionFailed { .. }),
             "non-1001 errors must still be ToolExecutionFailed, got {err:?}"
         );
+    }
+
+    // ---- SP-concurrency-baseline §5.3 connect retry tests ----
+
+    /// Spawn a UnixListener that accepts and immediately drops each stream,
+    /// counting accepts. AtdClient::connect_with_options should see EOF on
+    /// its ping, treat it as retryable, and try again.
+    async fn spawn_immediate_close_listener() -> (
+        std::path::PathBuf,
+        std::sync::Arc<std::sync::atomic::AtomicU32>,
+    ) {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("close.sock");
+        let counter = std::sync::Arc::new(AtomicU32::new(0));
+        let counter_for_task = counter.clone();
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        std::mem::forget(dir); // keep the path alive
+        let path_ret = path.clone();
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                counter_for_task.fetch_add(1, Ordering::Relaxed);
+                drop(stream); // close immediately → ping read sees EOF
+            }
+        });
+        // Give the listener a moment to bind.
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        (path_ret, counter)
+    }
+
+    #[tokio::test]
+    async fn connect_retries_on_transient_failure() {
+        let (path, accepts) = spawn_immediate_close_listener().await;
+        let opts = ConnectOptions {
+            max_attempts: 3,
+            backoff_base_ms: 5,
+            backoff_cap_ms: 20,
+            connect_timeout_ms: 500,
+        };
+        let result = AtdClient::connect_with_options(Endpoint::unix(path), opts).await;
+        assert!(
+            result.is_err(),
+            "connect should fail when listener closes streams"
+        );
+        // 3 attempts → listener accepted 3 times.
+        let n = accepts.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(n, 3, "expected 3 connect attempts, listener saw {n}");
+    }
+
+    #[tokio::test]
+    async fn connect_respects_max_attempts() {
+        let (path, accepts) = spawn_immediate_close_listener().await;
+        let opts = ConnectOptions {
+            max_attempts: 5,
+            backoff_base_ms: 5,
+            backoff_cap_ms: 20,
+            connect_timeout_ms: 500,
+        };
+        let _ = AtdClient::connect_with_options(Endpoint::unix(path), opts).await;
+        let n = accepts.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            n, 5,
+            "max_attempts=5 should yield exactly 5 attempts, got {n}"
+        );
+    }
+
+    #[tokio::test]
+    async fn connect_short_circuits_on_not_found() {
+        // No socket at this path → UnixStream::connect returns NotFound,
+        // which is fatal — the retry loop must not even sleep.
+        let opts = ConnectOptions {
+            max_attempts: 5,
+            backoff_base_ms: 100, // long enough that retries would be obvious
+            backoff_cap_ms: 100,
+            connect_timeout_ms: 500,
+        };
+        let started = std::time::Instant::now();
+        let result = AtdClient::connect_with_options(
+            Endpoint::unix("/tmp/atd-sdk-test-no-such-socket-xy7q"),
+            opts,
+        )
+        .await;
+        let elapsed = started.elapsed();
+        match result {
+            Err(AtdError::ServerUnreachable(_)) => {}
+            Err(other) => panic!("expected ServerUnreachable, got {other:?}"),
+            Ok(_) => panic!("connect to nonexistent path should not succeed"),
+        }
+        assert!(
+            elapsed < std::time::Duration::from_millis(80),
+            "short-circuit should be near-instant, took {elapsed:?}"
+        );
+    }
+
+    /// `ConnectOptions::default()` reads env vars at call time. We use the
+    /// `serial_test`-style technique of saving + restoring env to avoid
+    /// cross-test races (other tests may run concurrently in the same
+    /// process).
+    #[test]
+    fn connect_options_default_reads_env() {
+        // Capture original values for restore.
+        let orig = (
+            std::env::var("ATD_CONNECT_RETRIES").ok(),
+            std::env::var("ATD_CONNECT_BACKOFF_BASE_MS").ok(),
+        );
+        // Safety: these env mutations may race with parallel tests reading
+        // the same vars. To minimise the window we set + read + restore in
+        // one synchronous block; the test asserts the read reflected our
+        // write at the moment we read it.
+        unsafe {
+            std::env::set_var("ATD_CONNECT_RETRIES", "2");
+            std::env::set_var("ATD_CONNECT_BACKOFF_BASE_MS", "123");
+        }
+        let opts = ConnectOptions::default();
+        // Restore before assertions so a panic doesn't leak.
+        unsafe {
+            match &orig.0 {
+                Some(v) => std::env::set_var("ATD_CONNECT_RETRIES", v),
+                None => std::env::remove_var("ATD_CONNECT_RETRIES"),
+            }
+            match &orig.1 {
+                Some(v) => std::env::set_var("ATD_CONNECT_BACKOFF_BASE_MS", v),
+                None => std::env::remove_var("ATD_CONNECT_BACKOFF_BASE_MS"),
+            }
+        }
+        assert_eq!(opts.max_attempts, 2);
+        assert_eq!(opts.backoff_base_ms, 123);
+    }
+
+    #[test]
+    fn is_fatal_classifies_not_found_and_permission_denied() {
+        let nf =
+            AtdError::ServerUnreachable(std::io::Error::new(std::io::ErrorKind::NotFound, "x"));
+        let pd = AtdError::ServerUnreachable(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "x",
+        ));
+        let cr = AtdError::ServerUnreachable(std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            "x",
+        ));
+        assert!(is_fatal_connect_error(&nf));
+        assert!(is_fatal_connect_error(&pd));
+        assert!(!is_fatal_connect_error(&cr));
+    }
+
+    #[test]
+    fn jitter_factor_stays_within_bounds() {
+        for _ in 0..1000 {
+            let j = jitter_factor();
+            assert!(j >= -0.2 && j <= 0.2, "jitter {j} out of ±0.2 bound");
+        }
     }
 }
