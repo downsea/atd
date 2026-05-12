@@ -1,0 +1,59 @@
+# cargo-nextest configuration for atd-mvp.
+#
+# Activate by installing nextest (`cargo install cargo-nextest --locked`)
+# and running `cargo nextest run --workspace`. The defaults profile fires
+# on plain invocations; the `ci` profile is selected with
+# `cargo nextest run --profile ci`.
+#
+# Why nextest at all (vs `cargo test --workspace`):
+# - One process per test → crash isolation; bind-listener integration
+#   tests (e2e_bearer_* / ucan_*_via_http / dispatch_ucan_*) no longer
+#   poison sibling tests when one panics or wedges on a port.
+# - Global `--test-threads` cap actually works across test binaries
+#   (cargo test caps per-binary; nextest caps the whole workspace).
+# - Per-test elapsed-time reporting surfaces slow tests in the output.
+#
+# Cross-reference: CLAUDE.md "Workspace test discipline (2026-05-12
+# lesson)" — the burn-in incident root cause was unbounded parallelism
+# across test binaries. This file is the structured fix.
+
+[profile.default]
+# Cap at 4 to match the CARGO_BUILD_JOBS=4 / cargo test --test-threads=4
+# guidance in CLAUDE.md. Host has more cores, but `atd-runtime` is a
+# central dep — touching it recompiles ~10 downstream crates' test
+# binaries. Capping protects the host UI from saturation.
+test-threads = 4
+
+# Terminate any test still running after 30s × 2 = 60s. Bind-listener
+# integration tests are typically <100ms; 1s+ indicates a port-contention
+# wedge or genuine bug — kill rather than block the suite.
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# No automatic retries on local runs — flakes should be visible, not
+# papered over. `ci` profile below adds retries for genuinely transient
+# bind failures.
+retries = 0
+
+# Default: fast feedback on local. CI profile flips this off so
+# all failures land in one report.
+fail-fast = true
+
+
+[profile.ci]
+# CI inherits default thread cap. If a CI box has more cores, override
+# with `--test-threads N` on the command line — keeps the host-friendly
+# default sensible without pinning CI capacity.
+test-threads = 4
+
+# CI gets a longer slow-timeout: cold cache + virtualisation overhead
+# can push a real-server e2e test past 30s.
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+# One retry on CI to absorb transient `EADDRINUSE` from kernel-port
+# scarcity when many test binaries `bind 127.0.0.1:0` near-simultaneously.
+# Two CI flake budget per test before reporting failure.
+retries = 1
+
+# CI runs all tests, reports all failures together. Don't stop on first
+# fail.
+fail-fast = false

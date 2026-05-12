@@ -22,3 +22,6 @@ python/*.egg-info/
 /claude-code-source
 /docs/whitepaper/build-overview-pptx.js
 *.log
+
+# Claude Code local state (scheduled-task locks, per-clone settings)
+/.claude/
