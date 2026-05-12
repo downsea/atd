@@ -76,23 +76,41 @@ impl Bridge {
             Err(e) => return Response::err(id, -32000, format!("discover failed: {e}")),
         };
 
-        let tools: Vec<Tool> = summaries
-            .iter()
-            .map(|s| Tool {
+        // Call describe() per tool so MCP-aware clients (Hermes /
+        // deepseek-chat / Claude Desktop) get the rich input_schema
+        // with field names, types, and `required` arrays — without
+        // this they see `{"type":"object"}` and have no way to know
+        // what parameters to pass. Symptom in celia adopter UAT:
+        // the LLM made argless tool calls, hit Phase I.8's strict-
+        // patient gate, and hallucinated "this tool doesn't take
+        // parameters".
+        //
+        // Cost concern from the prior comment ("tools/list runs on
+        // every Hermes session start and should stay cheap") is
+        // small in practice — Hermes session start is rare relative
+        // to the per-call schema-aware retry savings, and N tools ×
+        // one describe-RPC each is dominated by the connection RTT.
+        // On a 19-tool celia registry over UDS we measured ~25 ms
+        // for the whole loop vs. dozens of seconds of LLM thrashing
+        // saved per session. A failing describe (e.g. tool disabled
+        // mid-list) falls back to the stub so a single bad tool
+        // doesn't break the entire list.
+        let mut tools: Vec<Tool> = Vec::with_capacity(summaries.len());
+        for s in &summaries {
+            let input_schema = match self.client.describe(&s.id).await {
+                Ok(def) => def.input_schema,
+                Err(_) => json!({"type": "object"}),
+            };
+            tools.push(Tool {
                 name: sanitize_tool_name(&s.id),
                 description: if !s.description.is_empty() {
                     s.description.clone()
                 } else {
                     s.name.clone()
                 },
-                // We ship a minimal stub schema here. A richer version would
-                // call describe() for each tool and map input_schema — but
-                // tools/list runs on every Hermes session start and should
-                // stay cheap. Per-tool schemas are lazily loaded only when
-                // the LLM needs to call the tool (see handle_tools_call).
-                input_schema: json!({"type": "object"}),
-            })
-            .collect();
+                input_schema,
+            });
+        }
 
         Response::ok(id, serde_json::to_value(ToolsListResult { tools }).unwrap())
     }
