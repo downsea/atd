@@ -337,6 +337,41 @@ Response (error):
 
 The reference client wraps this as `AtdClient::call(tool_id, args, options)`.
 
+#### 4.4.1 Paginated results (SP-pagination-v1)
+
+Tools that return more data than fits in `max_output_bytes` may opt into pagination by returning a `next_cursor` field on the `tool_result` response:
+
+```json
+{
+  "type": "tool_result",
+  "tool_id": "celia:fhir.list_observations",
+  "result": [/* first page of observations */],
+  "success": true,
+  "dry_run": false,
+  "next_cursor": "eyJhcmdzX2ZpbmdlcnByaW50IjogIi4uLiJ9...HMAC..."
+}
+```
+
+Clients consume the next page by sending `run_tool_continue` with the opaque cursor verbatim:
+
+```json
+{
+  "type": "run_tool_continue",
+  "tool_id": "celia:fhir.list_observations",
+  "cursor": "eyJhcmdzX2ZpbmdlcnByaW50IjogIi4uLiJ9...HMAC..."
+}
+```
+
+The response shape is the same `tool_result` envelope. Terminal pages omit `next_cursor` (or set it to `null`).
+
+**Cursor opacity:** clients MUST NOT parse cursors. They are server-issued, server-validated, server-opaque strings (≤ 512 bytes). The reference implementation HMAC-signs a CBOR-encoded payload binding `(tool_id, caller_id, args_fingerprint, page_index, issued_at_unix, server_session)` — see SP-pagination-v1 §4.2 for the wire-stable contract.
+
+**Cursor lifetime:** 5 minutes by default (`SharedServerConfig.cursor_ttl_seconds`). Expired cursors return `code = 1020 ERR_CURSOR_EXPIRED`. Invalid (forged / tampered / wrong-tool) cursors return `code = 1021 ERR_CURSOR_INVALID`. Both are `retryable: false`; the client must re-issue the original `run_tool` to get a fresh cursor.
+
+**Back-compat:** the `next_cursor` field is `#[serde(default, skip_serializing_if = "Option::is_none")]`. Pre-pagination clients deserialize the field as `None` and behave unchanged. Pre-pagination servers do not emit the field — their tool results are always single-page.
+
+**SDK ergonomics:** `AtdClient::call_page(tool_id, args, cursor)` returns one page at a time. `AtdClient::call_all(tool_id, args, options)` auto-loops until exhausted, merging pages per the configured `MergePolicy`. (Both pending — Phase E.)
+
 The `result` field contains a serialized `ToolResult` (see §5.3 for full field table).
 
 ### 4.5 Protocol-level `error` response
@@ -643,6 +678,7 @@ Source: `crates/atd-sdk/src/protocol.rs`. Discriminant field: `"type"`.
 | `ToolList` | `"tool_list"` | (none) |
 | `ToolSchema` | `"tool_schema"` | `tool_id: String` |
 | `RunTool` | `"run_tool"` | `tool_id: String`, `args: Object`, `dry_run: bool` |
+| `RunToolContinue` | `"run_tool_continue"` | `tool_id: String`, `cursor: String` — SP-pagination-v1; fetch next page of a paginated result |
 
 ### 5.6 `Response` enum
 
@@ -653,7 +689,7 @@ Source: `crates/atd-sdk/src/protocol.rs`. Discriminant field: `"type"`.
 | `Pong` | `"pong"` | (none) |
 | `ToolListResponse` | `"tool_list"` | `tools: Array<ToolSummary>` |
 | `ToolSchemaResponse` | `"tool_schema"` | `schema: ToolDefinition` |
-| `ToolResultResponse` | `"tool_result"` | `tool_id: String`, `result: ToolResult`, `success: bool`, `dry_run: bool` |
+| `ToolResultResponse` | `"tool_result"` | `tool_id: String`, `result: ToolResult`, `success: bool`, `dry_run: bool`, `next_cursor?: String` (SP-pagination-v1; opaque continuation handle, omitted on terminal pages) |
 | `Error` | `"error"` | `message: String`, `code?: u16`, `retryable?: bool`, `details?: Object` |
 
 ### 5.7 `ToolVisibility` enum

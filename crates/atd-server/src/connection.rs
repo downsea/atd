@@ -530,6 +530,7 @@ mod tests {
                 success,
                 dry_run,
                 tool_id,
+                ..
             } => {
                 assert!(!success);
                 assert!(!dry_run);

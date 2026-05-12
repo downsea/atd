@@ -246,6 +246,26 @@ Server-side only: SDKs may surface this as a generic wire-error response, but no
 | **Source line** | `crates/atd-protocol/src/messages.rs`; verifier (Phase B). |
 | **Since** | SP-capability-v2 |
 
+### 2.3g `CursorExpired` (wire code `1020` / `ERR_CURSOR_EXPIRED`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | A `Request::RunToolContinue` presents a cursor whose `issued_at_unix` is older than `SharedServerConfig.cursor_ttl_seconds` (default 300s) or whose `server_session` nonce doesn't match the current process (server restarted). SP-pagination-v1. |
+| **Wire mapping** | `Response::Error { code: Some(1020), retryable: Some(false), message: "cursor expired; re-issue the original RunTool" }` |
+| **Retryable?** | `false` — the cursor is permanently dead. The client's correct retry is to re-issue the original `RunTool` to get a fresh cursor, not to retry with the same cursor. |
+| **Source line** | `crates/atd-protocol/src/messages.rs` (constant `ERR_CURSOR_EXPIRED`); cursor verifier at `crates/atd-runtime/src/cursor.rs` (Phase C). |
+| **Since** | SP-pagination-v1 |
+
+### 2.3h `CursorInvalid` (wire code `1021` / `ERR_CURSOR_INVALID`)
+
+| attribute | value |
+|---|---|
+| **Trigger** | HMAC verification failure, malformed cursor encoding, `tool_id` mismatch between the cursor's embedded id and the `RunToolContinue` request, or `args_fingerprint` mismatch. Distinct from `1020` because an invalid cursor suggests a bug or attack (forge attempt) while expiry is a normal lifecycle event — ops should alert differently. SP-pagination-v1. |
+| **Wire mapping** | `Response::Error { code: Some(1021), retryable: Some(false), message: "cursor invalid" }` |
+| **Retryable?** | `false` — same recovery as `1020`: re-issue the original `RunTool`. |
+| **Source line** | `crates/atd-protocol/src/messages.rs` (constant `ERR_CURSOR_INVALID`); cursor verifier at `crates/atd-runtime/src/cursor.rs` (Phase C). |
+| **Since** | SP-pagination-v1 |
+
 ### 2.4 `BindingUnavailable`
 
 ```rust

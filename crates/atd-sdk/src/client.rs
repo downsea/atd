@@ -348,6 +348,7 @@ impl AtdClient {
                 result,
                 success,
                 dry_run: _,
+                next_cursor: _,
             } => {
                 if success {
                     // Server returned raw data JSON. Metadata carries only the
@@ -695,6 +696,7 @@ mod tests {
                     result: serde_json::json!({"content": "ok"}),
                     success: true,
                     dry_run: false,
+                    next_cursor: None,
                 }
             }
             _ => unreachable!(),
@@ -723,6 +725,7 @@ mod tests {
             result: serde_json::json!({"code": "EPERM", "message": "no", "retryable": false}),
             success: false,
             dry_run: false,
+            next_cursor: None,
         })
         .await;
 
@@ -752,6 +755,7 @@ mod tests {
             result: serde_json::json!({"unexpected": {"nested": [1, 2, 3]}, "hint": "quota exceeded"}),
             success: false,
             dry_run: false,
+            next_cursor: None,
         })
         .await;
 
@@ -800,6 +804,7 @@ mod tests {
                     result: serde_json::json!({}),
                     success: true,
                     dry_run: true,
+                    next_cursor: None,
                 }
             }
             _ => unreachable!(),

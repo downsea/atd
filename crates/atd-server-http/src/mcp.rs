@@ -319,6 +319,7 @@ pub fn wrap_tool_response(id: Option<Value>, resp: Response) -> axum::response::
             success,
             dry_run: _,
             tool_id: _,
+            next_cursor: _,
         } => {
             let text = serde_json::to_string(&result).unwrap_or_else(|_| "{}".into());
             let body = json!({

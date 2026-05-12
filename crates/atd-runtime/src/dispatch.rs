@@ -274,6 +274,17 @@ async fn dispatch_request_inner(
             )
             .await
         }
+        // SP-pagination-v1 Phase B: wire format reserves the variant but
+        // dispatch routing lands in Phase D (Tool::call_paginated). Until
+        // then, surface a clear "feature not enabled" rather than a generic
+        // 404 so adopters who try the route prematurely see a useful error.
+        Request::RunToolContinue { .. } => Response::Error {
+            message: "run_tool_continue dispatch not yet implemented (SP-pagination-v1 Phase D)"
+                .into(),
+            code: Some(atd_protocol::ERR_CURSOR_INVALID),
+            retryable: Some(false),
+            details: None,
+        },
     }
 }
 
@@ -344,6 +355,7 @@ pub async fn run_tool(
             }),
             success: true,
             dry_run: true,
+            next_cursor: None,
         };
     }
     let entry = match state.registry.get(&tool_id) {
@@ -462,6 +474,7 @@ pub async fn run_tool(
                 result: data,
                 success: true,
                 dry_run: false,
+                next_cursor: None,
             }
         }
         Err(ToolCallError::InvalidArgs(msg)) => {
@@ -501,6 +514,7 @@ pub async fn run_tool(
                 }),
                 success: false,
                 dry_run: false,
+                next_cursor: None,
             }
         }
         Err(ToolCallError::InternalError(msg)) => {

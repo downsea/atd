@@ -42,6 +42,23 @@ pub const ERR_DELEGATION_TOO_DEEP: u16 = 1012;
 /// `retryable: false`. SP-capability-v2.
 pub const ERR_AUDIENCE_MISMATCH: u16 = 1013;
 
+/// Wire value of `code` on `Response::Error` when a `Request::RunToolContinue`
+/// presents a cursor whose `issued_at_unix` is older than the server's
+/// `cursor_ttl_seconds` (default 300s) or whose `server_session` does not
+/// match the current server-process random nonce (server-restart invalidation).
+/// `retryable: false` — the cursor is permanently dead; the client must
+/// re-issue the original `RunTool` to get a fresh cursor. SP-pagination-v1.
+pub const ERR_CURSOR_EXPIRED: u16 = 1020;
+
+/// Wire value of `code` on `Response::Error` when a cursor fails HMAC
+/// verification, has malformed framing, references a non-matching
+/// `tool_id`, or carries an `args_fingerprint` that doesn't match the
+/// continuation's intended args. Distinct from `ERR_CURSOR_EXPIRED`
+/// because an invalid cursor suggests a bug or attack (forge attempt)
+/// while expiry is a normal lifecycle event — ops alert differently.
+/// `retryable: false`. SP-pagination-v1.
+pub const ERR_CURSOR_INVALID: u16 = 1021;
+
 /// Request frames sent from client → server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -83,6 +100,13 @@ pub enum Request {
         args: serde_json::Value,
         dry_run: bool,
     },
+
+    /// Fetch the next page of a paginated tool result. The cursor is the
+    /// server-issued opaque string from a prior `Response::ToolResultResponse.next_cursor`.
+    /// `tool_id` must match the cursor's embedded tool_id (server validates).
+    /// SP-pagination-v1 §4.1.
+    #[serde(rename = "run_tool_continue")]
+    RunToolContinue { tool_id: String, cursor: String },
 }
 
 /// Response frames sent from server → client.
@@ -115,6 +139,13 @@ pub enum Response {
         result: serde_json::Value,
         success: bool,
         dry_run: bool,
+        /// SP-pagination-v1 §4.1 — when present, the tool has more pages.
+        /// The client passes this verbatim to `Request::RunToolContinue.cursor`
+        /// to fetch the next page. Server-opaque (HMAC-signed in the
+        /// reference impl); clients MUST NOT parse it. Absent on terminal
+        /// pages and on responses from non-paginating tools.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        next_cursor: Option<String>,
     },
 
     #[serde(rename = "error")]
@@ -193,5 +224,82 @@ mod tests {
             }
             _ => panic!("wrong variant"),
         }
+    }
+
+    // ---- SP-pagination-v1 Phase B: wire format round-trips ----
+
+    #[test]
+    fn run_tool_continue_round_trips() {
+        let r = Request::RunToolContinue {
+            tool_id: "celia:fhir.list_observations".into(),
+            cursor: "abc123".into(),
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        assert!(j.contains(r#""type":"run_tool_continue""#));
+        let back: Request = serde_json::from_str(&j).unwrap();
+        match back {
+            Request::RunToolContinue { tool_id, cursor } => {
+                assert_eq!(tool_id, "celia:fhir.list_observations");
+                assert_eq!(cursor, "abc123");
+            }
+            _ => panic!("wrong variant: {j}"),
+        }
+    }
+
+    #[test]
+    fn tool_result_response_without_next_cursor_omits_field_on_wire() {
+        let r = Response::ToolResultResponse {
+            tool_id: "x".into(),
+            result: serde_json::json!({}),
+            success: true,
+            dry_run: false,
+            next_cursor: None,
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        assert!(
+            !j.contains("next_cursor"),
+            "next_cursor: None must be omitted on the wire (back-compat), got: {j}"
+        );
+    }
+
+    #[test]
+    fn tool_result_response_with_next_cursor_includes_field_on_wire() {
+        let r = Response::ToolResultResponse {
+            tool_id: "x".into(),
+            result: serde_json::json!({}),
+            success: true,
+            dry_run: false,
+            next_cursor: Some("abc".into()),
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        assert!(
+            j.contains(r#""next_cursor":"abc""#),
+            "next_cursor: Some(_) must serialize, got: {j}"
+        );
+    }
+
+    #[test]
+    fn tool_result_response_back_compat_default_when_field_missing() {
+        // Pre-pagination wire shape (no next_cursor field) must deserialize
+        // to next_cursor: None — adopters on old atd-mvp builds keep working.
+        let j =
+            r#"{"type":"tool_result","tool_id":"x","result":{},"success":true,"dry_run":false}"#;
+        let back: Response = serde_json::from_str(j).unwrap();
+        match back {
+            Response::ToolResultResponse { next_cursor, .. } => {
+                assert!(next_cursor.is_none(), "missing field must default to None");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn err_cursor_codes_distinct_from_existing_families() {
+        // Sanity: don't collide with the existing 100x or 101x families.
+        assert_eq!(ERR_CURSOR_EXPIRED, 1020);
+        assert_eq!(ERR_CURSOR_INVALID, 1021);
+        assert_ne!(ERR_CURSOR_EXPIRED, ERR_CURSOR_INVALID);
+        assert_ne!(ERR_CURSOR_EXPIRED, ERR_AUDIENCE_MISMATCH);
+        assert_ne!(ERR_CURSOR_INVALID, ERR_RATE_LIMITED);
     }
 }
