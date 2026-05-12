@@ -14,6 +14,25 @@ use crate::error::ToolCallError;
 pub type CallFuture<'a> =
     Pin<Box<dyn Future<Output = Result<serde_json::Value, ToolCallError>> + Send + 'a>>;
 
+/// Boxed future returned by [`Tool::call_paginated`]. SP-pagination-v1 §4.4.
+pub type PaginatedCallFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<PaginatedResult, ToolCallError>> + Send + 'a>>;
+
+/// Result of a paginated tool call. Tools that don't paginate return
+/// `next_cursor: None`; the default `Tool::call_paginated` impl wraps
+/// `Tool::call` to produce this shape automatically.
+///
+/// SP-pagination-v1 §4.4.
+#[derive(Debug)]
+pub struct PaginatedResult {
+    /// The page body. Same shape the tool would return from `call`.
+    pub value: serde_json::Value,
+    /// Server-opaque continuation handle. `Some(_)` if more pages exist;
+    /// `None` on terminal pages. Tools using ATD's reference HMAC-signed
+    /// cursors call `ctx.cursor_issuer().issue(payload)` to produce this.
+    pub next_cursor: Option<String>,
+}
+
 /// A tool. One `impl Tool for MyTool` per tool; registered once at startup.
 /// Tools MUST NOT panic; they return `Err(ToolCallError)` instead.
 ///
@@ -27,6 +46,47 @@ pub trait Tool: Send + Sync {
 
     /// Invoke the tool. Args are the deserialized JSON from the wire.
     fn call<'a>(&'a self, args: serde_json::Value, ctx: &'a CallContext) -> CallFuture<'a>;
+
+    /// SP-pagination-v1 §4.4 — whether this tool's `call_paginated` impl
+    /// produces meaningful pages (cursors emitted on first page, cursors
+    /// consumed on continuations). Default `false`: dispatch routes the
+    /// tool through `Binding::call` unchanged (preserving CLI / future
+    /// MCP / REST binding semantics). Tools that override `call_paginated`
+    /// must also override this to return `true`.
+    ///
+    /// v1 constraint: paginated tools execute through native (in-process)
+    /// semantics, bypassing the `Binding` abstraction — pagination state
+    /// doesn't survive subprocess boundaries. CLI-backed tools that need
+    /// pagination would require an out-of-band stateful protocol, deferred
+    /// to a future SP.
+    fn supports_pagination(&self) -> bool {
+        false
+    }
+
+    /// SP-pagination-v1 §4.4 — paginated variant. Default impl wraps `call`
+    /// and returns `next_cursor: None`, so existing tools work unchanged.
+    /// Tools that want to paginate override this method AND `supports_pagination`.
+    ///
+    /// `cursor`:
+    /// - `None` on the initial `Request::RunTool` — produce page 1.
+    /// - `Some(s)` on `Request::RunToolContinue` — the cursor's payload
+    ///   has already been HMAC-verified by dispatch; the tool decodes the
+    ///   `opaque_state` (or its own scheme) to resume.
+    fn call_paginated<'a>(
+        &'a self,
+        args: serde_json::Value,
+        ctx: &'a CallContext,
+        _cursor: Option<&'a str>,
+    ) -> PaginatedCallFuture<'a> {
+        let fut = self.call(args, ctx);
+        Box::pin(async move {
+            let value = fut.await?;
+            Ok(PaginatedResult {
+                value,
+                next_cursor: None,
+            })
+        })
+    }
 }
 
 /// One registered tool plus the binding dispatch uses to execute it.

@@ -63,6 +63,9 @@ impl Server {
         };
         Self {
             state: Arc::new(ServerState {
+                cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new(
+                    shared.cursor_signing_key,
+                )),
                 registry,
                 config: shared,
                 tier_policy: atd_runtime::TierPolicy::defaults(),

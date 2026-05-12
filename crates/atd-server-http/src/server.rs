@@ -83,6 +83,10 @@ impl ServerBuilder {
         } = self.config;
 
         let server_version = Arc::new(shared.server_version.clone());
+        // SP-pagination-v1 — capture the cursor key before Arc::try_unwrap
+        // consumes `shared`. The issuer is built once per server instance
+        // so the session_nonce stays stable across paginated round-trips.
+        let cursor_signing_key = shared.cursor_signing_key;
 
         // SP-streamable-http §4.3: HTTP and UDS share the *same*
         // `ServerState` shape. The HTTP listener owns the `Arc` directly
@@ -114,6 +118,7 @@ impl ServerBuilder {
             tier_policy: self.tier_policy,
             middleware: self.middleware,
             metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new(cursor_signing_key)),
         });
 
         let app_state = HttpAppState {

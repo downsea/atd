@@ -92,6 +92,7 @@ fn server_state_with_allow_list(allow: Vec<String>) -> Arc<ServerState> {
         tier_policy: TierPolicy::default(),
         middleware: Vec::<Arc<dyn Middleware>>::new(),
         metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+        cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
     })
 }
 

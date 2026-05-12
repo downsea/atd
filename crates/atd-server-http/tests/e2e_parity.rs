@@ -49,6 +49,7 @@ fn make_state() -> Arc<ServerState> {
         tier_policy: TierPolicy::defaults(),
         middleware: vec![],
         metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+        cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
     })
 }
 

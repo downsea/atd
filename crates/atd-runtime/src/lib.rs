@@ -28,7 +28,7 @@ pub use dispatch::{ServerState, SharedServerConfig, dispatch_request, run_tool};
 pub use error::ToolCallError;
 pub use metrics::{MetricsCounters, MetricsSnapshot};
 pub use middleware::{Middleware, RedactPathsMiddleware};
-pub use registry::{RegisteredTool, Registry, Tool};
+pub use registry::{PaginatedCallFuture, PaginatedResult, RegisteredTool, Registry, Tool};
 pub use runtime::default_worker_threads;
 pub use secrets::{
     BearerIdentity, BrokerError, InMemoryTokenBroker, RedactedString, ResolveBearerFuture,

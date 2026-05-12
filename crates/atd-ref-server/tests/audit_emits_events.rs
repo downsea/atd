@@ -5,7 +5,10 @@
 //! Covers SP-operability-v1 C1: the dispatch loop must emit exactly
 //! one `CallEvent` per `Request::RunTool` return branch (success,
 //! tool_not_found, invalid_args|execution_failed), and each line must
-//! be a well-formed `CallEvent` with `schema_version == 1`.
+//! be a well-formed `CallEvent`. SP-pagination-v1 bumped the schema
+//! to v2 by adding the optional `cursor_page` field — back-compat for
+//! consumers via #[serde(skip_serializing_if = "Option::is_none")], but
+//! the pinned `schema_version` field tracks the bump.
 
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -131,7 +134,11 @@ async fn audit_log_emits_expected_event_kinds() {
     // caller_id echoed from the Hello handshake.
     for line in &lines {
         let v: serde_json::Value = serde_json::from_str(line).expect("parse jsonl");
-        assert_eq!(v["schema_version"], 1);
+        // SP-pagination-v1 bumped to 2; cursor_page field is optional + omitted
+        // for non-paginated dispatches, so consumers reading v2 events see a
+        // shape byte-identical to v1 for the non-paginated cases this test
+        // exercises.
+        assert_eq!(v["schema_version"], 2);
         assert!(
             v["tool_id"].as_str().unwrap().starts_with("ref:"),
             "tool_id should be ref:-prefixed, got: {}",

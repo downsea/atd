@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::capability::CapabilitySet;
+use crate::cursor::CursorIssuer;
 use crate::secrets::SecretBundle;
 use crate::tier::ToolTier;
 use crate::tracker::ReadTracker;
@@ -45,6 +46,11 @@ pub struct CallContext {
     /// `ctx.secrets()`. Audit `CallEvent.secrets_resolved` is `true` iff
     /// this is `Some(_)`.
     pub secrets: Option<Arc<SecretBundle>>,
+    /// SP-pagination-v1 — cursor issuer for tools that override
+    /// `Tool::call_paginated`. `None` for non-paginating dispatch paths
+    /// (test fixtures, listeners that haven't wired pagination). Tools
+    /// use `ctx.cursor_issuer().issue(payload)` to mint a `next_cursor`.
+    pub cursor_issuer: Option<Arc<CursorIssuer>>,
 }
 
 impl CallContext {
@@ -75,7 +81,23 @@ impl CallContext {
             tier,
             caller_id,
             secrets,
+            cursor_issuer: None,
         }
+    }
+
+    /// Builder-style attach of the cursor issuer. Call after `new` from
+    /// dispatch code that wants to enable pagination for the call.
+    pub fn with_cursor_issuer(mut self, issuer: Arc<CursorIssuer>) -> Self {
+        self.cursor_issuer = Some(issuer);
+        self
+    }
+
+    /// Convenience accessor for paginating tools. Returns the issuer if
+    /// one was attached by dispatch; tools that override `call_paginated`
+    /// but find this `None` must fall back to returning `next_cursor: None`
+    /// (or error if cursors are mandatory).
+    pub fn cursor_issuer(&self) -> Option<&CursorIssuer> {
+        self.cursor_issuer.as_deref()
     }
 
     pub fn remaining_time(&self) -> Option<Duration> {
@@ -107,6 +129,7 @@ impl CallContext {
             tier: ToolTier::Warm,
             caller_id: None,
             secrets: None,
+            cursor_issuer: None,
         }
     }
 
@@ -124,6 +147,7 @@ impl CallContext {
             tier: ToolTier::Warm,
             caller_id: None,
             secrets: None,
+            cursor_issuer: None,
         };
         (ctx, tracker)
     }
@@ -168,6 +192,7 @@ mod tests {
             tier: ToolTier::Warm,
             caller_id: None,
             secrets: None,
+            cursor_issuer: None,
         };
         let r = ctx.remaining_time().unwrap();
         assert!(r <= Duration::from_secs(5));
@@ -186,6 +211,7 @@ mod tests {
             tier: ToolTier::Warm,
             caller_id: None,
             secrets: None,
+            cursor_issuer: None,
         };
         assert_eq!(ctx.remaining_time().unwrap(), Duration::ZERO);
     }

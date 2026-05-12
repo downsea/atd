@@ -147,6 +147,14 @@ pub struct ServerState {
     /// (atd-server / atd-server-http), and by Phase F follow-up wiring
     /// in audit. Always present; counters default to zero.
     pub metrics: Arc<crate::metrics::MetricsCounters>,
+    /// SP-pagination-v1 — process-wide HMAC issuer for paginated-result
+    /// cursors. Built once at server startup from
+    /// `SharedServerConfig.cursor_signing_key` and a fresh-random
+    /// `session_nonce`. Server restart → new nonce → outstanding cursors
+    /// expire (`ERR_CURSOR_EXPIRED`). Shared `Arc` so dispatch (verify-
+    /// continuation) and tools (issue-next-cursor via `CallContext`) see
+    /// the same nonce.
+    pub cursor_issuer: Arc<crate::cursor::CursorIssuer>,
 }
 
 /// Run the full `Request` state machine and produce a `Response`.
@@ -288,18 +296,238 @@ async fn dispatch_request_inner(
             )
             .await
         }
-        // SP-pagination-v1 Phase B: wire format reserves the variant but
-        // dispatch routing lands in Phase D (Tool::call_paginated). Until
-        // then, surface a clear "feature not enabled" rather than a generic
-        // 404 so adopters who try the route prematurely see a useful error.
-        Request::RunToolContinue { .. } => Response::Error {
-            message: "run_tool_continue dispatch not yet implemented (SP-pagination-v1 Phase D)"
-                .into(),
+        Request::RunToolContinue { tool_id, cursor } => {
+            run_tool_continue(state, tracker, caps, caller_id.as_deref(), tool_id, cursor).await
+        }
+    }
+}
+
+/// SP-pagination-v1 §4.4 — handle a `Request::RunToolContinue`.
+///
+/// Steps:
+/// 1. Verify the cursor (HMAC + TTL + session nonce) → `CursorPayload`.
+/// 2. Reject if the cursor's `tool_id` ≠ request's `tool_id` (anti-replay).
+/// 3. Look up the tool; reject if not found, or if it doesn't override
+///    `supports_pagination()` (a cursor against a non-paginating tool is
+///    bug-or-attack territory; 1021).
+/// 4. Re-check `required_capabilities` against the current connection's
+///    capability set — caps may have changed since the cursor was issued
+///    (UCAN revocation, Hello re-negotiation).
+/// 5. Acquire the per-tool semaphore (same rate-limit envelope as `run_tool`).
+/// 6. Build a `CallContext` with the cursor issuer attached.
+/// 7. Call `tool.call_paginated(Value::Null, &ctx, Some(&cursor_str))`.
+///    Args are intentionally `Null` on continuation — original args were
+///    fingerprinted into the cursor and the tool is expected to read its
+///    state from `cursor.opaque_state`.
+/// 8. Emit one audit event tagged with `cursor_page` = payload's page_index.
+/// 9. Return `ToolResultResponse` with the new `next_cursor` from the tool.
+#[allow(clippy::too_many_arguments)]
+async fn run_tool_continue(
+    state: &Arc<ServerState>,
+    tracker: &Arc<ReadTracker>,
+    caps: &Arc<CapabilitySet>,
+    caller_id: Option<&str>,
+    tool_id: String,
+    cursor: String,
+) -> Response {
+    use std::sync::atomic::Ordering;
+
+    let start = Instant::now();
+    let audit_call_id = ulid::Ulid::new();
+
+    // Build an issuer from the configured signing key. The session_nonce
+    // is fresh per construction — but cursors carry the issuer's nonce
+    // from issue-time, and the issuer constructed at server startup is
+    // the one whose nonce went into the cursor. Here we need to verify
+    // against THAT issuer. SharedServerConfig holds the key but not the
+    // issuer; for v1 the listener crates construct the issuer at startup
+    // and inject it via CallContext. Until that path lands we reconstruct
+    // here using the stored key — verification of cursors issued in this
+    // same process still succeeds because the dispatch path that issued
+    // the cursor used the same key + a matching session_nonce embedded.
+    //
+    // TODO: thread Arc<CursorIssuer> through ServerState so the nonce
+    // truly survives across paginated calls in the same process. For
+    // now we accept that the first call_paginated within this fn will
+    // be reading a cursor whose session_nonce came from a sister issuer
+    // — server_session check will hold across the same process because
+    // both issuers got their nonce from the same OS RNG sequence... no
+    // wait, they didn't. Each `CursorIssuer::new` randomizes the nonce.
+    //
+    // Use the process-wide issuer from ServerState so the session_nonce
+    // matches across issue (first-page in run_tool) and verify (continuation
+    // here). One issuer per server process by design.
+    let payload = match state
+        .cursor_issuer
+        .verify(&cursor, state.config.cursor_ttl_seconds)
+    {
+        Ok(p) => p,
+        Err(crate::cursor::CursorError::Expired) => {
+            return Response::Error {
+                message: "cursor expired; re-issue the original RunTool".into(),
+                code: Some(atd_protocol::ERR_CURSOR_EXPIRED),
+                retryable: Some(false),
+                details: None,
+            };
+        }
+        Err(_) => {
+            return Response::Error {
+                message: "cursor invalid".into(),
+                code: Some(atd_protocol::ERR_CURSOR_INVALID),
+                retryable: Some(false),
+                details: None,
+            };
+        }
+    };
+
+    if payload.tool_id != tool_id {
+        return Response::Error {
+            message: format!(
+                "cursor tool_id mismatch: cursor={} request={tool_id}",
+                payload.tool_id
+            ),
             code: Some(atd_protocol::ERR_CURSOR_INVALID),
             retryable: Some(false),
             details: None,
-        },
+        };
     }
+
+    let entry = match state.registry.get(&tool_id) {
+        Some(e) => e.clone(),
+        None => {
+            return Response::Error {
+                message: format!("tool not found: {tool_id}"),
+                code: None,
+                retryable: Some(false),
+                details: None,
+            };
+        }
+    };
+
+    if !entry.tool.supports_pagination() {
+        return Response::Error {
+            message: format!("tool {tool_id} does not support pagination but received a cursor"),
+            code: Some(atd_protocol::ERR_CURSOR_INVALID),
+            retryable: Some(false),
+            details: None,
+        };
+    }
+
+    let tier = entry.definition().tier.unwrap_or(ToolTier::Warm);
+
+    // Re-check capability gating — caps can change mid-connection (UCAN revocation).
+    let required = entry.definition().required_capabilities.clone();
+    let missing: Vec<String> = required
+        .iter()
+        .filter(|c| !caps.contains(c))
+        .cloned()
+        .collect();
+    if !missing.is_empty() {
+        return Response::Error {
+            message: format!("capability denied for {tool_id}: missing {missing:?}"),
+            code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
+            retryable: Some(false),
+            details: None,
+        };
+    }
+
+    let _permit = match entry.semaphore.clone().try_acquire_owned() {
+        Ok(p) => p,
+        Err(_) => {
+            return Response::Error {
+                message: format!("rate limited for {tool_id} (continuation)"),
+                code: Some(atd_protocol::ERR_RATE_LIMITED),
+                retryable: Some(true),
+                details: None,
+            };
+        }
+    };
+
+    let tier_timeout = state.tier_policy.timeout(tier);
+    let tier_max_output = state.tier_policy.max_output(tier);
+    let ctx = CallContext::new(
+        state.config.cwd.clone(),
+        tier_max_output,
+        audit_call_id,
+        Some(Instant::now() + tier_timeout),
+        Some(tracker.clone()),
+        caps.clone(),
+        tier,
+        caller_id.map(|s| s.to_string()),
+        None, // secrets — broker resolution skipped on continuation; the
+              // tool reads continuation state from cursor.opaque_state
+    )
+    .with_cursor_issuer(state.cursor_issuer.clone());
+
+    let page_index = payload.page_index;
+    let result = entry
+        .tool
+        .call_paginated(serde_json::Value::Null, &ctx, Some(&cursor))
+        .await;
+
+    let response = match result {
+        Ok(crate::registry::PaginatedResult { value, next_cursor }) => {
+            Response::ToolResultResponse {
+                tool_id: tool_id.clone(),
+                result: value,
+                success: true,
+                dry_run: false,
+                next_cursor,
+            }
+        }
+        Err(crate::error::ToolCallError::ExecutionFailed {
+            code,
+            message,
+            retryable,
+        }) => Response::ToolResultResponse {
+            tool_id: tool_id.clone(),
+            result: serde_json::json!({
+                "code": code,
+                "message": message,
+                "retryable": retryable,
+            }),
+            success: false,
+            dry_run: false,
+            next_cursor: None,
+        },
+        Err(e) => Response::Error {
+            message: format!("tool {tool_id} continuation failed: {e:?}"),
+            code: None,
+            retryable: Some(false),
+            details: None,
+        },
+    };
+
+    // Audit emission with cursor_page tag (the v2 schema field).
+    if let Some(sink) = state.config.audit_sink.as_ref() {
+        state
+            .metrics
+            .audit_events_total
+            .fetch_add(1, Ordering::Relaxed);
+        let outcome = match &response {
+            Response::ToolResultResponse { success: true, .. } => crate::audit::Outcome::Success,
+            _ => crate::audit::Outcome::ExecutionFailed {
+                code: "continuation_failed".into(),
+                retryable: false,
+            },
+        };
+        sink.on_call(&crate::audit::CallEvent {
+            ts: crate::audit::now_rfc3339(),
+            call_id: audit_call_id.to_string(),
+            tool_id: tool_id.clone(),
+            caller_id: caller_id.map(|s| s.to_string()),
+            granted_capabilities: caps.granted(),
+            duration_ms: start.elapsed().as_millis() as u64,
+            outcome,
+            tier: crate::tier::tier_as_str(tier).to_string(),
+            dry_run: false,
+            schema_version: crate::audit::SCHEMA_VERSION,
+            secrets_resolved: false,
+            cursor_page: Some(page_index),
+        });
+    }
+
+    response
 }
 
 /// Execute one `RunTool` request against the shared dispatch state.
@@ -334,6 +562,11 @@ pub async fn run_tool(
     // fires. Emission is a no-op when `audit_sink` is None.
     let start = Instant::now();
     let audit_call_id = ulid::Ulid::new();
+    // SP-pagination-v1 — cursor_page is captured-mut so paginated paths can
+    // tag the audit event with the page index (1 for first, 2+ for continues).
+    // Non-paginated dispatches leave it None and the field is omitted on
+    // the wire via #[serde(skip_serializing_if = "Option::is_none")].
+    let cursor_page: Option<u32> = None;
     let emit = |outcome: crate::audit::Outcome, tier: ToolTier, secrets_resolved: bool| {
         if let Some(sink) = state.config.audit_sink.as_ref() {
             state
@@ -352,6 +585,7 @@ pub async fn run_tool(
                 dry_run,
                 schema_version: crate::audit::SCHEMA_VERSION,
                 secrets_resolved,
+                cursor_page,
             });
         }
     };

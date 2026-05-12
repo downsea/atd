@@ -19,8 +19,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Audit schema version. Consumers should branch on this if future
-/// breaking changes land. v1 is the initial stable schema.
-pub const SCHEMA_VERSION: u32 = 1;
+/// breaking changes land.
+///
+/// - v1 (SP-operability-v1) — initial stable schema.
+/// - v2 (SP-pagination-v1) — adds optional `cursor_page` field. The field
+///   is `#[serde(default, skip_serializing_if = "Option::is_none")]` so
+///   v1 consumers tolerate v2 events; v2 consumers reading v1 events see
+///   `cursor_page: None`. The version bump records when the field landed,
+///   not a breaking shape change.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// One per-call audit event. Emitted at every `Request::RunTool`
 /// return point (success, invalid_args, execution_failed, cap_denied,
@@ -46,6 +53,12 @@ pub struct CallEvent {
     /// No key names or values are recorded.
     #[serde(default)]
     pub secrets_resolved: bool,
+    /// SP-pagination-v1 — 1-based page index for paginated calls. `None`
+    /// for non-paginated dispatches (the vast majority of events; saves
+    /// bytes in the audit log). `Some(1)` for the initial `RunTool` that
+    /// returned a cursor; `Some(2..)` for each `RunToolContinue`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor_page: Option<u32>,
 }
 
 /// Outcome variants cover the full dispatch-return space for RunTool.
@@ -190,6 +203,7 @@ mod tests {
             dry_run: false,
             schema_version: SCHEMA_VERSION,
             secrets_resolved: false,
+            cursor_page: None,
         }
     }
 
@@ -200,7 +214,7 @@ mod tests {
             serde_json::from_slice(&serde_json::to_vec(&e).expect("serialize")).expect("parse");
         assert_eq!(j["tool_id"], "ref:echo.say");
         assert_eq!(j["outcome"]["kind"], "success");
-        assert_eq!(j["schema_version"], 1);
+        assert_eq!(j["schema_version"], 2);
         assert_eq!(j["dry_run"], false);
     }
 

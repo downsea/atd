@@ -244,6 +244,7 @@ mod tests {
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
             metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
         })
     }
 
@@ -616,6 +617,7 @@ mod tests {
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
             metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
         })
     }
 
@@ -678,6 +680,7 @@ mod tests {
             tier_policy: atd_runtime::TierPolicy::defaults(),
             middleware: vec![],
             metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
         });
 
         let mut caller = Some("agent-A".to_string());
@@ -740,6 +743,277 @@ mod tests {
                 assert_eq!(retryable, Some(true));
             }
             other => panic!("expected Response::Error with broker code, got {other:?}"),
+        }
+    }
+
+    // ---- SP-pagination-v1 Phase D: RunToolContinue dispatch tests ----
+
+    /// Tool that returns the page index extracted from the cursor's
+    /// opaque_state, plus a cursor for `page+1` until page reaches `last`.
+    struct PageStub {
+        def: atd_protocol::ToolDefinition,
+        last_page: u32,
+    }
+    impl PageStub {
+        fn new(last_page: u32) -> Self {
+            Self {
+                def: stub_def("test:page_stub", "test"),
+                last_page,
+            }
+        }
+    }
+    impl Tool for PageStub {
+        fn definition(&self) -> &atd_protocol::ToolDefinition {
+            &self.def
+        }
+        fn supports_pagination(&self) -> bool {
+            true
+        }
+        fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
+            // Should never be hit when supports_pagination=true and the
+            // continuation path is in use.
+            Box::pin(async { Ok(serde_json::json!({"err": "call() should not be invoked"})) })
+        }
+        fn call_paginated<'a>(
+            &'a self,
+            _args: serde_json::Value,
+            ctx: &'a CallContext,
+            cursor: Option<&'a str>,
+        ) -> atd_runtime::PaginatedCallFuture<'a> {
+            let issuer = ctx
+                .cursor_issuer()
+                .expect("dispatch must attach issuer for paginated tools");
+            let last = self.last_page;
+            // Decode page from cursor payload's opaque_state (treat as u32 BE).
+            // For initial call (cursor=None), page=1.
+            let page = match cursor {
+                None => 1u32,
+                Some(c) => {
+                    let payload = issuer.verify(c, 300).expect("dispatch pre-verified");
+                    u32::from_be_bytes(payload.opaque_state[..4].try_into().unwrap())
+                }
+            };
+            let next_cursor = if page < last {
+                let next_payload = atd_runtime::cursor::CursorPayload {
+                    tool_id: "test:page_stub".into(),
+                    caller_id: ctx.caller_id.clone(),
+                    args_fingerprint: [0u8; 32],
+                    page_index: page + 1,
+                    issued_at_unix: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                    server_session: issuer.session_nonce(),
+                    opaque_state: (page + 1).to_be_bytes().to_vec(),
+                };
+                Some(issuer.issue(next_payload).expect("issue"))
+            } else {
+                None
+            };
+            Box::pin(async move {
+                Ok(atd_runtime::PaginatedResult {
+                    value: serde_json::json!({"page": page}),
+                    next_cursor,
+                })
+            })
+        }
+    }
+
+    /// Helper: mint a cursor for `page` against the state's issuer.
+    fn mint_cursor(state: &Arc<ServerState>, page: u32) -> String {
+        let payload = atd_runtime::cursor::CursorPayload {
+            tool_id: "test:page_stub".into(),
+            caller_id: None,
+            args_fingerprint: [0u8; 32],
+            page_index: page,
+            issued_at_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            server_session: state.cursor_issuer.session_nonce(),
+            opaque_state: page.to_be_bytes().to_vec(),
+        };
+        state.cursor_issuer.issue(payload).expect("issue")
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_returns_value_and_next_cursor() {
+        let state = test_state_with(vec![Arc::new(PageStub::new(3))]);
+        let cursor = mint_cursor(&state, 2);
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "test:page_stub".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::ToolResultResponse {
+                result,
+                success,
+                next_cursor,
+                ..
+            } => {
+                assert!(success);
+                assert_eq!(result["page"], 2);
+                assert!(next_cursor.is_some(), "page 2 < 3, expected next_cursor");
+            }
+            other => panic!("expected ToolResultResponse, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_terminal_page_has_no_cursor() {
+        let state = test_state_with(vec![Arc::new(PageStub::new(2))]);
+        let cursor = mint_cursor(&state, 2); // page 2 == last
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "test:page_stub".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::ToolResultResponse { next_cursor, .. } => {
+                assert!(next_cursor.is_none(), "terminal page must omit cursor");
+            }
+            other => panic!("expected ToolResultResponse, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_rejects_expired_cursor() {
+        let state = test_state_with(vec![Arc::new(PageStub::new(3))]);
+        // Issue a cursor with issued_at far in the past so default TTL (300s)
+        // catches it as expired. We bypass mint_cursor to set the timestamp.
+        let payload = atd_runtime::cursor::CursorPayload {
+            tool_id: "test:page_stub".into(),
+            caller_id: None,
+            args_fingerprint: [0u8; 32],
+            page_index: 1,
+            issued_at_unix: 1, // ancient
+            server_session: state.cursor_issuer.session_nonce(),
+            opaque_state: 1u32.to_be_bytes().to_vec(),
+        };
+        let cursor = state.cursor_issuer.issue(payload).unwrap();
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "test:page_stub".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::Error { code, .. } => {
+                assert_eq!(code, Some(atd_protocol::ERR_CURSOR_EXPIRED));
+            }
+            other => panic!("expected ERR_CURSOR_EXPIRED, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_rejects_tampered_cursor() {
+        let state = test_state_with(vec![Arc::new(PageStub::new(3))]);
+        let mut cursor = mint_cursor(&state, 1);
+        // Flip a byte ~16 chars from the end (HMAC tag region).
+        let mut bytes: Vec<u8> = cursor.bytes().collect();
+        let idx = bytes.len() - 16;
+        bytes[idx] = if bytes[idx] == b'A' { b'B' } else { b'A' };
+        cursor = String::from_utf8(bytes).unwrap();
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "test:page_stub".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::Error { code, .. } => {
+                assert_eq!(code, Some(atd_protocol::ERR_CURSOR_INVALID));
+            }
+            other => panic!("expected ERR_CURSOR_INVALID, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_rejects_cross_tool_cursor() {
+        let state = test_state_with(vec![Arc::new(PageStub::new(3))]);
+        let cursor = mint_cursor(&state, 1);
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "other:not_page_stub".into(), // mismatched
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::Error { code, message, .. } => {
+                assert_eq!(code, Some(atd_protocol::ERR_CURSOR_INVALID));
+                assert!(message.contains("tool_id mismatch"));
+            }
+            other => panic!("expected ERR_CURSOR_INVALID, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_tool_continue_rejects_cursor_against_non_paginating_tool() {
+        // EchoStub doesn't override supports_pagination → false.
+        let state = test_state_with(vec![Arc::new(EchoStub::new())]);
+        // Mint a cursor that names "ref:echo.say" so the tool_id check
+        // passes; supports_pagination check must still fail.
+        let payload = atd_runtime::cursor::CursorPayload {
+            tool_id: "ref:echo.say".into(),
+            caller_id: None,
+            args_fingerprint: [0u8; 32],
+            page_index: 1,
+            issued_at_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            server_session: state.cursor_issuer.session_nonce(),
+            opaque_state: vec![],
+        };
+        let cursor = state.cursor_issuer.issue(payload).unwrap();
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "ref:echo.say".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::Error { code, message, .. } => {
+                assert_eq!(code, Some(atd_protocol::ERR_CURSOR_INVALID));
+                assert!(
+                    message.contains("does not support pagination"),
+                    "got: {message}"
+                );
+            }
+            other => panic!("expected ERR_CURSOR_INVALID, got {other:?}"),
         }
     }
 }
