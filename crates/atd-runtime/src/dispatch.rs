@@ -700,19 +700,56 @@ pub async fn run_tool(
     let tier_timeout = state.tier_policy.timeout(tier);
     let tier_max_output = state.tier_policy.max_output(tier);
 
-    let ctx = CallContext::new(
-        state.config.cwd.clone(),
-        tier_max_output,
-        audit_call_id,
-        Some(Instant::now() + tier_timeout),
-        Some(tracker.clone()),
-        caps.clone(),
-        tier,
-        caller_id.map(|s| s.to_string()),
-        secrets,
-    );
-    match entry.binding.call(entry.definition(), args, &ctx).await {
-        Ok(mut data) => {
+    // SP-pagination-v1 §4.4 — paginated tools bypass the Binding layer so
+    // they can emit cursors on the first page. Non-paginated tools keep
+    // going through binding so CLI / future MCP / REST bindings stay
+    // intact. The check is one bool dispatch per call — negligible.
+    let ctx = if entry.tool.supports_pagination() {
+        CallContext::new(
+            state.config.cwd.clone(),
+            tier_max_output,
+            audit_call_id,
+            Some(Instant::now() + tier_timeout),
+            Some(tracker.clone()),
+            caps.clone(),
+            tier,
+            caller_id.map(|s| s.to_string()),
+            secrets,
+        )
+        .with_cursor_issuer(state.cursor_issuer.clone())
+    } else {
+        CallContext::new(
+            state.config.cwd.clone(),
+            tier_max_output,
+            audit_call_id,
+            Some(Instant::now() + tier_timeout),
+            Some(tracker.clone()),
+            caps.clone(),
+            tier,
+            caller_id.map(|s| s.to_string()),
+            secrets,
+        )
+    };
+
+    // Two paths: paginated tools call `Tool::call_paginated` directly with
+    // cursor=None (first page); non-paginated tools go through the Binding
+    // (preserves CLI / native dispatch semantics).
+    let call_result: Result<(serde_json::Value, Option<String>), ToolCallError> =
+        if entry.tool.supports_pagination() {
+            entry
+                .tool
+                .call_paginated(args, &ctx, None)
+                .await
+                .map(|p| (p.value, p.next_cursor))
+        } else {
+            entry
+                .binding
+                .call(entry.definition(), args, &ctx)
+                .await
+                .map(|v| (v, None))
+        };
+    match call_result {
+        Ok((mut data, next_cursor)) => {
             for mw in &state.middleware {
                 mw.on_result(&tool_id, entry.definition(), &mut data);
             }
@@ -722,7 +759,7 @@ pub async fn run_tool(
                 result: data,
                 success: true,
                 dry_run: false,
-                next_cursor: None,
+                next_cursor,
             }
         }
         Err(ToolCallError::InvalidArgs(msg)) => {

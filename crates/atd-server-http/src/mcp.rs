@@ -706,19 +706,16 @@ mod tests {
     #[tokio::test]
     async fn tools_call_initial_paginated_call_surfaces_next_cursor_in_envelope() {
         let state = state_with_page_stub();
-        // Note: initial RunTool goes through `run_tool` which currently
-        // ignores supports_pagination and doesn't emit a cursor. So this
-        // test verifies that the field is OMITTED on the initial call
-        // (consistent with Phase D's RunTool path). The cursor passthrough
-        // path is exercised by the next test using __cursor in arguments.
+        // After Phase H (RunTool routes through call_paginated when
+        // supports_pagination=true), initial calls against paginating
+        // tools surface nextCursor in the MCP envelope.
         let params = json!({"name": "ref:page_stub", "arguments": {}});
         let resp = handle_tools_call(Some(json!(7)), &state, None, params).await;
         let body = body_to_json(resp).await;
         assert_eq!(body["result"]["isError"], false);
-        // RunTool path doesn't currently emit cursor; nextCursor absent.
         assert!(
-            body["result"].get("nextCursor").is_none(),
-            "RunTool path is not cursor-aware in Phase D; got: {body}"
+            body["result"]["nextCursor"].is_string(),
+            "paginating tool on first call must emit nextCursor; got: {body}"
         );
     }
 
