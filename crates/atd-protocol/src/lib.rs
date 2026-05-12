@@ -25,3 +25,6 @@ pub use summary::ToolSummary;
 pub use tool::{
     ToolBinding, ToolCapability, ToolDefinition, ToolErrorDef, ToolResources, ToolSafety, ToolTrust,
 };
+pub use wire::{
+    WireError, read_frame, read_frame_with_deadline, write_frame, write_frame_with_deadline,
+};
