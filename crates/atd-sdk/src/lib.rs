@@ -12,7 +12,9 @@ pub mod adapters;
 
 pub use client::AtdClient;
 pub use endpoint::Endpoint;
-pub use options::{CallOptions, ConnectOptions, DiscoverFilter};
+pub use options::{
+    CallAllOptions, CallOptions, ConnectOptions, DiscoverFilter, MergePolicy, PaginatedSdkResult,
+};
 
 pub use atd_protocol::sanitize;
 pub use atd_protocol::wire;

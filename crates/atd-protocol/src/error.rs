@@ -53,6 +53,22 @@ pub enum AtdError {
 
     #[error("protocol error: expected {expected}, got {got}")]
     ProtocolError { expected: String, got: String },
+
+    /// SP-pagination-v1 §4.8 — `AtdClient::call_all` hit either `max_pages`
+    /// or `max_total_bytes` before exhausting cursors. Callers can decide
+    /// whether to treat partial as success.
+    #[error("pagination limit exceeded: fetched {pages_fetched} pages / {bytes_fetched} bytes")]
+    #[cfg_attr(feature = "schema", schemars(skip))]
+    PaginationLimitExceeded {
+        pages_fetched: u32,
+        bytes_fetched: usize,
+    },
+
+    /// SP-pagination-v1 §4.8 — `MergePolicy` couldn't combine pages
+    /// (e.g., `ConcatArray` but a page wasn't an array; `ConcatField`
+    /// but the named field was missing).
+    #[error("page merge failed: {reason}")]
+    MergeFailed { reason: String },
 }
 
 impl AtdError {

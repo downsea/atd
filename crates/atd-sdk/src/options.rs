@@ -51,6 +51,62 @@ impl Default for ConnectOptions {
     }
 }
 
+/// SP-pagination-v1 §4.8 — one page of a paginated tool result.
+///
+/// Returned by `AtdClient::call_page`. Clients pass `next_cursor` verbatim
+/// back to the SDK on the follow-up `call_page` call; the SDK doesn't
+/// parse it. `None` means terminal page.
+#[derive(Debug, Clone)]
+pub struct PaginatedSdkResult {
+    pub value: serde_json::Value,
+    pub next_cursor: Option<String>,
+}
+
+/// SP-pagination-v1 §4.8 — controls `AtdClient::call_all`'s auto-loop.
+///
+/// Sanity bounds against runaway loops (misbehaving server keeps issuing
+/// cursors) and against accidentally swallowing more memory than the
+/// caller expected. Either cap triggers `AtdError::PaginationLimitExceeded`
+/// with `pages_fetched` + `bytes_fetched` so callers can decide whether to
+/// treat the partial as success or retry with narrower args.
+#[derive(Debug, Clone)]
+pub struct CallAllOptions {
+    /// Maximum number of pages (including the initial call). Default 100.
+    pub max_pages: u32,
+    /// Maximum cumulative serialized bytes across pages. Default 32 MiB.
+    pub max_total_bytes: usize,
+    /// How to combine multiple pages into one Value. See [`MergePolicy`].
+    pub merge_policy: MergePolicy,
+}
+
+impl Default for CallAllOptions {
+    fn default() -> Self {
+        Self {
+            max_pages: 100,
+            max_total_bytes: 32 * 1024 * 1024,
+            merge_policy: MergePolicy::ConcatArray,
+        }
+    }
+}
+
+/// SP-pagination-v1 §4.8 — strategy for merging pages.
+///
+/// Different paginating tools return different shapes:
+/// - `healthkit:query_observations` returns `[Observation, ...]` per page → `ConcatArray`
+/// - `celia:list_observations` returns `{patient: "x", observations: [...], total: N}` per page → `ConcatField("observations")`
+/// - A summary tool that only honors the first page → `FirstPageOnly`
+#[derive(Debug, Clone)]
+pub enum MergePolicy {
+    /// Each page is a JSON array; concat across pages.
+    ConcatArray,
+    /// Each page is a JSON object; concat the named array field across
+    /// pages and keep the last page's other fields (e.g., metadata totals
+    /// that don't change across pages).
+    ConcatField(String),
+    /// First page wins; subsequent pages are dropped silently.
+    FirstPageOnly,
+}
+
 fn env_u32(key: &str, default: u32) -> u32 {
     std::env::var(key)
         .ok()

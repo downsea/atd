@@ -328,6 +328,122 @@ impl AtdClient {
         }
     }
 
+    /// SP-pagination-v1 §4.8 — fetch one page of a paginated tool result.
+    ///
+    /// On the initial call, pass `cursor = None`. The server's response
+    /// carries `next_cursor`; pass it verbatim to the next `call_page` to
+    /// fetch the subsequent page. Cursors are opaque — clients MUST NOT
+    /// parse them.
+    ///
+    /// For tools that don't paginate, the first page returns `next_cursor: None`
+    /// and the response shape is identical to `call`.
+    pub async fn call_page(
+        &self,
+        tool_id: &str,
+        args: serde_json::Value,
+        cursor: Option<&str>,
+        opts: crate::options::CallOptions,
+    ) -> Result<crate::options::PaginatedSdkResult, AtdError> {
+        let req = match cursor {
+            None => Request::RunTool {
+                tool_id: tool_id.to_string(),
+                args,
+                dry_run: opts.dry_run,
+            },
+            Some(c) => Request::RunToolContinue {
+                tool_id: tool_id.to_string(),
+                cursor: c.to_string(),
+            },
+        };
+        let resp = self.request(&req).await?;
+        match resp {
+            Response::ToolResultResponse {
+                result,
+                success,
+                next_cursor,
+                ..
+            } => {
+                if success {
+                    Ok(crate::options::PaginatedSdkResult {
+                        value: result,
+                        next_cursor,
+                    })
+                } else {
+                    let (code, message, retryable) = extract_error(&result);
+                    Err(AtdError::ToolExecutionFailed {
+                        tool_id: tool_id.to_string(),
+                        inner: Box::new(std::io::Error::other(format!(
+                            "{code} {message} (retryable={retryable})"
+                        ))),
+                    })
+                }
+            }
+            Response::Error {
+                message,
+                code,
+                retryable,
+                ..
+            } => Err(AtdError::ToolExecutionFailed {
+                tool_id: tool_id.to_string(),
+                inner: Box::new(std::io::Error::other(format!(
+                    "server error code={code:?} retryable={retryable:?}: {message}"
+                ))),
+            }),
+            other => Err(AtdError::ProtocolError {
+                expected: "tool_result".into(),
+                got: format!("{other:?}"),
+            }),
+        }
+    }
+
+    /// SP-pagination-v1 §4.8 — fetch all pages via auto-loop, merging per
+    /// the configured `MergePolicy`. Aborts with `PaginationLimitExceeded`
+    /// if `max_pages` or `max_total_bytes` is hit before exhaustion.
+    pub async fn call_all(
+        &self,
+        tool_id: &str,
+        args: serde_json::Value,
+        opts: crate::options::CallAllOptions,
+    ) -> Result<serde_json::Value, AtdError> {
+        let mut accumulated: Option<serde_json::Value> = None;
+        let mut bytes_total: usize = 0;
+        let mut cursor: Option<String> = None;
+        for page_idx in 0..opts.max_pages {
+            let page_args = if page_idx == 0 {
+                args.clone()
+            } else {
+                serde_json::Value::Null
+            };
+            let page = self
+                .call_page(
+                    tool_id,
+                    page_args,
+                    cursor.as_deref(),
+                    crate::options::CallOptions::default(),
+                )
+                .await?;
+            let page_bytes = serde_json::to_vec(&page.value)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            bytes_total += page_bytes;
+            if bytes_total > opts.max_total_bytes {
+                return Err(AtdError::PaginationLimitExceeded {
+                    pages_fetched: page_idx + 1,
+                    bytes_fetched: bytes_total,
+                });
+            }
+            accumulated = Some(merge_pages(accumulated, page.value, &opts.merge_policy)?);
+            match page.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => return Ok(accumulated.unwrap_or(serde_json::Value::Null)),
+            }
+        }
+        Err(AtdError::PaginationLimitExceeded {
+            pages_fetched: opts.max_pages,
+            bytes_fetched: bytes_total,
+        })
+    }
+
     pub async fn call(
         &self,
         tool_id: &str,
@@ -469,6 +585,86 @@ fn extract_error(value: &serde_json::Value) -> (String, String, bool) {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
     (code, message, retryable)
+}
+
+/// SP-pagination-v1 §4.8 — combine a new page with the accumulator per
+/// the chosen `MergePolicy`. Returns the new accumulator.
+fn merge_pages(
+    accumulated: Option<serde_json::Value>,
+    page: serde_json::Value,
+    policy: &crate::options::MergePolicy,
+) -> Result<serde_json::Value, AtdError> {
+    use crate::options::MergePolicy;
+    match (accumulated, policy) {
+        // First page: just take the page verbatim.
+        (None, _) => Ok(page),
+        (Some(acc), MergePolicy::FirstPageOnly) => {
+            // First page wins; the new page is dropped silently. The
+            // call_all loop still bumps page_idx for byte / page caps so
+            // a misbehaving server emitting forever-cursors still triggers
+            // PaginationLimitExceeded.
+            let _ = page;
+            Ok(acc)
+        }
+        (Some(acc), MergePolicy::ConcatArray) => match (acc, page) {
+            (serde_json::Value::Array(mut a), serde_json::Value::Array(b)) => {
+                a.extend(b);
+                Ok(serde_json::Value::Array(a))
+            }
+            _ => Err(AtdError::MergeFailed {
+                reason: "ConcatArray requires every page to be a JSON array".into(),
+            }),
+        },
+        (Some(acc), MergePolicy::ConcatField(field)) => {
+            let acc_obj = match acc {
+                serde_json::Value::Object(m) => m,
+                _ => {
+                    return Err(AtdError::MergeFailed {
+                        reason: format!(
+                            "ConcatField({field}) requires every page to be a JSON object"
+                        ),
+                    });
+                }
+            };
+            let mut page_obj = match page {
+                serde_json::Value::Object(m) => m,
+                _ => {
+                    return Err(AtdError::MergeFailed {
+                        reason: format!("ConcatField({field}) page is not a JSON object"),
+                    });
+                }
+            };
+            let acc_arr =
+                acc_obj
+                    .get(field.as_str())
+                    .cloned()
+                    .ok_or_else(|| AtdError::MergeFailed {
+                        reason: format!("ConcatField({field}): field missing in accumulator"),
+                    })?;
+            let page_arr =
+                page_obj
+                    .get(field.as_str())
+                    .cloned()
+                    .ok_or_else(|| AtdError::MergeFailed {
+                        reason: format!("ConcatField({field}): field missing in page"),
+                    })?;
+            let combined = match (acc_arr, page_arr) {
+                (serde_json::Value::Array(mut a), serde_json::Value::Array(b)) => {
+                    a.extend(b);
+                    serde_json::Value::Array(a)
+                }
+                _ => {
+                    return Err(AtdError::MergeFailed {
+                        reason: format!("ConcatField({field}) is not an array"),
+                    });
+                }
+            };
+            // Last page's other fields win — metadata totals etc. that
+            // don't change across pages stay consistent.
+            page_obj.insert(field.clone(), combined);
+            Ok(serde_json::Value::Object(page_obj))
+        }
+    }
 }
 
 /// SP-concurrency-baseline §5.3 — distinguish "this attempt is hopeless"
@@ -1128,5 +1324,304 @@ mod tests {
             let j = jitter_factor();
             assert!(j >= -0.2 && j <= 0.2, "jitter {j} out of ±0.2 bound");
         }
+    }
+
+    // ---- SP-pagination-v1 §4.8 call_page + call_all + merge_pages tests ----
+
+    #[tokio::test]
+    async fn call_page_initial_sends_run_tool() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!([1, 2, 3]),
+                success: true,
+                dry_run: false,
+                next_cursor: Some("CURSOR_AFTER_PAGE_1".into()),
+            },
+            other => panic!("expected RunTool, got {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let page = client
+            .call_page(
+                "celia:list_obs",
+                serde_json::json!({"p": "x"}),
+                None,
+                crate::options::CallOptions::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.value, serde_json::json!([1, 2, 3]));
+        assert_eq!(page.next_cursor.as_deref(), Some("CURSOR_AFTER_PAGE_1"));
+    }
+
+    #[tokio::test]
+    async fn call_page_with_cursor_sends_run_tool_continue() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::RunToolContinue { tool_id, cursor } => {
+                assert_eq!(cursor, "CURSOR_X");
+                Response::ToolResultResponse {
+                    tool_id,
+                    result: serde_json::json!([4, 5]),
+                    success: true,
+                    dry_run: false,
+                    next_cursor: None,
+                }
+            }
+            other => panic!("expected RunToolContinue, got {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let page = client
+            .call_page(
+                "celia:list_obs",
+                serde_json::Value::Null,
+                Some("CURSOR_X"),
+                crate::options::CallOptions::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.value, serde_json::json!([4, 5]));
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn call_all_concats_arrays_until_no_cursor() {
+        let (client_end, server_end) = duplex(4096);
+        // 3-page sequence: [1,2] cursor=a → [3,4] cursor=b → [5,6] cursor=None.
+        spin_server(server_end, move |req| match req {
+            Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!([1, 2]),
+                success: true,
+                dry_run: false,
+                next_cursor: Some("cursor-a".into()),
+            },
+            Request::RunToolContinue { tool_id, cursor } => match cursor.as_str() {
+                "cursor-a" => Response::ToolResultResponse {
+                    tool_id,
+                    result: serde_json::json!([3, 4]),
+                    success: true,
+                    dry_run: false,
+                    next_cursor: Some("cursor-b".into()),
+                },
+                "cursor-b" => Response::ToolResultResponse {
+                    tool_id,
+                    result: serde_json::json!([5, 6]),
+                    success: true,
+                    dry_run: false,
+                    next_cursor: None,
+                },
+                other => panic!("unexpected cursor: {other}"),
+            },
+            other => panic!("unexpected req: {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let all = client
+            .call_all(
+                "t",
+                serde_json::json!({}),
+                crate::options::CallAllOptions::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(all, serde_json::json!([1, 2, 3, 4, 5, 6]));
+    }
+
+    #[tokio::test]
+    async fn call_all_concat_field_merges_named_array() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!({"patient": "p1", "obs": [{"id": 1}], "total": 4}),
+                success: true,
+                dry_run: false,
+                next_cursor: Some("c1".into()),
+            },
+            Request::RunToolContinue { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!({"patient": "p1", "obs": [{"id": 2}, {"id": 3}, {"id": 4}], "total": 4}),
+                success: true,
+                dry_run: false,
+                next_cursor: None,
+            },
+            other => panic!("unexpected: {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let opts = crate::options::CallAllOptions {
+            merge_policy: crate::options::MergePolicy::ConcatField("obs".into()),
+            ..Default::default()
+        };
+        let all = client
+            .call_all("t", serde_json::json!({}), opts)
+            .await
+            .unwrap();
+        // Last page's metadata wins; obs array is concatenated.
+        assert_eq!(all["patient"], "p1");
+        assert_eq!(all["total"], 4);
+        assert_eq!(
+            all["obs"],
+            serde_json::json!([{"id":1},{"id":2},{"id":3},{"id":4}])
+        );
+    }
+
+    #[tokio::test]
+    async fn call_all_respects_max_pages() {
+        let (client_end, server_end) = duplex(4096);
+        // Server keeps issuing cursors forever — exercise the max_pages cap.
+        spin_server(server_end, |req| match req {
+            Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!([0]),
+                success: true,
+                dry_run: false,
+                next_cursor: Some("c".into()),
+            },
+            Request::RunToolContinue { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!([0]),
+                success: true,
+                dry_run: false,
+                next_cursor: Some("c".into()),
+            },
+            other => panic!("unexpected: {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let opts = crate::options::CallAllOptions {
+            max_pages: 3,
+            ..Default::default()
+        };
+        let err = client.call_all("t", serde_json::json!({}), opts).await;
+        match err {
+            Err(AtdError::PaginationLimitExceeded { pages_fetched, .. }) => {
+                assert_eq!(pages_fetched, 3);
+            }
+            other => panic!("expected PaginationLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn call_all_respects_max_total_bytes() {
+        let (client_end, server_end) = duplex(8192);
+        // Each page returns a big array. With max_total_bytes set low,
+        // we abort early.
+        spin_server(server_end, |req| {
+            let big = serde_json::Value::Array((0..100).map(serde_json::Value::from).collect());
+            match req {
+                Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                    tool_id,
+                    result: big,
+                    success: true,
+                    dry_run: false,
+                    next_cursor: Some("c".into()),
+                },
+                Request::RunToolContinue { tool_id, .. } => Response::ToolResultResponse {
+                    tool_id,
+                    result: big,
+                    success: true,
+                    dry_run: false,
+                    next_cursor: Some("c".into()),
+                },
+                other => panic!("unexpected: {other:?}"),
+            }
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let opts = crate::options::CallAllOptions {
+            max_total_bytes: 400, // ~2 pages worth
+            ..Default::default()
+        };
+        let err = client.call_all("t", serde_json::json!({}), opts).await;
+        match err {
+            Err(AtdError::PaginationLimitExceeded {
+                bytes_fetched,
+                pages_fetched: _,
+            }) => {
+                assert!(
+                    bytes_fetched > 400,
+                    "expected byte overflow, got {bytes_fetched}"
+                );
+            }
+            other => panic!("expected PaginationLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn call_all_single_page_returns_value_unchanged() {
+        let (client_end, server_end) = duplex(4096);
+        spin_server(server_end, |req| match req {
+            Request::RunTool { tool_id, .. } => Response::ToolResultResponse {
+                tool_id,
+                result: serde_json::json!({"data": [1, 2, 3]}),
+                success: true,
+                dry_run: false,
+                next_cursor: None,
+            },
+            other => panic!("unexpected: {other:?}"),
+        })
+        .await;
+        let (cr, cw) = tokio::io::split(client_end);
+        let client = AtdClient::from_duplex(cr, cw);
+        let all = client
+            .call_all(
+                "t",
+                serde_json::json!({}),
+                crate::options::CallAllOptions::default(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(all, serde_json::json!({"data": [1, 2, 3]}));
+    }
+
+    #[test]
+    fn merge_pages_concat_array_basic() {
+        use crate::options::MergePolicy;
+        let r = merge_pages(
+            Some(serde_json::json!([1, 2])),
+            serde_json::json!([3, 4]),
+            &MergePolicy::ConcatArray,
+        )
+        .unwrap();
+        assert_eq!(r, serde_json::json!([1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn merge_pages_concat_array_rejects_non_array() {
+        use crate::options::MergePolicy;
+        let err = merge_pages(
+            Some(serde_json::json!([1, 2])),
+            serde_json::json!({"x": 1}),
+            &MergePolicy::ConcatArray,
+        )
+        .unwrap_err();
+        assert!(matches!(err, AtdError::MergeFailed { .. }));
+    }
+
+    #[test]
+    fn merge_pages_first_page_only_drops_subsequent() {
+        use crate::options::MergePolicy;
+        let r = merge_pages(
+            Some(serde_json::json!({"first": true})),
+            serde_json::json!({"second": true}),
+            &MergePolicy::FirstPageOnly,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            serde_json::json!({"first": true}),
+            "FirstPageOnly: accumulator wins; subsequent pages dropped"
+        );
     }
 }
