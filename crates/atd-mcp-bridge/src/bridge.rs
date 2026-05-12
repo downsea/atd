@@ -289,6 +289,108 @@ mod tests {
         }
     }
 
+    // Regression for the celia adopter UAT bug: tools/list previously
+    // shipped a stub `{"type":"object"}` for every tool, so MCP-aware
+    // LLM clients (Hermes / deepseek-chat / Claude Desktop) had no way
+    // to know what arguments to pass and would make argless calls.
+    // The bridge must call tool_schema per tool and surface the rich
+    // input_schema (properties + required) back to the LLM client.
+    #[tokio::test]
+    async fn tools_list_includes_rich_input_schema_from_describe() {
+        let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
+            Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"celia:fhir.get_patient","description":"Get Patient","tier":"hot","visibility":"read"}
+                ]
+            }),
+            Some("tool_schema") => {
+                assert_eq!(req["tool_id"], "celia:fhir.get_patient");
+                json!({
+                    "type": "tool_schema",
+                    "schema": {
+                        "id": "celia:fhir.get_patient",
+                        "name": "Get Patient",
+                        "description": "Get Patient",
+                        "version": "0.1.0",
+                        "capability": {"domain":"fhir","actions":["read"],"tags":[],"intent_examples":[]},
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"patient": {"type": "string"}},
+                            "required": ["patient"]
+                        },
+                        "output_schema": {"type":"object"},
+                        "bindings": [],
+                        "safety": {"level":"Read","dry_run":false,"side_effects":[],"data_sensitivity":null},
+                        "resources": {"timeout_ms":1000,"max_concurrent":1,"rate_limit_per_min":null,"estimated_tokens":null},
+                        "trust": {"publisher":"celia","trust_level":"L3Verified","signature":null}
+                    }
+                })
+            }
+            _ => json!({"type":"error","message":"no"}),
+        })
+        .await;
+
+        let client = AtdClient::connect(Endpoint::unix(sock)).await.unwrap();
+        let bridge = Bridge::new(client);
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(10)),
+            method: "tools/list".into(),
+            params: None,
+        };
+        let resp = bridge.handle(req).await.unwrap();
+        let v: serde_json::Value =
+            serde_json::from_value(serde_json::to_value(&resp).unwrap()).unwrap();
+        let schema = &v["result"]["tools"][0]["inputSchema"];
+        assert_eq!(
+            schema["properties"]["patient"]["type"], "string",
+            "input_schema must surface `patient` property from describe, got: {schema}"
+        );
+        assert_eq!(
+            schema["required"][0], "patient",
+            "input_schema must surface `required:[patient]`, got: {schema}"
+        );
+    }
+
+    // Companion to the test above: if describe() fails (e.g. tool
+    // disabled mid-list), the bridge falls back to the stub so a
+    // single bad tool doesn't break tools/list entirely.
+    #[tokio::test]
+    async fn tools_list_falls_back_to_stub_schema_when_describe_fails() {
+        let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
+            Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"anos:fs.read","description":"File Read","tier":"hot","visibility":"read"}
+                ]
+            }),
+            Some("tool_schema") => json!({"type":"error","message":"tool not found"}),
+            _ => json!({"type":"error","message":"no"}),
+        })
+        .await;
+
+        let client = AtdClient::connect(Endpoint::unix(sock)).await.unwrap();
+        let bridge = Bridge::new(client);
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(11)),
+            method: "tools/list".into(),
+            params: None,
+        };
+        let resp = bridge.handle(req).await.unwrap();
+        let v: serde_json::Value =
+            serde_json::from_value(serde_json::to_value(&resp).unwrap()).unwrap();
+        let schema = &v["result"]["tools"][0]["inputSchema"];
+        assert_eq!(
+            schema,
+            &json!({"type":"object"}),
+            "fallback stub expected, got: {schema}"
+        );
+    }
+
     #[tokio::test]
     async fn tools_call_desanitizes_and_forwards() {
         let sock = spawn_fake_atd_server(|req| match req["type"].as_str() {
