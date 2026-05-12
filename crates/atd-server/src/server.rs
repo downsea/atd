@@ -80,6 +80,29 @@ impl Server {
         state.middleware = middleware;
     }
 
+    /// SP-capability-v2 adopter hook — install a UCAN revocation store
+    /// without flowing it through `ServerConfig`. Adopters whose
+    /// revocation source-of-truth is a database (e.g. Celia's
+    /// `consent.status != 'active'`) attach a Send + Sync `Arc<dyn
+    /// UcanRevocationStore>` here. Must be called before `run()` for
+    /// the same `Arc::get_mut` reason as `set_tier_policy`.
+    ///
+    /// Mirrors `set_tier_policy` / `set_middleware`: a one-shot
+    /// builder-style mutator that fits the existing pattern without
+    /// growing the public `ServerConfig` surface (a follow-up SP can
+    /// promote it there once more adopters need it).
+    pub fn set_ucan_revocation_store(
+        &mut self,
+        store: Arc<dyn atd_runtime::ucan::UcanRevocationStore>,
+    ) {
+        let state = Arc::get_mut(&mut self.state)
+            .expect("set_ucan_revocation_store must be called before run() hands out Arcs");
+        // `SharedServerConfig` is by-value on `ServerState`; mutate
+        // the field in place. atd-runtime exposes `ucan_revocation_store`
+        // as `pub` for exactly this pattern.
+        state.config.ucan_revocation_store = Some(store);
+    }
+
     pub async fn run(self) -> std::io::Result<()> {
         let sock = &self.socket_path;
 
