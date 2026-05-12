@@ -264,10 +264,20 @@ pub async fn handle_tools_call(
             return error_response(StatusCode::OK, id, -32602, "missing `name` parameter");
         }
     };
-    let args = params
+    let mut args = params
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| Value::Object(Default::default()));
+
+    // SP-pagination-v1 §4.6 — detect `arguments.__cursor` and route through
+    // RunToolContinue. The cursor is extracted and the field stripped before
+    // forwarding so the tool's `args` schema is unaffected.
+    let cursor: Option<String> = match args.as_object_mut() {
+        Some(obj) => obj
+            .remove("__cursor")
+            .and_then(|v| v.as_str().map(String::from)),
+        None => None,
+    };
 
     // SP-streamable-http §4.3: capability set is per-request, intersected
     // with the server allow-list. Anonymous mode (no identity) yields
@@ -279,16 +289,28 @@ pub async fn handle_tools_call(
     // connection lifetime.
     let tracker = Arc::new(ReadTracker::new());
 
-    let resp = atd_runtime::dispatch::run_tool(
-        state,
-        &tracker,
-        &caps,
-        caller_id.as_deref(),
-        tool_id.clone(),
-        args,
-        false, // HTTP does not expose dry_run on tools/call
-    )
-    .await;
+    let resp = if let Some(c) = cursor {
+        atd_runtime::dispatch::run_tool_continue(
+            state,
+            &tracker,
+            &caps,
+            caller_id.as_deref(),
+            tool_id.clone(),
+            c,
+        )
+        .await
+    } else {
+        atd_runtime::dispatch::run_tool(
+            state,
+            &tracker,
+            &caps,
+            caller_id.as_deref(),
+            tool_id.clone(),
+            args,
+            false, // HTTP does not expose dry_run on tools/call
+        )
+        .await
+    };
 
     wrap_tool_response(id, resp)
 }
@@ -319,13 +341,24 @@ pub fn wrap_tool_response(id: Option<Value>, resp: Response) -> axum::response::
             success,
             dry_run: _,
             tool_id: _,
-            next_cursor: _,
+            next_cursor,
         } => {
             let text = serde_json::to_string(&result).unwrap_or_else(|_| "{}".into());
-            let body = json!({
+            // SP-pagination-v1 §4.6 — surface `nextCursor` in the MCP
+            // result envelope when present. Omitted on terminal pages
+            // and on responses from non-paginating tools. MCP 2025-11-25
+            // does not standardize the field; we ship it as a non-standard
+            // extension. Cursor-aware clients (Hermes patched, future MCP
+            // spec) consume it; non-aware clients ignore unknown fields.
+            let mut body = json!({
                 "content": [{ "type": "text", "text": text }],
                 "isError": !success,
             });
+            if let Some(cur) = next_cursor {
+                if let Some(obj) = body.as_object_mut() {
+                    obj.insert("nextCursor".into(), Value::String(cur));
+                }
+            }
             ok_response(id, body)
         }
         Response::Error {
@@ -593,5 +626,162 @@ mod tests {
                 .unwrap()
                 .contains("tool not found")
         );
+    }
+
+    // ---- SP-pagination-v1 Phase F: HTTP transport cursor passthrough ----
+
+    /// Paginating stub: emits a cursor on every call, threads the page
+    /// index through `opaque_state`. Used to verify the HTTP layer
+    /// extracts `__cursor` from arguments and surfaces `nextCursor` in
+    /// the MCP envelope.
+    struct PageStubHttp {
+        def: atd_protocol::ToolDefinition,
+    }
+    impl PageStubHttp {
+        fn new() -> Self {
+            Self {
+                def: stub_def("ref:page_stub"),
+            }
+        }
+    }
+    impl Tool for PageStubHttp {
+        fn definition(&self) -> &atd_protocol::ToolDefinition {
+            &self.def
+        }
+        fn supports_pagination(&self) -> bool {
+            true
+        }
+        fn call<'a>(&'a self, _args: serde_json::Value, _ctx: &'a CallContext) -> CallFuture<'a> {
+            Box::pin(async { Ok(json!({"unused": true})) })
+        }
+        fn call_paginated<'a>(
+            &'a self,
+            _args: serde_json::Value,
+            ctx: &'a CallContext,
+            cursor: Option<&'a str>,
+        ) -> atd_runtime::PaginatedCallFuture<'a> {
+            let issuer = ctx.cursor_issuer().expect("issuer attached");
+            let page = match cursor {
+                None => 1u32,
+                Some(c) => {
+                    let p = issuer.verify(c, 300).expect("pre-verified");
+                    u32::from_be_bytes(p.opaque_state[..4].try_into().unwrap())
+                }
+            };
+            let payload = atd_runtime::cursor::CursorPayload {
+                tool_id: "ref:page_stub".into(),
+                caller_id: ctx.caller_id.clone(),
+                args_fingerprint: [0u8; 32],
+                page_index: page + 1,
+                issued_at_unix: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                server_session: issuer.session_nonce(),
+                opaque_state: (page + 1).to_be_bytes().to_vec(),
+            };
+            let next = issuer.issue(payload).ok();
+            Box::pin(async move {
+                Ok(atd_runtime::PaginatedResult {
+                    value: json!({"page": page}),
+                    next_cursor: next,
+                })
+            })
+        }
+    }
+
+    fn state_with_page_stub() -> Arc<ServerState> {
+        let mut reg = Registry::new();
+        reg.register(Arc::new(PageStubHttp::new()));
+        Arc::new(ServerState {
+            registry: reg,
+            config: SharedServerConfig::for_test(),
+            tier_policy: TierPolicy::defaults(),
+            middleware: vec![],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
+        })
+    }
+
+    #[tokio::test]
+    async fn tools_call_initial_paginated_call_surfaces_next_cursor_in_envelope() {
+        let state = state_with_page_stub();
+        // Note: initial RunTool goes through `run_tool` which currently
+        // ignores supports_pagination and doesn't emit a cursor. So this
+        // test verifies that the field is OMITTED on the initial call
+        // (consistent with Phase D's RunTool path). The cursor passthrough
+        // path is exercised by the next test using __cursor in arguments.
+        let params = json!({"name": "ref:page_stub", "arguments": {}});
+        let resp = handle_tools_call(Some(json!(7)), &state, None, params).await;
+        let body = body_to_json(resp).await;
+        assert_eq!(body["result"]["isError"], false);
+        // RunTool path doesn't currently emit cursor; nextCursor absent.
+        assert!(
+            body["result"].get("nextCursor").is_none(),
+            "RunTool path is not cursor-aware in Phase D; got: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn tools_call_with_dunder_cursor_routes_to_run_tool_continue() {
+        let state = state_with_page_stub();
+        // Mint a page-2 cursor against the state's issuer (the same one
+        // dispatch_request will verify against on RunToolContinue).
+        let payload = atd_runtime::cursor::CursorPayload {
+            tool_id: "ref:page_stub".into(),
+            caller_id: None,
+            args_fingerprint: [0u8; 32],
+            page_index: 2,
+            issued_at_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            server_session: state.cursor_issuer.session_nonce(),
+            opaque_state: 2u32.to_be_bytes().to_vec(),
+        };
+        let cursor = state.cursor_issuer.issue(payload).unwrap();
+
+        // HTTP sends arguments with __cursor inside.
+        let params = json!({
+            "name": "ref:page_stub",
+            "arguments": {"__cursor": cursor},
+        });
+        let resp = handle_tools_call(Some(json!(8)), &state, None, params).await;
+        let body = body_to_json(resp).await;
+        assert_eq!(body["result"]["isError"], false);
+        // text content carries the page payload from PageStubHttp::call_paginated
+        let text = body["result"]["content"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(parsed["page"], 2);
+        // nextCursor must be present in the envelope.
+        assert!(
+            body["result"]["nextCursor"].is_string(),
+            "continuation must emit nextCursor; got: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn tools_call_expired_cursor_returns_jsonrpc_error() {
+        let state = state_with_page_stub();
+        // Cursor issued long ago (older than default 300s TTL).
+        let payload = atd_runtime::cursor::CursorPayload {
+            tool_id: "ref:page_stub".into(),
+            caller_id: None,
+            args_fingerprint: [0u8; 32],
+            page_index: 2,
+            issued_at_unix: 1, // ancient
+            server_session: state.cursor_issuer.session_nonce(),
+            opaque_state: 2u32.to_be_bytes().to_vec(),
+        };
+        let cursor = state.cursor_issuer.issue(payload).unwrap();
+        let params = json!({
+            "name": "ref:page_stub",
+            "arguments": {"__cursor": cursor},
+        });
+        let resp = handle_tools_call(Some(json!(9)), &state, None, params).await;
+        let body = body_to_json(resp).await;
+        // JSON-RPC -32603 wrapping the ATD code 1020.
+        assert_eq!(body["error"]["code"], -32603);
+        assert_eq!(body["error"]["data"]["atd_code"], 1020);
     }
 }

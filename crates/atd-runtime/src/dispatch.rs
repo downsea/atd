@@ -322,7 +322,7 @@ async fn dispatch_request_inner(
 /// 8. Emit one audit event tagged with `cursor_page` = payload's page_index.
 /// 9. Return `ToolResultResponse` with the new `next_cursor` from the tool.
 #[allow(clippy::too_many_arguments)]
-async fn run_tool_continue(
+pub async fn run_tool_continue(
     state: &Arc<ServerState>,
     tracker: &Arc<ReadTracker>,
     caps: &Arc<CapabilitySet>,
