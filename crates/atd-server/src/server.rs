@@ -54,11 +54,11 @@ impl Server {
             // and can be tuned via a future ServerConfig surfacing.
             frame_deadline_active_ms: 30_000,
             frame_deadline_handshake_ms: 5_000,
-            // SP-pagination-v1 §4.5: random signing key per process so cursor
-            // forgery requires a process-memory compromise. Operators wanting
-            // cross-instance cursors (load-balanced deployments) override via
-            // ATD_CURSOR_SIGNING_KEY env (Phase D wires the env read).
-            cursor_signing_key: atd_runtime::cursor::random_signing_key(),
+            // SP-pagination-v1 §4.2: read `ATD_CURSOR_SIGNING_KEY` env if
+            // set (base64-encoded 32 bytes) for multi-instance deployments,
+            // otherwise generate a fresh random key per process. Cursor
+            // forgery requires a process-memory or env-store compromise.
+            cursor_signing_key: atd_runtime::cursor::signing_key_from_env_or_random(),
             cursor_ttl_seconds: 300,
         };
         Self {
@@ -116,6 +116,25 @@ impl Server {
             .expect("set_frame_deadlines must be called before run() hands out Arcs");
         state.config.frame_deadline_active_ms = active_ms;
         state.config.frame_deadline_handshake_ms = handshake_ms;
+    }
+
+    /// SP-pagination-v1 adopter hook — override cursor TTL without growing
+    /// `ServerConfig`. Useful for tests (TTL=1s exercises the expired path
+    /// in seconds rather than minutes) and for sidecar deployments that
+    /// want tighter cursor expiry than the 300s default (e.g. interactive
+    /// chat that never legitimately retries past 30s).
+    pub fn set_cursor_ttl_seconds(&mut self, ttl: u64) {
+        let state = Arc::get_mut(&mut self.state)
+            .expect("set_cursor_ttl_seconds must be called before run() hands out Arcs");
+        state.config.cursor_ttl_seconds = ttl;
+    }
+
+    /// SP-pagination-v1 — expose the process-wide `CursorIssuer` so test
+    /// fixtures can mint cursors that will verify against the same
+    /// `session_nonce` the server uses. Adopters should not need this in
+    /// production; tools mint cursors via `CallContext::cursor_issuer()`.
+    pub fn cursor_issuer(&self) -> Arc<atd_runtime::cursor::CursorIssuer> {
+        self.state.cursor_issuer.clone()
     }
 
     pub fn set_ucan_revocation_store(

@@ -44,7 +44,7 @@ mod tests {
         // Safety: env mutations serialized within this test module.
         unsafe { std::env::remove_var("ATD_WORKER_THREADS") };
         let n = default_worker_threads();
-        assert!(n >= 1 && n <= 4, "default {n} outside [1,4]");
+        assert!((1..=4).contains(&n), "default {n} outside [1,4]");
     }
 
     #[test]
@@ -63,7 +63,7 @@ mod tests {
         let n = default_worker_threads();
         unsafe { std::env::remove_var("ATD_WORKER_THREADS") };
         // Zero is nonsense; we fall back to the cap-4 default.
-        assert!(n >= 1 && n <= 4, "fallback {n} outside [1,4]");
+        assert!((1..=4).contains(&n), "fallback {n} outside [1,4]");
     }
 
     #[test]
@@ -72,6 +72,6 @@ mod tests {
         unsafe { std::env::set_var("ATD_WORKER_THREADS", "not-a-number") };
         let n = default_worker_threads();
         unsafe { std::env::remove_var("ATD_WORKER_THREADS") };
-        assert!(n >= 1 && n <= 4, "garbage fallback {n} outside [1,4]");
+        assert!((1..=4).contains(&n), "garbage fallback {n} outside [1,4]");
     }
 }

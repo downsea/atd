@@ -653,6 +653,12 @@ mod tests {
     /// (env unset) appends a structured truncation notice and OMITS the
     /// nextCursor field so cursor-unaware MCP clients see complete-looking
     /// content with a clear "more available" signal.
+    // Env-mutation tests legitimately hold the std::sync::Mutex across
+    // .await — that's how we serialize env reads/writes across tokio test
+    // tasks. The await points only run async work that doesn't itself try
+    // to acquire the same lock; under nextest's one-process-per-test
+    // model there's no real risk of cross-test interleaving.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn tools_call_default_mode_appends_truncation_notice_and_omits_cursor() {
         let _guard = pagination_env_lock();
@@ -696,6 +702,7 @@ mod tests {
     /// Tools/call with ATD_MCP_PASSTHROUGH_CURSOR=1 surfaces nextCursor as
     /// a non-standard MCP field, suppresses the truncation notice, and
     /// passes data through verbatim.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn tools_call_passthrough_mode_surfaces_next_cursor() {
         let _guard = pagination_env_lock();
@@ -736,6 +743,7 @@ mod tests {
     /// Tools/call with `arguments.__cursor` routes to RunToolContinue
     /// regardless of mode. The cursor is extracted + stripped from args
     /// before forwarding.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn tools_call_with_dunder_cursor_argument_routes_to_run_tool_continue() {
         let _guard = pagination_env_lock();

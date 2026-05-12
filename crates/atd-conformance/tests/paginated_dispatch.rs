@@ -284,37 +284,67 @@ async fn expired_cursor_returns_1020_after_short_ttl_window() {
         ..ServerConfig::default()
     };
     let mut server = Server::new(reg, cfg);
-    // Brute-force tight TTL via the public mutator hook from
-    // SP-concurrency-baseline (set_frame_deadlines) — but cursor TTL has no
-    // such mutator yet. We work around by not waiting for natural TTL
-    // (would be 300s default); instead, the test asserts that the wire
-    // path correctly returns 1020 for an obviously-stale cursor.
-    //
-    // We synthesize the stale cursor by reaching into the server's issuer
-    // (the test fixture path uses [0u8; 32] key + the runtime's random
-    // session_nonce). Since the issuer is private inside ServerState, we
-    // instead drive the test via a fresh issuer with a known stale
-    // issued_at_unix — but that won't share session_nonce with the server.
-    //
-    // Simpler: drive a real walk to get a real cursor, then wait past TTL.
-    // Default TTL is 300s — too long for a test. We exposed
-    // SharedServerConfig.cursor_ttl_seconds as a public field, but
-    // Server::new fixes it at 300; there is no mutator. For Phase H we
-    // hot-patch via Server::set_cursor_ttl_seconds (added below) or
-    // accept that this scenario is exercised by the dispatch unit tests
-    // in atd-server/src/connection.rs::tests::run_tool_continue_rejects_expired_cursor.
-    //
-    // For the integration smoke we instead verify that a cross-tool cursor
-    // returns 1021, which is a complementary integrity check.
-    server.set_frame_deadlines(30_000, 5_000);
-    let _ = server; // suppress unused warning while we run the cross-tool check below.
+    // 1s TTL via the Phase I mutator so the test exercises the real
+    // server-side expiry check rather than relying on the dispatch
+    // unit test alone.
+    server.set_cursor_ttl_seconds(1);
+    // Grab the issuer Arc BEFORE run() consumes self — we'll mint a
+    // backdated cursor against it so the verify path actually fires the
+    // TTL branch (not the session_nonce branch).
+    let issuer = server.cursor_issuer();
+    let task = tokio::spawn(server.run());
+    wait_for_sock(&sock).await;
 
-    // Cross-tool cursor check is run in the next test
-    // (cross_tool_cursor_returns_1021_via_wire). This test stays as a
-    // doc-comment placeholder for the expired-cursor wire path; the
-    // dispatch-layer unit test
-    // `run_tool_continue_rejects_expired_cursor` covers the actual
-    // expiry semantics.
+    // Mint a cursor whose issued_at_unix is 5 seconds in the past — older
+    // than the 1s TTL we configured above, so verify returns Expired.
+    let payload = CursorPayload {
+        tool_id: "conformance:page_gen".into(),
+        caller_id: None,
+        args_fingerprint: [0u8; 32],
+        page_index: 2,
+        issued_at_unix: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .saturating_sub(5),
+        server_session: issuer.session_nonce(),
+        opaque_state: 2u32.to_be_bytes().to_vec(),
+    };
+    let stale_cursor = issuer.issue(payload).expect("issue stale");
+
+    let client = AtdClient::connect_with_options(Endpoint::unix(sock.clone()), fast_connect())
+        .await
+        .unwrap();
+    let result = client
+        .call_page(
+            "conformance:page_gen",
+            serde_json::Value::Null,
+            Some(&stale_cursor),
+            CallOptions::default(),
+        )
+        .await;
+
+    match result {
+        Err(e) => {
+            use std::error::Error as StdError;
+            let mut chain = format!("{e}");
+            let mut src: Option<&dyn StdError> = e.source();
+            while let Some(s) = src {
+                chain.push_str(" | ");
+                chain.push_str(&format!("{s}"));
+                src = s.source();
+            }
+            assert!(
+                chain.contains("1020")
+                    || chain.contains("cursor expired")
+                    || chain.contains("re-issue"),
+                "expected ERR_CURSOR_EXPIRED (1020) signal, got chain: {chain}"
+            );
+        }
+        Ok(p) => panic!("expected expired-cursor rejection, got page: {p:?}"),
+    }
+
+    task.abort();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

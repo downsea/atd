@@ -975,6 +975,72 @@ mod tests {
         }
     }
 
+    /// SP-pagination-v1 §G5 — middleware MUST run on continuation pages, not
+    /// just on first-page (RunTool) results. Regression: pre-fix the
+    /// `run_tool_continue` arm built `Response::ToolResultResponse` directly
+    /// from `tool.call_paginated`'s value without walking `state.middleware`,
+    /// which would leak unredacted PHI on every continuation page when the
+    /// celia adopter wires `atd-middleware-pii-redact-medical`.
+    #[tokio::test]
+    async fn run_tool_continue_applies_middleware_to_continuation_result() {
+        use atd_runtime::middleware::Middleware;
+
+        /// Stamps a flag onto the value so the test can prove the middleware
+        /// chain ran. Real middlewares redact / validate; this one just leaves
+        /// a tracer for the assertion.
+        struct StampMiddleware;
+        impl Middleware for StampMiddleware {
+            fn name(&self) -> &'static str {
+                "stamp"
+            }
+            fn on_result(
+                &self,
+                _tool_id: &str,
+                _tool_def: &atd_protocol::ToolDefinition,
+                value: &mut serde_json::Value,
+            ) {
+                if let Some(obj) = value.as_object_mut() {
+                    obj.insert("middleware_ran".into(), serde_json::Value::Bool(true));
+                }
+            }
+        }
+
+        // Custom state with the stamper installed.
+        let mut reg = Registry::new();
+        reg.register(Arc::new(PageStub::new(3)));
+        let state = Arc::new(ServerState {
+            registry: reg,
+            config: shared_test_config(),
+            tier_policy: atd_runtime::TierPolicy::defaults(),
+            middleware: vec![Arc::new(StampMiddleware)],
+            metrics: Arc::new(atd_runtime::MetricsCounters::default()),
+            cursor_issuer: Arc::new(atd_runtime::cursor::CursorIssuer::new([0u8; 32])),
+        });
+
+        let cursor = mint_cursor(&state, 2);
+        let r = dispatch(
+            &state,
+            &fresh_tracker(),
+            &mut fresh_caps(),
+            &mut None,
+            Request::RunToolContinue {
+                tool_id: "test:page_stub".into(),
+                cursor,
+            },
+        )
+        .await;
+        match r {
+            Response::ToolResultResponse { result, .. } => {
+                assert_eq!(
+                    result["middleware_ran"],
+                    serde_json::Value::Bool(true),
+                    "middleware must run on continuation results; got: {result}"
+                );
+            }
+            other => panic!("expected ToolResultResponse, got {other:?}"),
+        }
+    }
+
     #[tokio::test]
     async fn run_tool_continue_rejects_cursor_against_non_paginating_tool() {
         // EchoStub doesn't override supports_pagination → false.

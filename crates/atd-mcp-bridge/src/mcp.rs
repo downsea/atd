@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn tool_serializes_with_camel_case_inputSchema() {
+    fn tool_serializes_with_camel_case_input_schema() {
         let t = Tool {
             name: "x".into(),
             description: "d".into(),

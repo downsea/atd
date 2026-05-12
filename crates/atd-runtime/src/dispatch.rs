@@ -466,7 +466,19 @@ pub async fn run_tool_continue(
         .await;
 
     let response = match result {
-        Ok(crate::registry::PaginatedResult { value, next_cursor }) => {
+        Ok(crate::registry::PaginatedResult {
+            mut value,
+            next_cursor,
+        }) => {
+            // SP-pagination-v1 §G5 — apply the middleware chain per page so
+            // FHIR validation / PHI redaction / other egress rewrites cover
+            // continuation pages, not just first-page (RunTool) results. The
+            // celia adopter binds atd-middleware-fhir + atd-middleware-pii-
+            // redact-medical here; missing this hook would leak unredacted
+            // PHI on every continue — a real compliance defect.
+            for mw in &state.middleware {
+                mw.on_result(&tool_id, entry.definition(), &mut value);
+            }
             Response::ToolResultResponse {
                 tool_id: tool_id.clone(),
                 result: value,

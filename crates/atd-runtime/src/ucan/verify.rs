@@ -565,7 +565,7 @@ mod tests {
             &did_key_for(&sk_a),
             &did_key_for(&sk_b),
             &["records:read", "summary:read"],
-            &[root_jwt.clone()],
+            std::slice::from_ref(&root_jwt),
             exp,
         );
         let mid_jwt = build_jwt(mid, &sk_a);
@@ -574,7 +574,7 @@ mod tests {
             &did_key_for(&sk_b),
             &did_key_for(&sk_c),
             &["records:read"],
-            &[mid_jwt.clone()],
+            std::slice::from_ref(&mid_jwt),
             exp,
         );
         let leaf_jwt = build_jwt(leaf, &sk_b);
@@ -609,7 +609,7 @@ mod tests {
             &did_key_for(&sk_a),
             &did_key_for(&sk_b),
             &["a", "b", "c", "d"], // adds "d" — widening
-            &[root_jwt.clone()],
+            std::slice::from_ref(&root_jwt),
             exp,
         );
         let leaf_jwt = build_jwt(leaf, &sk_a);
@@ -681,7 +681,7 @@ mod tests {
             &did_key_for(&sk_a),
             &did_key_for(&sk_b),
             &["records:read"],
-            &[root_jwt.clone()],
+            std::slice::from_ref(&root_jwt),
             exp,
         );
         let mid_jwt = build_jwt(mid, &sk_a);

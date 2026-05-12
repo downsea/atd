@@ -207,6 +207,52 @@ pub fn random_signing_key() -> [u8; 32] {
     k
 }
 
+/// SP-pagination-v1 §4.2 — pick a cursor signing key by precedence:
+///
+/// 1. `ATD_CURSOR_SIGNING_KEY` env (base64-url or standard base64 of
+///    exactly 32 bytes) — for multi-instance deployments behind a load
+///    balancer where every instance must verify cursors any sibling
+///    issued. Operators are responsible for keeping the value secret;
+///    the env is read once at `Server::new` and never logged.
+/// 2. Random 32-byte key from `random_signing_key()` — single-instance
+///    default. Server restart → new key → outstanding cursors fail
+///    with `ERR_CURSOR_EXPIRED`.
+///
+/// Invalid env values (non-base64, wrong length) fall back to random with
+/// a warning on stderr. This is deliberate fail-closed: a misconfigured
+/// shared deployment becomes single-instance rather than insecure.
+pub fn signing_key_from_env_or_random() -> [u8; 32] {
+    if let Ok(value) = std::env::var("ATD_CURSOR_SIGNING_KEY") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(trimmed)
+                .or_else(|_| base64::engine::general_purpose::STANDARD.decode(trimmed));
+            match decoded {
+                Ok(bytes) if bytes.len() == 32 => {
+                    let mut k = [0u8; 32];
+                    k.copy_from_slice(&bytes);
+                    return k;
+                }
+                Ok(bytes) => {
+                    eprintln!(
+                        "atd-runtime: ATD_CURSOR_SIGNING_KEY decoded to {} bytes; \
+                         expected 32. Falling back to random per-process key.",
+                        bytes.len()
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "atd-runtime: ATD_CURSOR_SIGNING_KEY base64 decode failed: {e}. \
+                         Falling back to random per-process key."
+                    );
+                }
+            }
+        }
+    }
+    random_signing_key()
+}
+
 /// Compute the canonical `args_fingerprint` for a `RunTool.args` value.
 /// Used at issue time (server) and could be used at verify time (server)
 /// if the dispatch layer wants to check that a continuation's args
@@ -411,6 +457,59 @@ mod tests {
         let cursor = issuer.issue(payload.clone()).unwrap();
         let back = issuer.verify(&cursor, 300).unwrap();
         assert_eq!(back.opaque_state, payload.opaque_state);
+    }
+
+    /// Env-key wiring must be serialised across tests reading the same
+    /// process-global var; we use a static mutex instead of pulling in
+    /// `serial_test` so the crate stays dep-tight.
+    fn signing_key_env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+    }
+
+    #[test]
+    fn signing_key_from_env_reads_base64url_no_pad() {
+        let _g = signing_key_env_lock();
+        let want = [7u8; 32];
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(want);
+        unsafe { std::env::set_var("ATD_CURSOR_SIGNING_KEY", &encoded) };
+        let got = signing_key_from_env_or_random();
+        unsafe { std::env::remove_var("ATD_CURSOR_SIGNING_KEY") };
+        assert_eq!(got, want, "env key must round-trip verbatim");
+    }
+
+    #[test]
+    fn signing_key_from_env_falls_back_on_wrong_length() {
+        let _g = signing_key_env_lock();
+        // 16-byte key, base64-encoded — wrong length, must fall back.
+        let bad = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode([1u8; 16]);
+        unsafe { std::env::set_var("ATD_CURSOR_SIGNING_KEY", &bad) };
+        let got = signing_key_from_env_or_random();
+        unsafe { std::env::remove_var("ATD_CURSOR_SIGNING_KEY") };
+        // Random fallback never equals all-1s.
+        assert_ne!(got, [1u8; 32]);
+    }
+
+    #[test]
+    fn signing_key_from_env_falls_back_on_garbage() {
+        let _g = signing_key_env_lock();
+        unsafe { std::env::set_var("ATD_CURSOR_SIGNING_KEY", "not-base64!!") };
+        let got = signing_key_from_env_or_random();
+        unsafe { std::env::remove_var("ATD_CURSOR_SIGNING_KEY") };
+        // Just assert it returned something (random); shape-validity via
+        // construction.
+        let _: [u8; 32] = got;
+    }
+
+    #[test]
+    fn signing_key_from_env_falls_back_when_unset() {
+        let _g = signing_key_env_lock();
+        unsafe { std::env::remove_var("ATD_CURSOR_SIGNING_KEY") };
+        let a = signing_key_from_env_or_random();
+        let b = signing_key_from_env_or_random();
+        assert_ne!(a, b, "random fallback should yield distinct keys");
     }
 
     /// Wait one second so `issued_at_unix` advances; verifies TTL semantics

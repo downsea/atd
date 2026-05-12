@@ -1322,7 +1322,7 @@ mod tests {
     fn jitter_factor_stays_within_bounds() {
         for _ in 0..1000 {
             let j = jitter_factor();
-            assert!(j >= -0.2 && j <= 0.2, "jitter {j} out of ±0.2 bound");
+            assert!((-0.2..=0.2).contains(&j), "jitter {j} out of ±0.2 bound");
         }
     }
 
