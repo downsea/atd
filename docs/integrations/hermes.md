@@ -392,6 +392,63 @@ Each `hermes mcp add` registration spawns a fresh bridge process per session. Mu
 
 ---
 
+## Pagination (SP-pagination-v1)
+
+ATD supports tool-result pagination via `Request::RunToolContinue` + `Response.next_cursor`. The MCP spec (`2025-11-25`) does not standardize cursors on `tools/call`, so the bridge offers two modes for cursor-aware tools:
+
+### Default mode — degrade with truncation notice
+
+When the ATD server returns a paginated result (`next_cursor` present), the bridge:
+
+1. Returns the first page's data as a `text` content block (verbatim, no truncation).
+2. Appends a second `text` content block: a structured notice like *"this server has more data available but your MCP client does not support continuation. Ask the user if they want the next page, or call this tool again with narrower args."*
+3. Omits the `nextCursor` field from the MCP envelope.
+
+This is the safe default for any MCP client (Hermes default, Claude Desktop, Cursor) — the LLM sees partial data with a clear signal to ask the user or narrow the query.
+
+### Passthrough mode — for cursor-aware MCP clients
+
+Set `ATD_MCP_PASSTHROUGH_CURSOR=1` on the bridge process to surface `nextCursor` as a non-standard field in the MCP result envelope:
+
+```jsonc
+{
+  "content": [{"type":"text","text":"[...page 1 rows...]"}],
+  "isError": false,
+  "nextCursor": "eyJhcmdzX2ZpbmdlcnByaW50IjogIi4uLiJ9...HMAC..."
+}
+```
+
+The MCP client must understand the field and re-issue `tools/call` with `arguments.__cursor` set to fetch the next page:
+
+```jsonc
+{
+  "method": "tools/call",
+  "params": {
+    "name": "celia_fhir_list_observations",
+    "arguments": {"patient": "p1", "__cursor": "eyJhcmdz..."}
+  }
+}
+```
+
+Use this only with MCP clients patched to consume `nextCursor` (Hermes >= the version that lands cursor-pass-through; check `hermes mcp version`). If the MCP client doesn't understand the field it will ignore it and the user will see only the first page without a continuation prompt.
+
+### Bridge config example
+
+```bash
+# Default mode — degrade with notice (most clients)
+hermes mcp add --command atd-mcp-bridge --args "--sock /tmp/celia.sock" --name celia
+
+# Passthrough mode — Hermes >= 1.x with cursor-aware MCP support
+hermes mcp add --command atd-mcp-bridge \
+  --args "--sock /tmp/celia.sock" \
+  --env ATD_MCP_PASSTHROUGH_CURSOR=1 \
+  --name celia
+```
+
+For native ATD SDK callers (not via MCP), use `AtdClient::call_all` for auto-loop, or `AtdClient::call_page` for per-page control. See [`docs/architecture.md`](../architecture.md) §11.5 and [`docs/protocol/wire-format.md`](../protocol/wire-format.md) §4.4.1.
+
+---
+
 ## See also
 
 - [`docs/integrations/claude-code.md`](claude-code.md) — Claude Desktop / Claude Code / Cursor MCP config (same bridge, different client)
