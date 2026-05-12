@@ -190,6 +190,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-middleware-pii-redact-medical"
+version = "0.3.0"
+dependencies = [
+ "atd-middleware-fhir",
+ "atd-protocol",
+ "atd-runtime",
+ "atd-sdk",
+ "atd-server",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "atd-mock-weather-server"
 version = "0.3.0"
 dependencies = [

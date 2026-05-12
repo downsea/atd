@@ -1,0 +1,28 @@
+[package]
+name = "atd-middleware-pii-redact-medical"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "Healthcare PHI redaction middleware for atd-runtime: HIPAA Safe Harbor projection over FHIR R4 and generic JSON."
+readme = "README.md"
+keywords = ["atd", "fhir", "pii", "phi", "hipaa"]
+categories = ["api-bindings"]
+
+[dependencies]
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+regex = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "0.3.0" }
+atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
+atd-server = { path = "../atd-server", version = "0.3.0" }
+tempfile = { workspace = true }
+tokio = { workspace = true }

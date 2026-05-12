@@ -14,6 +14,7 @@ members = [
     "crates/atd-conformance",
     "crates/atd-mcp-bridge",
     "crates/atd-middleware-fhir",
+    "crates/atd-middleware-pii-redact-medical",
     "crates/atd-ref-server",
     "crates/atd-mock-weather-server",
     "examples",
