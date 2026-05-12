@@ -13,6 +13,7 @@ members = [
     "crates/atd-cli",
     "crates/atd-conformance",
     "crates/atd-mcp-bridge",
+    "crates/atd-middleware-fhir",
     "crates/atd-ref-server",
     "crates/atd-mock-weather-server",
     "examples",

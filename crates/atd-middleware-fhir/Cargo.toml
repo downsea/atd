@@ -1,0 +1,25 @@
+[package]
+name = "atd-middleware-fhir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+description = "FHIR R4 egress validation middleware for atd-runtime: shape + coding-system whitelist."
+readme = "README.md"
+keywords = ["atd", "fhir", "healthcare", "middleware", "validation"]
+categories = ["api-bindings"]
+
+[dependencies]
+atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
+atd-server = { path = "../atd-server", version = "0.3.0" }
+tempfile = { workspace = true }
+tokio = { workspace = true }

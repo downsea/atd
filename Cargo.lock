@@ -175,6 +175,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "atd-middleware-fhir"
+version = "0.3.0"
+dependencies = [
+ "atd-protocol",
+ "atd-runtime",
+ "atd-sdk",
+ "atd-server",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "atd-mock-weather-server"
 version = "0.3.0"
 dependencies = [
