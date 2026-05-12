@@ -152,7 +152,12 @@ fn walk_and_collect(
     let mut byte_budget = max_output_bytes;
     let mut truncated = false;
 
-    for entry in WalkBuilder::new(root).build().flatten() {
+    // .require_git(false) so `.gitignore` is honored even when `root` is
+    // not inside a git repository — the tool's description promises
+    // "honoring .gitignore" unconditionally, and the prior default
+    // (`require_git = true`) silently dropped that promise for
+    // non-git working dirs (incl. the test fixture's tempdir).
+    for entry in WalkBuilder::new(root).require_git(false).build().flatten() {
         let path = entry.path();
         // Skip the root itself and any directory entries.
         if path == root {
