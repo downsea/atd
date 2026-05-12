@@ -37,8 +37,12 @@ clap = { version = "4", features = ["derive"] }
 [dev-dependencies]
 atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
 atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
+atd-server = { path = "../atd-server", version = "0.3.0" }
+atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "0.3.0" }
+atd-middleware-pii-redact-medical = { path = "../atd-middleware-pii-redact-medical", version = "0.3.0" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
+tokio = { workspace = true }
 
 [features]
 testing = ["atd-runtime/testing"]

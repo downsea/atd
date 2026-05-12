@@ -235,6 +235,8 @@ dependencies = [
 name = "atd-ref-server"
 version = "0.3.0"
 dependencies = [
+ "atd-middleware-fhir",
+ "atd-middleware-pii-redact-medical",
  "atd-protocol",
  "atd-runtime",
  "atd-sdk",
