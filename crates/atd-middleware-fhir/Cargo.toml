@@ -23,3 +23,4 @@ atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
 atd-server = { path = "../atd-server", version = "0.3.0" }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+toml = "0.8"
