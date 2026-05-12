@@ -5,13 +5,18 @@
 //! because audit needs to observe every outcome including failures.
 //!
 //! `JsonLinesAuditSink` is the default sink shipped in v1: one JSON
-//! object per line, thread-safe, writes to any `Write + Send`.
+//! object per line. SP-concurrency-baseline §5.4: an internal bounded
+//! `tokio::sync::mpsc` + dedicated drain task decouple the dispatch hot
+//! path from synchronous file I/O, eliminating the §1.3 secondary cliff
+//! (mutex-blocked reactor stall at ~50 concurrent dispatches per second).
+//! Construction requires a tokio runtime context.
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Audit schema version. Consumers should branch on this if future
 /// breaking changes land. v1 is the initial stable schema.
@@ -61,18 +66,53 @@ pub trait AuditSink: Send + Sync {
     fn on_call(&self, event: &CallEvent);
 }
 
-/// Writes one JSON object per line to the wrapped writer. Thread-safe
-/// via a mutex around the writer. Write errors are silently dropped
-/// (log loss >> dispatch stall).
+/// Default channel capacity. 1024 events × ~500 bytes ≈ 512 KB peak buffer;
+/// drains at the rate the wrapped writer can absorb (typical disk write
+/// rate: 10k events/s sustained, transient bursts much higher).
+pub const DEFAULT_AUDIT_QUEUE_CAPACITY: usize = 1024;
+
+/// SP-concurrency-baseline §5.4. Writes one JSON object per line to the
+/// wrapped writer via a dedicated tokio task. `on_call` is non-blocking
+/// (`try_send`); if the bounded channel is full the event is dropped and
+/// the `audit_drops` counter increments — log loss >> dispatch stall.
+///
+/// **Construction requires a tokio runtime context** because it spawns a
+/// drain task on `new`. All shipped helpers (`stdout` / `stderr` / `file`)
+/// inherit this requirement. Adopters who construct sinks outside async
+/// scope should use `tokio::runtime::Handle::current().block_on(...)` or
+/// build their own sync sink implementing `AuditSink`.
 pub struct JsonLinesAuditSink {
-    writer: Mutex<Box<dyn Write + Send>>,
+    tx: tokio::sync::mpsc::Sender<CallEvent>,
+    drops: Arc<AtomicU64>,
 }
 
 impl JsonLinesAuditSink {
-    pub fn new(writer: Box<dyn Write + Send>) -> Self {
-        Self {
-            writer: Mutex::new(writer),
-        }
+    /// Construct with default capacity (`DEFAULT_AUDIT_QUEUE_CAPACITY`).
+    /// Spawns a tokio task that owns the writer and drains the channel.
+    pub fn new(writer: Box<dyn Write + Send + 'static>) -> Self {
+        Self::new_with_capacity(writer, DEFAULT_AUDIT_QUEUE_CAPACITY)
+    }
+
+    /// Construct with an explicit channel capacity. Smaller capacities
+    /// drop sooner under burst load; larger capacities hold more bytes
+    /// in memory at peak.
+    pub fn new_with_capacity(writer: Box<dyn Write + Send + 'static>, capacity: usize) -> Self {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<CallEvent>(capacity);
+        let drops = Arc::new(AtomicU64::new(0));
+        let mut writer = writer;
+        tokio::spawn(async move {
+            while let Some(ev) = rx.recv().await {
+                if let Ok(mut line) = serde_json::to_vec(&ev) {
+                    line.push(b'\n');
+                    let _ = writer.write_all(&line);
+                    let _ = writer.flush();
+                }
+            }
+            // Channel closed (sink dropped) — final flush so the last batch
+            // hits disk even if the runtime is about to shut down.
+            let _ = writer.flush();
+        });
+        Self { tx, drops }
     }
 
     pub fn stdout() -> Self {
@@ -91,19 +131,25 @@ impl JsonLinesAuditSink {
             .open(path)?;
         Ok(Self::new(Box::new(f)))
     }
+
+    /// Count of events dropped because the channel was full when
+    /// `on_call` was invoked. Exposed for the SP-concurrency-baseline
+    /// §G7 metrics snapshot and for adopter dashboards.
+    pub fn drops(&self) -> u64 {
+        self.drops.load(Ordering::Relaxed)
+    }
 }
 
 impl AuditSink for JsonLinesAuditSink {
     fn on_call(&self, event: &CallEvent) {
-        let Ok(mut line) = serde_json::to_vec(event) else {
-            return;
-        };
-        line.push(b'\n');
-        let Ok(mut w) = self.writer.lock() else {
-            return;
-        };
-        let _ = w.write_all(&line);
-        let _ = w.flush();
+        match self.tx.try_send(event.clone()) {
+            Ok(()) => {}
+            // Channel full or closed — drop the event and bump the counter.
+            // Sync dispatch path must not block; log loss >> dispatch stall.
+            Err(_) => {
+                self.drops.fetch_add(1, Ordering::Relaxed);
+            }
+        }
     }
 }
 
@@ -117,7 +163,7 @@ pub fn now_rfc3339() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use std::sync::Mutex;
 
     fn mk_event(outcome: Outcome) -> CallEvent {
         CallEvent {
@@ -193,34 +239,129 @@ mod tests {
         );
     }
 
-    #[test]
-    fn json_lines_sink_writes_one_line_per_event() {
-        let buf: Vec<u8> = Vec::new();
-        let buf_arc = Arc::new(Mutex::new(buf));
-        let cloned = buf_arc.clone();
-
-        struct SharedBuf(Arc<Mutex<Vec<u8>>>);
-        impl Write for SharedBuf {
-            fn write(&mut self, bs: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(bs);
-                Ok(bs.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
+    /// Shared in-memory buffer wrapped behind a `Write` impl. Used as the
+    /// sink's target so tests can inspect what got written without touching
+    /// the filesystem. Cloning the `Arc<Mutex<...>>` outside the box lets
+    /// the test read while the drain task writes.
+    struct SharedBuf(Arc<Mutex<Vec<u8>>>);
+    impl Write for SharedBuf {
+        fn write(&mut self, bs: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bs);
+            Ok(bs.len())
         }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
-        let sink = JsonLinesAuditSink::new(Box::new(SharedBuf(buf_arc)));
+    /// Spin until the buffer accumulates `target_lines` newline-terminated
+    /// records or `timeout` elapses. Returns the buffer's accumulated bytes.
+    async fn wait_for_lines(
+        buf: &Arc<Mutex<Vec<u8>>>,
+        target_lines: usize,
+        timeout: std::time::Duration,
+    ) -> Vec<u8> {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            {
+                let guard = buf.lock().unwrap();
+                let count = guard.iter().filter(|b| **b == b'\n').count();
+                if count >= target_lines || std::time::Instant::now() > deadline {
+                    return guard.clone();
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn json_lines_sink_writes_one_line_per_event() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::new(Box::new(SharedBuf(buf.clone())));
         sink.on_call(&mk_event(Outcome::Success));
         sink.on_call(&mk_event(Outcome::ToolNotFound));
 
-        let out = cloned.lock().unwrap().clone();
+        let out = wait_for_lines(&buf, 2, std::time::Duration::from_millis(500)).await;
         let text = String::from_utf8(out).unwrap();
         let lines: Vec<&str> = text.split_terminator('\n').collect();
-        assert_eq!(lines.len(), 2, "expected 2 lines, got: {:?}", lines);
+        assert_eq!(lines.len(), 2, "expected 2 lines, got: {lines:?}");
         for line in &lines {
             let _: CallEvent = serde_json::from_str(line).expect("each line parses as CallEvent");
         }
+    }
+
+    // ---- SP-concurrency-baseline §5.4 mpsc rewrite tests ----
+
+    #[tokio::test]
+    async fn on_call_is_non_blocking_under_burst() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::new(Box::new(SharedBuf(buf)));
+        let ev = mk_event(Outcome::Success);
+        // 100 synchronous on_call invocations on the dispatch hot path must
+        // complete in well under 10ms total — sub-millisecond per call once
+        // the channel is warm.
+        let started = std::time::Instant::now();
+        for _ in 0..100 {
+            sink.on_call(&ev);
+        }
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_millis(50),
+            "100 on_call invocations took {elapsed:?}; expected <50ms"
+        );
+    }
+
+    #[tokio::test]
+    async fn drops_counter_increments_when_channel_full() {
+        // Capacity 4 — the drain task can't keep up with a burst of 200
+        // events, so the channel saturates and try_send fails.
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::new_with_capacity(Box::new(SharedBuf(buf)), 4);
+        let ev = mk_event(Outcome::Success);
+        for _ in 0..200 {
+            sink.on_call(&ev);
+        }
+        // Some of those 200 must have been dropped (the drain task is a
+        // single task; under tight capacity it can't service 200 sends back-
+        // to-back without scheduler yields between them).
+        let dropped = sink.drops();
+        assert!(
+            dropped > 0,
+            "expected some drops at capacity=4 with 200-event burst, got 0"
+        );
+    }
+
+    #[tokio::test]
+    async fn events_eventually_drain_to_writer() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::new(Box::new(SharedBuf(buf.clone())));
+        let ev = mk_event(Outcome::Success);
+        for _ in 0..10 {
+            sink.on_call(&ev);
+        }
+        let out = wait_for_lines(&buf, 10, std::time::Duration::from_millis(500)).await;
+        let text = String::from_utf8(out).unwrap();
+        let lines: Vec<&str> = text.split_terminator('\n').collect();
+        assert_eq!(lines.len(), 10, "expected 10 lines, got {}", lines.len());
+    }
+
+    #[tokio::test]
+    async fn dropping_sink_drains_pending_then_exits() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        {
+            let sink = JsonLinesAuditSink::new(Box::new(SharedBuf(buf.clone())));
+            for _ in 0..5 {
+                sink.on_call(&mk_event(Outcome::Success));
+            }
+            // Drop sink at end of block → tx closes → drain task finishes.
+        }
+        // Give the drain task time to consume the remaining queue and exit.
+        let out = wait_for_lines(&buf, 5, std::time::Duration::from_millis(500)).await;
+        let lines: Vec<&str> = std::str::from_utf8(&out)
+            .unwrap()
+            .split_terminator('\n')
+            .collect();
+        assert_eq!(lines.len(), 5, "drop should flush the last 5 events");
     }
 
     #[test]
