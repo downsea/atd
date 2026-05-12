@@ -92,24 +92,30 @@ mod tests {
     }
 
     #[test]
-    fn effective_systems_defaults_to_70() {
+    fn effective_systems_defaults_to_celia_baseline() {
         let cfg = FhirMiddlewareConfig::default();
-        assert_eq!(cfg.effective_systems().len(), 70);
+        assert_eq!(
+            cfg.effective_systems().len(),
+            crate::systems::ALLOWED_SYSTEMS_DEFAULT.len(),
+        );
     }
 
     #[test]
     fn effective_systems_appends_extra() {
         let mut cfg = FhirMiddlewareConfig::default();
+        let baseline = crate::systems::ALLOWED_SYSTEMS_DEFAULT.len();
         cfg.extra_systems
             .push("http://example.org/regional-codes".into());
-        assert_eq!(cfg.effective_systems().len(), 71);
+        assert_eq!(cfg.effective_systems().len(), baseline + 1);
     }
 
     #[test]
     fn replace_systems_takes_precedence_over_extra() {
-        let mut cfg = FhirMiddlewareConfig::default();
-        cfg.replace_systems = Some(vec!["http://only-this-one.example".into()]);
-        cfg.extra_systems.push("http://ignored.example".into());
+        let cfg = FhirMiddlewareConfig {
+            replace_systems: Some(vec!["http://only-this-one.example".into()]),
+            extra_systems: vec!["http://ignored.example".into()],
+            ..FhirMiddlewareConfig::default()
+        };
         let eff = cfg.effective_systems();
         assert_eq!(eff, vec!["http://only-this-one.example"]);
     }

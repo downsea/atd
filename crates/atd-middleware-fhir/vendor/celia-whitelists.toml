@@ -1,0 +1,360 @@
+# Celia PHR — cross-runtime whitelists single source of truth.
+#
+# Audit-2026-05-12 §5 (Pattern C): adding a new code system used to mean
+# editing four files (Rust + TS array, Rust + TS individual exports).
+# Now: edit this file, then the Rust side regenerates automatically via
+# `crates/celia-core/build.rs`; the TS side regenerates on
+# `pnpm codegen:whitelists` (and `pnpm typecheck` will scream if the
+# committed generated file is stale).
+#
+# Schema:
+#   [[code_systems]]      — one entry per CodeSystem URI
+#     symbol = "LOINC"        TS export name (UPPER_SNAKE)
+#     url    = "http://..."   canonical URI
+#   [meta]
+#     celia_legacy = "..."    rejected-but-referenced legacy URL
+
+[meta]
+celia_legacy = "https://celia.health/fhir/codes"
+
+# ---------------------------------------------------------------------
+# International standards
+# ---------------------------------------------------------------------
+
+[[code_systems]]
+symbol = "LOINC"
+url = "http://loinc.org"
+
+[[code_systems]]
+symbol = "SNOMED_CT"
+url = "http://snomed.info/sct"
+
+[[code_systems]]
+symbol = "SNOMED_CT_CN"
+url = "http://snomed.info/sct/2061000004102"
+
+[[code_systems]]
+symbol = "RXNORM"
+url = "http://www.nlm.nih.gov/research/umls/rxnorm"
+
+[[code_systems]]
+symbol = "ICD_10"
+url = "http://hl7.org/fhir/sid/icd-10"
+
+[[code_systems]]
+symbol = "ICD_10_CM"
+url = "http://hl7.org/fhir/sid/icd-10-cm"
+
+[[code_systems]]
+symbol = "ICD_10_CN"
+url = "urn:oid:2.16.156.10011.2.3.3.10"
+
+[[code_systems]]
+symbol = "CPT"
+url = "http://www.ama-assn.org/go/cpt"
+
+[[code_systems]]
+symbol = "NDC"
+url = "http://hl7.org/fhir/sid/ndc"
+
+[[code_systems]]
+symbol = "UCUM"
+url = "http://unitsofmeasure.org"
+
+# CDC vaccine code set — required for Immunization.vaccineCode in any
+# FHIR R4 record (covers DTaP/MMR/HPV/COVID-19/etc.).
+[[code_systems]]
+symbol = "CVX"
+url = "http://hl7.org/fhir/sid/cvx"
+
+# ---------------------------------------------------------------------
+# HL7 categories
+# ---------------------------------------------------------------------
+
+[[code_systems]]
+symbol = "HL7_OBSERVATION_CATEGORY"
+url = "http://terminology.hl7.org/CodeSystem/observation-category"
+
+[[code_systems]]
+symbol = "HL7_CONDITION_CATEGORY"
+url = "http://terminology.hl7.org/CodeSystem/condition-category"
+
+[[code_systems]]
+symbol = "US_CORE_DOCUMENT_REFERENCE_CATEGORY"
+url = "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category"
+
+# ---------------------------------------------------------------------
+# MIMIC-IV-on-FHIR research codes (public demo dataset only;
+# production data should map these to LOINC/SNOMED/ICD-10 where possible)
+# ---------------------------------------------------------------------
+
+[[code_systems]]
+symbol = "MIMIC_LABITEMS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-d-labitems"
+
+[[code_systems]]
+symbol = "MIMIC_CHARTEVENTS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-chartevents-d-items"
+
+[[code_systems]]
+symbol = "MIMIC_D_ITEMS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-d-items"
+
+[[code_systems]]
+symbol = "MIMIC_ICD_DIAGNOSES"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-d-icd-diagnoses"
+
+[[code_systems]]
+symbol = "MIMIC_ICD_PROCEDURES"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-d-icd-procedures"
+
+[[code_systems]]
+symbol = "MIMIC_DIAGNOSIS_ICD9"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-diagnosis-icd9"
+
+[[code_systems]]
+symbol = "MIMIC_DIAGNOSIS_ICD10"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-diagnosis-icd10"
+
+[[code_systems]]
+symbol = "MIMIC_PROCEDURE_ICD9"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-procedure-icd9"
+
+[[code_systems]]
+symbol = "MIMIC_PROCEDURE_ICD10"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-procedure-icd10"
+
+[[code_systems]]
+symbol = "MIMIC_PROCEDURE_CATEGORY"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-procedure-category"
+
+[[code_systems]]
+symbol = "MIMIC_OBSERVATION_CATEGORY"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-observation-category"
+
+[[code_systems]]
+symbol = "MIMIC_BODYSITE"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-bodysite"
+
+[[code_systems]]
+symbol = "MIMIC_HCPCS_EVENTS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-hcpcs-events"
+
+[[code_systems]]
+symbol = "MIMIC_DATETIMEEVENTS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-datetimeevents-d-items"
+
+[[code_systems]]
+symbol = "MIMIC_OUTPUTEVENTS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-outputevents-d-items"
+
+[[code_systems]]
+symbol = "MIMIC_MICROBIOLOGY_TEST"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-microbiology-test"
+
+[[code_systems]]
+symbol = "MIMIC_MICROBIOLOGY_ORGANISM"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-microbiology-organism"
+
+[[code_systems]]
+symbol = "MIMIC_MICROBIOLOGY_ANTIBIOTIC"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-microbiology-antibiotic"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_FORMULARY"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-formulary-drug-cd"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_PROD_CODE"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-prod-code"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_NDC"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-ndc"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_GSN"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-gsn"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_ETC"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-etc"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_NAME"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-name"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_FREQUENCY"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-frequency"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_POE_IV"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-poe-iv"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_ROUTE"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-route"
+
+[[code_systems]]
+symbol = "MIMIC_VITAL_SIGNS_ED"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-vital-signs-ed"
+
+[[code_systems]]
+symbol = "MIMIC_OBSERVATION_ED"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-observation-ed"
+
+[[code_systems]]
+symbol = "MIMIC_TRIAGE"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-triage"
+
+[[code_systems]]
+symbol = "MIMIC_UNITS"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-units"
+
+# ---------------------------------------------------------------------
+# US Core / HL7 v3 / OMB
+# ---------------------------------------------------------------------
+
+[[code_systems]]
+symbol = "HL7_V3_RACE_OMB"
+url = "urn:oid:2.16.840.1.113883.6.238"
+
+[[code_systems]]
+symbol = "US_CORE_RACE"
+url = "http://hl7.org/fhir/us/core/CodeSystem/us-core-race"
+
+[[code_systems]]
+symbol = "US_CORE_ETHNICITY"
+url = "http://hl7.org/fhir/us/core/CodeSystem/us-core-ethnicity"
+
+[[code_systems]]
+symbol = "US_CORE_BIRTH_SEX"
+url = "http://hl7.org/fhir/us/core/CodeSystem/us-core-birthsex"
+
+[[code_systems]]
+symbol = "HL7_V3_ADMIN_GENDER"
+url = "http://hl7.org/fhir/v3/AdministrativeGender"
+
+[[code_systems]]
+symbol = "HL7_V3_MARITAL_STATUS"
+url = "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus"
+
+[[code_systems]]
+symbol = "HL7_V3_NULL_FLAVOR"
+url = "http://terminology.hl7.org/CodeSystem/v3-NullFlavor"
+
+[[code_systems]]
+symbol = "HL7_DATA_ABSENT_REASON"
+url = "http://terminology.hl7.org/CodeSystem/data-absent-reason"
+
+[[code_systems]]
+symbol = "HL7_OBSERVATION_INTERPRETATION"
+url = "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation"
+
+# v3-ActCode — Encounter.class uses this (AMB / IMP / EMER / etc.).
+# Also surfaces on Condition.clinicalStatus and other status-bearing
+# fields across R4 resources.
+[[code_systems]]
+symbol = "HL7_V3_ACT_CODE"
+url = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
+
+# HL7 v2 Table 0203 — Identifier Type Codes (MR / SSN / DL / PPN / …).
+# Surfaces on Patient.identifier[].type.coding[] for every Synthea-
+# generated bundle and most real-world EHR exports.
+[[code_systems]]
+symbol = "HL7_V2_IDENTIFIER_TYPE"
+url = "http://terminology.hl7.org/CodeSystem/v2-0203"
+
+# Condition.clinicalStatus ("active" / "resolved" / etc.) — seeded
+# fixtures + MIMIC imports.
+[[code_systems]]
+symbol = "HL7_CONDITION_CLINICAL"
+url = "http://terminology.hl7.org/CodeSystem/condition-clinical"
+
+# AllergyIntolerance.clinicalStatus / .verificationStatus — required
+# for any agent-created AllergyIntolerance record.
+[[code_systems]]
+symbol = "HL7_ALLERGY_CLINICAL"
+url = "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical"
+
+[[code_systems]]
+symbol = "HL7_ALLERGY_VERIFICATION"
+url = "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification"
+
+# Encounter.diagnosis.use ("AD" / "DD" / etc.).
+[[code_systems]]
+symbol = "HL7_DIAGNOSIS_ROLE"
+url = "http://terminology.hl7.org/CodeSystem/diagnosis-role"
+
+# Encounter.priority — v3-ActPriority (R / S / A / EM / etc.).
+[[code_systems]]
+symbol = "HL7_V3_ACT_PRIORITY"
+url = "http://terminology.hl7.org/CodeSystem/v3-ActPriority"
+
+# Location.physicalType (BU / RO / WI / etc.).
+[[code_systems]]
+symbol = "HL7_LOCATION_PHYSICAL_TYPE"
+url = "http://terminology.hl7.org/CodeSystem/location-physical-type"
+
+# Organization.type (prov / dept / team / govt / etc.).
+[[code_systems]]
+symbol = "HL7_ORGANIZATION_TYPE"
+url = "http://terminology.hl7.org/CodeSystem/organization-type"
+
+# IETF BCP 47 — language tags (en-US, zh-CN, etc.).
+[[code_systems]]
+symbol = "IETF_BCP47"
+url = "urn:ietf:bcp:47"
+
+# ---------------------------------------------------------------------
+# MIMIC additions seen in real ICU data
+# (services / admission / discharge / specimen / med-admin)
+# ---------------------------------------------------------------------
+
+[[code_systems]]
+symbol = "MIMIC_SERVICES"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-services"
+
+[[code_systems]]
+symbol = "MIMIC_ADMIT_SOURCE"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-admit-source"
+
+[[code_systems]]
+symbol = "MIMIC_DISCHARGE_DISPOSITION"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-discharge-disposition"
+
+[[code_systems]]
+symbol = "MIMIC_HCPCS_CD"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-hcpcs-cd"
+
+[[code_systems]]
+symbol = "MIMIC_LAB_FLUID"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-lab-fluid"
+
+[[code_systems]]
+symbol = "MIMIC_SPEC_TYPE_DESC"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-spec-type-desc"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_ICU"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-icu"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_METHOD"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-method"
+
+[[code_systems]]
+symbol = "MIMIC_MEDICATION_METHOD_ICU"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-method-icu"
+
+[[code_systems]]
+symbol = "MIMIC_MEDADMIN_CATEGORY_ICU"
+url = "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medadmin-category-icu"
+
+# Synthea — the mainstream synthetic-patient generator used in Celia
+# onboarding + E2E. Patient rows ship with this URL as
+# identifier.type.coding[].system.
+[[code_systems]]
+symbol = "SYNTHEA"
+url = "https://github.com/synthetichealth/synthea"

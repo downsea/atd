@@ -1,18 +1,22 @@
-//! Default coding-system whitelist (70 URIs) — verbatim port of
-//! celia's `crates/celia-core/src/fhir/systems.rs:15-91` as of
+//! Default coding-system whitelist (75 URIs) — mirrors celia's
+//! `crates/celia-types/data/whitelists.toml` source-of-truth as of
 //! 2026-05-12.
 //!
-//! Drift between this list and celia's is caught by
-//! [`tests::default_systems_match_celia_count`]. Removing or changing
-//! entries is a minor-version bump on `atd-middleware-fhir`; adding
-//! entries is additive and triggers a release note only.
+//! Drift between this list and celia's is caught by the set-equality
+//! test [`tests::vendored_toml_matches_default`], which parses the
+//! vendored copy at `vendor/celia-whitelists.toml` and asserts both
+//! sides hold the same URI set. Sync protocol is documented at
+//! `vendor/README.md`. Removing or changing entries is a minor-version
+//! bump on `atd-middleware-fhir`; adding entries is additive and
+//! triggers a release note only.
 //!
 //! Operators can override at runtime via
 //! [`crate::FhirMiddlewareConfig::extra_systems`] (append) or
 //! [`crate::FhirMiddlewareConfig::replace_systems`] (full replacement
 //! for highly-curated environments).
 //!
-//! Spec: SP-medical-middleware §4.4.
+//! Spec: SP-medical-middleware §4.4. Cross-repo invariant I1: Phase L
+//! `docs/PHASE_L_PLAN.md` (celia_phr).
 
 pub const ALLOWED_SYSTEMS_DEFAULT: &[&str] = &[
     // ===== International standards =====
@@ -26,6 +30,10 @@ pub const ALLOWED_SYSTEMS_DEFAULT: &[&str] = &[
     "http://www.ama-assn.org/go/cpt",
     "http://hl7.org/fhir/sid/ndc",
     "http://unitsofmeasure.org",
+    // CDC vaccine code set — required for Immunization.vaccineCode in
+    // any FHIR R4 record (covers DTaP / MMR / HPV / COVID-19 / etc.).
+    // Added 2026-05-12 to match celia's allow-list (ea9eaab).
+    "http://hl7.org/fhir/sid/cvx",
     // ===== HL7 categories =====
     "http://terminology.hl7.org/CodeSystem/observation-category",
     "http://terminology.hl7.org/CodeSystem/condition-category",
@@ -73,7 +81,15 @@ pub const ALLOWED_SYSTEMS_DEFAULT: &[&str] = &[
     "http://terminology.hl7.org/CodeSystem/data-absent-reason",
     "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
     "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+    // HL7 v2 Table 0203 — Identifier Type Codes (MR / SSN / DL / PPN / …).
+    // Surfaces on Patient.identifier[].type.coding[] for every Synthea-
+    // generated bundle and most real-world EHR exports.
+    "http://terminology.hl7.org/CodeSystem/v2-0203",
     "http://terminology.hl7.org/CodeSystem/condition-clinical",
+    // AllergyIntolerance.clinicalStatus / .verificationStatus — required
+    // for any agent-created AllergyIntolerance record.
+    "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+    "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
     "http://terminology.hl7.org/CodeSystem/diagnosis-role",
     "http://terminology.hl7.org/CodeSystem/v3-ActPriority",
     "http://terminology.hl7.org/CodeSystem/location-physical-type",
@@ -90,21 +106,73 @@ pub const ALLOWED_SYSTEMS_DEFAULT: &[&str] = &[
     "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-method",
     "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medication-method-icu",
     "http://mimic.mit.edu/fhir/mimic/CodeSystem/mimic-medadmin-category-icu",
+    // Synthea — the mainstream synthetic-patient generator used in
+    // celia onboarding + E2E. Patient rows ship with this URL as
+    // identifier.type.coding[].system.
+    "https://github.com/synthetichealth/synthea",
 ];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
+
+    /// Vendored copy of celia's source-of-truth whitelist toml.
+    /// Sync protocol is documented at `vendor/README.md`. The
+    /// `vendored_toml_matches_default` test asserts set equality between
+    /// the parsed toml and [`ALLOWED_SYSTEMS_DEFAULT`].
+    const VENDORED_CELIA_TOML: &str = include_str!("../vendor/celia-whitelists.toml");
+
+    #[derive(serde::Deserialize)]
+    struct VendoredWhitelist {
+        code_systems: Vec<VendoredEntry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct VendoredEntry {
+        url: String,
+    }
+
+    fn celia_uris() -> BTreeSet<String> {
+        let parsed: VendoredWhitelist =
+            toml::from_str(VENDORED_CELIA_TOML).expect("vendored celia toml parses");
+        parsed.code_systems.into_iter().map(|e| e.url).collect()
+    }
+
+    fn default_uris() -> BTreeSet<String> {
+        ALLOWED_SYSTEMS_DEFAULT
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect()
+    }
 
     #[test]
-    fn default_systems_match_celia_count() {
-        // Drift guard mirroring celia's `systems.rs:104-110`. If this
-        // fails, re-sync from
-        // ~/code/pha/celia_phr/crates/celia-core/src/fhir/systems.rs:15-91.
+    fn vendored_toml_matches_default() {
+        // The I1 drift-guard. Vendored toml must hold the same URI set
+        // as ALLOWED_SYSTEMS_DEFAULT. If this fails:
+        //   - if celia *added* URIs: extend ALLOWED_SYSTEMS_DEFAULT and
+        //     re-vendor the toml (see vendor/README.md).
+        //   - if atd *added* URIs ahead of celia: open a celia PR first,
+        //     get the toml updated upstream, then re-vendor here.
+        let celia = celia_uris();
+        let atd = default_uris();
+        let only_in_celia: Vec<_> = celia.difference(&atd).cloned().collect();
+        let only_in_atd: Vec<_> = atd.difference(&celia).cloned().collect();
+        assert!(
+            only_in_celia.is_empty() && only_in_atd.is_empty(),
+            "celia ↔ atd whitelist drift detected\n\
+             only in celia (need to add to atd): {only_in_celia:?}\n\
+             only in atd (need to add to celia): {only_in_atd:?}",
+        );
+    }
+
+    #[test]
+    fn default_systems_count_stable() {
+        // Count sanity-check. Bumping this number is a deliberate act —
+        // do it together with the toml re-vendor + the set-equality test.
         assert_eq!(
             ALLOWED_SYSTEMS_DEFAULT.len(),
-            70,
-            "ALLOWED_SYSTEMS_DEFAULT drifted from celia 70-entry baseline"
+            75,
+            "ALLOWED_SYSTEMS_DEFAULT count drifted from celia 75-entry baseline"
         );
     }
 

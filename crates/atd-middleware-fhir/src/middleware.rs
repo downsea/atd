@@ -335,8 +335,10 @@ mod tests {
 
     #[test]
     fn policy_replace_with_error() {
-        let mut cfg = FhirMiddlewareConfig::default();
-        cfg.on_mismatch = MismatchPolicy::ReplaceWithError;
+        let cfg = FhirMiddlewareConfig {
+            on_mismatch: MismatchPolicy::ReplaceWithError,
+            ..FhirMiddlewareConfig::default()
+        };
         let mw = FhirMiddleware::new(cfg);
         let mut v = json!({
             "resourceType": "Observation",
@@ -365,8 +367,10 @@ mod tests {
 
     #[test]
     fn policy_strip_offending_drops_bad_coding_keeps_good() {
-        let mut cfg = FhirMiddlewareConfig::default();
-        cfg.on_mismatch = MismatchPolicy::StripOffending;
+        let cfg = FhirMiddlewareConfig {
+            on_mismatch: MismatchPolicy::StripOffending,
+            ..FhirMiddlewareConfig::default()
+        };
         let mw = FhirMiddleware::new(cfg);
         let mut v = json!({
             "resourceType": "Observation",
