@@ -72,8 +72,23 @@ struct Args {
     audit_log: Option<String>,
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> std::process::ExitCode {
+/// SP-concurrency-baseline §5.1 — multi-thread tokio runtime so the accept
+/// loop and N spawned `handle_connection` tasks are scheduled across cores
+/// instead of serializing through one OS thread. Worker count comes from
+/// `atd_runtime::default_worker_threads()` (env-overridable `ATD_WORKER_THREADS`,
+/// default `min(cpus, 4)`).
+fn main() -> std::process::ExitCode {
+    let workers = atd_runtime::default_worker_threads();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .enable_all()
+        .build()
+        .expect("build tokio multi_thread runtime");
+    eprintln!("atd-ref-server: tokio multi_thread runtime, {workers} worker(s)");
+    rt.block_on(run())
+}
+
+async fn run() -> std::process::ExitCode {
     let args = Args::parse();
 
     // SP-operability-v1 C1: install optional audit sink at startup, before

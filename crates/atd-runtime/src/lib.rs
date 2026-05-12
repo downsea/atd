@@ -11,6 +11,7 @@ pub mod dispatch;
 pub mod error;
 pub mod middleware;
 pub mod registry;
+pub mod runtime;
 pub mod secrets;
 pub mod tier;
 pub mod tracker;
@@ -24,6 +25,7 @@ pub use dispatch::{ServerState, SharedServerConfig, dispatch_request, run_tool};
 pub use error::ToolCallError;
 pub use middleware::{Middleware, RedactPathsMiddleware};
 pub use registry::{RegisteredTool, Registry, Tool};
+pub use runtime::default_worker_threads;
 pub use secrets::{
     BearerIdentity, BrokerError, InMemoryTokenBroker, RedactedString, ResolveBearerFuture,
     ResolveFuture, SecretBundle, TokenBroker,

@@ -29,8 +29,20 @@ struct Args {
     sock: PathBuf,
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> std::process::ExitCode {
+/// SP-concurrency-baseline §5.1 — multi-thread tokio runtime; see
+/// atd-ref-server's main for rationale.
+fn main() -> std::process::ExitCode {
+    let workers = atd_runtime::default_worker_threads();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .enable_all()
+        .build()
+        .expect("build tokio multi_thread runtime");
+    eprintln!("atd-mock-weather-server: tokio multi_thread runtime, {workers} worker(s)");
+    rt.block_on(run())
+}
+
+async fn run() -> std::process::ExitCode {
     let args = Args::parse();
 
     // Best-effort cleanup so a stale socket from a crashed prior run
