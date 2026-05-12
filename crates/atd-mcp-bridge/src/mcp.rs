@@ -65,6 +65,17 @@ pub struct ToolsCallResult {
     pub content: Vec<ContentBlock>,
     #[serde(rename = "isError", default, skip_serializing_if = "is_false")]
     pub is_error: bool,
+    /// SP-pagination-v1 §4.7 — non-standard MCP extension field. Emitted
+    /// only when `ATD_MCP_PASSTHROUGH_CURSOR=1` and the underlying ATD
+    /// response carried a cursor. Default (env unset): the field is
+    /// omitted and a truncation notice is appended to `content` so the
+    /// LLM knows partial data was returned.
+    #[serde(
+        rename = "nextCursor",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub next_cursor: Option<String>,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -118,6 +129,7 @@ mod tests {
                 text: "hello".into(),
             }],
             is_error: false,
+            next_cursor: None,
         };
         let j = serde_json::to_string(&r).unwrap();
         assert!(j.contains("\"type\":\"text\""));
@@ -125,6 +137,10 @@ mod tests {
         assert!(
             !j.contains("isError"),
             "isError should be suppressed when false, got: {j}"
+        );
+        assert!(
+            !j.contains("nextCursor"),
+            "nextCursor should be omitted when None, got: {j}"
         );
     }
 
@@ -135,9 +151,26 @@ mod tests {
                 text: "fail".into(),
             }],
             is_error: true,
+            next_cursor: None,
         };
         let j = serde_json::to_string(&r).unwrap();
         assert!(j.contains("\"isError\":true"));
+    }
+
+    #[test]
+    fn tools_call_result_next_cursor_serialises_as_camel_case() {
+        let r = ToolsCallResult {
+            content: vec![ContentBlock::Text {
+                text: "data".into(),
+            }],
+            is_error: false,
+            next_cursor: Some("cur-abc".into()),
+        };
+        let j = serde_json::to_string(&r).unwrap();
+        assert!(
+            j.contains("\"nextCursor\":\"cur-abc\""),
+            "next_cursor must serialize as camelCase nextCursor, got: {j}"
+        );
     }
 
     #[test]

@@ -139,24 +139,62 @@ impl Bridge {
                 return Response::err(id, -32602, format!("unknown tool name: {}", params.name));
             }
         };
-        let result = self
+
+        // SP-pagination-v1 §4.7 — detect `arguments.__cursor` for cursor-aware
+        // MCP clients (e.g. Hermes patched per the env-opt-in mode below).
+        // The field is extracted + stripped before forwarding so the tool's
+        // input_schema is unaffected.
+        let mut args = params.arguments;
+        let cursor: Option<String> = match args.as_object_mut() {
+            Some(obj) => obj
+                .remove("__cursor")
+                .and_then(|v| v.as_str().map(String::from)),
+            None => None,
+        };
+
+        let page_result = self
             .client
-            .call(&atd_id, params.arguments, CallOptions::default())
+            .call_page(&atd_id, args, cursor.as_deref(), CallOptions::default())
             .await;
 
-        let mcp_result = match result {
-            Ok(atd_protocol::ToolResult::Success { data, .. }) => ToolsCallResult {
-                content: vec![ContentBlock::Text {
-                    text: serde_json::to_string(&data).unwrap_or_else(|_| "{}".into()),
-                }],
-                is_error: false,
-            },
-            Ok(atd_protocol::ToolResult::Error { code, message, .. }) => ToolsCallResult {
-                content: vec![ContentBlock::Text {
-                    text: format!("[{code}] {message}"),
-                }],
-                is_error: true,
-            },
+        let passthrough = std::env::var("ATD_MCP_PASSTHROUGH_CURSOR").as_deref() == Ok("1");
+
+        let mcp_result = match page_result {
+            Ok(page) => {
+                let mut content = vec![ContentBlock::Text {
+                    text: serde_json::to_string(&page.value).unwrap_or_else(|_| "{}".into()),
+                }];
+                let next_cursor = match (page.next_cursor.clone(), passthrough) {
+                    (Some(c), true) => {
+                        // Passthrough mode — emit nextCursor verbatim. Cursor-aware
+                        // MCP clients (Hermes patched, future MCP spec) will use it
+                        // to issue a continuation via `arguments.__cursor`.
+                        Some(c)
+                    }
+                    (Some(_c), false) => {
+                        // Default mode — append a structured truncation notice so
+                        // the LLM knows partial data was returned and can act
+                        // (summarize, ask user, narrow args). Silent truncation
+                        // would produce hallucinated completeness.
+                        content.push(ContentBlock::Text {
+                            text: "\n\n[NOTE: this server has more data available \
+                                   (next page cursor present) but your MCP client does not \
+                                   support continuation. Ask the user if they want the next \
+                                   page, or call this tool again with narrower args. \
+                                   Operators can enable passthrough by setting \
+                                   ATD_MCP_PASSTHROUGH_CURSOR=1 on the bridge.]"
+                                .into(),
+                        });
+                        None
+                    }
+                    (None, _) => None,
+                };
+                ToolsCallResult {
+                    content,
+                    is_error: false,
+                    next_cursor,
+                }
+            }
             Err(e) => {
                 use std::error::Error as StdError;
                 let text = match e.source() {
@@ -166,6 +204,7 @@ impl Bridge {
                 ToolsCallResult {
                     content: vec![ContentBlock::Text { text }],
                     is_error: true,
+                    next_cursor: None,
                 }
             }
         };
@@ -545,5 +584,186 @@ mod tests {
             params: None,
         };
         assert!(bridge.handle(req).await.is_none());
+    }
+
+    // ---- SP-pagination-v1 §4.7 — degrade-or-passthrough cursor handling ----
+
+    /// Env mutations across the pagination tests must not race with each
+    /// other (nextest runs lib tests in parallel by default). Hold the
+    /// guard for the duration of any test that reads or writes
+    /// `ATD_MCP_PASSTHROUGH_CURSOR`.
+    fn pagination_env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Build a fake ATD server that responds to RunTool with a paginated
+    /// result (cursor present). Other RPCs use the standard echoes.
+    fn paginated_server_reply(req: serde_json::Value) -> serde_json::Value {
+        match req["type"].as_str() {
+            Some("ping") => json!({"type":"pong"}),
+            Some("tool_list") => json!({
+                "type": "tool_list",
+                "tools": [
+                    {"id":"celia:fhir.list_observations","description":"List Obs","tier":"hot","visibility":"read"}
+                ]
+            }),
+            Some("tool_schema") => json!({
+                "type": "tool_schema",
+                "schema": {
+                    "id": "celia:fhir.list_observations",
+                    "name": "List Obs",
+                    "description": "List Obs",
+                    "version": "0.1.0",
+                    "capability": {"domain":"fhir","actions":["read"],"tags":[],"intent_examples":[]},
+                    "input_schema": {"type":"object"},
+                    "output_schema": {"type":"object"},
+                    "bindings": [],
+                    "safety": {"level":"Read","dry_run":false,"side_effects":[],"data_sensitivity":null},
+                    "resources": {"timeout_ms":1000,"max_concurrent":1,"rate_limit_per_min":null,"estimated_tokens":null},
+                    "trust": {"publisher":"t","trust_level":"L0Unverified","signature":null}
+                }
+            }),
+            Some("run_tool") => json!({
+                "type": "tool_result",
+                "tool_id": "celia:fhir.list_observations",
+                "result": [{"id":"o1"}, {"id":"o2"}],
+                "success": true,
+                "dry_run": false,
+                "next_cursor": "FAKE_CURSOR_BYTES",
+            }),
+            Some("run_tool_continue") => {
+                assert_eq!(req["cursor"], "FAKE_CURSOR_BYTES");
+                json!({
+                    "type": "tool_result",
+                    "tool_id": "celia:fhir.list_observations",
+                    "result": [{"id":"o3"}],
+                    "success": true,
+                    "dry_run": false,
+                    // terminal page — omit next_cursor
+                })
+            }
+            _ => json!({"type":"error","message":"unexpected"}),
+        }
+    }
+
+    /// Tools/call when the ATD server returns a cursor — default mode
+    /// (env unset) appends a structured truncation notice and OMITS the
+    /// nextCursor field so cursor-unaware MCP clients see complete-looking
+    /// content with a clear "more available" signal.
+    #[tokio::test]
+    async fn tools_call_default_mode_appends_truncation_notice_and_omits_cursor() {
+        let _guard = pagination_env_lock();
+        unsafe { std::env::remove_var("ATD_MCP_PASSTHROUGH_CURSOR") };
+
+        let sock = spawn_fake_atd_server(paginated_server_reply).await;
+        let client = AtdClient::connect(Endpoint::unix(sock)).await.unwrap();
+        let bridge = Bridge::new(client);
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(100)),
+            method: "tools/call".into(),
+            params: Some(
+                json!({"name":"celia_fhir_list_observations","arguments":{"patient":"p1"}}),
+            ),
+        };
+        let resp = bridge.handle(req).await.unwrap();
+        let j = serde_json::to_string(&resp).unwrap();
+        // Two content blocks: the data + the notice.
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let content = v["result"]["content"].as_array().unwrap();
+        assert_eq!(
+            content.len(),
+            2,
+            "expected data + notice blocks, got: {content:?}"
+        );
+        assert!(
+            content[1]["text"]
+                .as_str()
+                .unwrap()
+                .contains("next page cursor present"),
+            "second block must be the truncation notice; got: {content:?}"
+        );
+        // nextCursor must be ABSENT in default mode.
+        assert!(
+            v["result"].get("nextCursor").is_none(),
+            "default mode must omit nextCursor; got: {j}"
+        );
+    }
+
+    /// Tools/call with ATD_MCP_PASSTHROUGH_CURSOR=1 surfaces nextCursor as
+    /// a non-standard MCP field, suppresses the truncation notice, and
+    /// passes data through verbatim.
+    #[tokio::test]
+    async fn tools_call_passthrough_mode_surfaces_next_cursor() {
+        let _guard = pagination_env_lock();
+        unsafe { std::env::set_var("ATD_MCP_PASSTHROUGH_CURSOR", "1") };
+
+        let sock = spawn_fake_atd_server(paginated_server_reply).await;
+        let client = AtdClient::connect(Endpoint::unix(sock)).await.unwrap();
+        let bridge = Bridge::new(client);
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(101)),
+            method: "tools/call".into(),
+            params: Some(
+                json!({"name":"celia_fhir_list_observations","arguments":{"patient":"p1"}}),
+            ),
+        };
+        let resp = bridge.handle(req).await.unwrap();
+
+        // Restore env immediately so a panic in the assertions below
+        // doesn't leak env state to subsequent tests.
+        unsafe { std::env::remove_var("ATD_MCP_PASSTHROUGH_CURSOR") };
+
+        let j = serde_json::to_string(&resp).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        assert_eq!(
+            v["result"]["nextCursor"], "FAKE_CURSOR_BYTES",
+            "passthrough must surface nextCursor verbatim; got: {j}"
+        );
+        // Only one content block — no notice in passthrough.
+        let content = v["result"]["content"].as_array().unwrap();
+        assert_eq!(
+            content.len(),
+            1,
+            "passthrough must not append notice; got: {content:?}"
+        );
+    }
+
+    /// Tools/call with `arguments.__cursor` routes to RunToolContinue
+    /// regardless of mode. The cursor is extracted + stripped from args
+    /// before forwarding.
+    #[tokio::test]
+    async fn tools_call_with_dunder_cursor_argument_routes_to_run_tool_continue() {
+        let _guard = pagination_env_lock();
+        unsafe { std::env::remove_var("ATD_MCP_PASSTHROUGH_CURSOR") };
+
+        let sock = spawn_fake_atd_server(paginated_server_reply).await;
+        let client = AtdClient::connect(Endpoint::unix(sock)).await.unwrap();
+        let bridge = Bridge::new(client);
+        let req = Request {
+            jsonrpc: "2.0".into(),
+            id: Some(json!(102)),
+            method: "tools/call".into(),
+            params: Some(json!({
+                "name": "celia_fhir_list_observations",
+                "arguments": {"__cursor": "FAKE_CURSOR_BYTES", "patient": "p1"},
+            })),
+        };
+        let resp = bridge.handle(req).await.unwrap();
+        let j = serde_json::to_string(&resp).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        // Continuation returned [{"id":"o3"}] without next_cursor —
+        // terminal page. No notice should appear.
+        let content = v["result"]["content"].as_array().unwrap();
+        assert_eq!(content.len(), 1);
+        let text = content[0]["text"].as_str().unwrap();
+        assert!(
+            text.contains("o3"),
+            "continuation result not propagated, got: {text}"
+        );
     }
 }
