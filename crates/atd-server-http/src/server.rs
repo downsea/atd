@@ -27,8 +27,8 @@ use crate::bearer::{BearerOutcome, resolve_bearer};
 use crate::config::HttpServerConfig;
 use crate::error::HttpServerError;
 use crate::mcp::{
-    JsonRpcRequest, error_response, handle_initialize, handle_initialized_notification,
-    handle_tools_call, handle_tools_list,
+    JsonRpcRequest, error_response, error_response_with_headers, handle_initialize,
+    handle_initialized_notification, handle_tools_call, handle_tools_list,
 };
 use crate::origin::origin_allowed;
 
@@ -266,17 +266,34 @@ async fn handle_mcp_post(
     }
 
     // Step 2: Bearer resolution.
-    let identity: Option<BearerIdentity> = match resolve_bearer(
+    // SP-token-broker-phase2 §4.4: per-outcome HTTP status (401/400/500/501/503)
+    // + headers (WWW-Authenticate, Retry-After) come from BearerOutcome's
+    // accessor methods. The JSON-RPC envelope's `code` stays at -32002
+    // (auth) for all non-admitted outcomes; the HTTP-layer distinctions
+    // are the load-bearing signal for adopter clients.
+    let outcome = resolve_bearer(
         &headers,
         app.state.config.token_broker.as_ref(),
         app.require_bearer,
     )
-    .await
-    {
+    .await;
+
+    let identity: Option<BearerIdentity> = match outcome {
         BearerOutcome::Anonymous => None,
         BearerOutcome::Validated(id) => Some(id),
-        BearerOutcome::Rejected(msg) => {
-            return error_response(StatusCode::UNAUTHORIZED, req.id, -32002, msg);
+        rejection => {
+            let status = rejection.http_status();
+            let message = rejection
+                .rejection_message()
+                .unwrap_or_else(|| "bearer auth failed".into());
+            let mut headers: Vec<(&str, String)> = Vec::new();
+            if let Some(www) = rejection.www_authenticate() {
+                headers.push(("WWW-Authenticate", www.to_string()));
+            }
+            if let Some(retry) = rejection.retry_after() {
+                headers.push(("Retry-After", retry.to_string()));
+            }
+            return error_response_with_headers(status, req.id, -32002, message, &headers);
         }
     };
 

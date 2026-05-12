@@ -17,9 +17,7 @@ use atd_protocol::{
 };
 use atd_runtime::context::CallContext;
 use atd_runtime::registry::{CallFuture, Registry, Tool};
-use atd_runtime::secrets::{
-    BearerIdentity, BrokerError, ResolveBearerFuture, ResolveFuture, TokenBroker,
-};
+use atd_runtime::secrets::{BearerIdentity, ResolveBearerFuture, ResolveFuture, TokenBroker};
 use atd_server_http::{HttpServerConfig, Server};
 use tokio::task::JoinHandle;
 
@@ -142,7 +140,11 @@ impl TokenBroker for FixedBroker {
             if bearer == good {
                 Ok(Some(identity))
             } else {
-                Err(BrokerError::Lookup("unknown token".into()))
+                // SP-token-broker-phase2 §4.4: unknown but well-formed
+                // tokens map to `Ok(None)` (→ HTTP 401 + `WWW-Authenticate:
+                // Bearer error="invalid_token"`). `Err(Lookup)` is for
+                // transient broker failures (DB down, network blip) → 503.
+                Ok(None)
             }
         })
     }

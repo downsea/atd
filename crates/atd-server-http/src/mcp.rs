@@ -68,7 +68,22 @@ pub fn error_response(
     code: i32,
     message: impl Into<String>,
 ) -> axum::response::Response {
-    (
+    error_response_with_headers(status, id, code, message, &[])
+}
+
+/// `error_response` with optional response headers (e.g.
+/// `WWW-Authenticate`, `Retry-After`). SP-token-broker-phase2 §4.4
+/// requires distinct headers for each bearer-auth error class so
+/// adopter-side UIs can distinguish "expired" / "revoked" / "unknown"
+/// without re-parsing the message body.
+pub fn error_response_with_headers(
+    status: StatusCode,
+    id: Option<Value>,
+    code: i32,
+    message: impl Into<String>,
+    extra_headers: &[(&str, String)],
+) -> axum::response::Response {
+    let mut resp: axum::response::Response = (
         status,
         Json(JsonRpcResponse {
             jsonrpc: "2.0",
@@ -80,7 +95,21 @@ pub fn error_response(
             }),
         }),
     )
-        .into_response()
+        .into_response();
+
+    if !extra_headers.is_empty() {
+        let headers = resp.headers_mut();
+        for (name, value) in extra_headers {
+            if let (Ok(hn), Ok(hv)) = (
+                axum::http::HeaderName::from_bytes(name.as_bytes()),
+                axum::http::HeaderValue::from_str(value),
+            ) {
+                headers.insert(hn, hv);
+            }
+        }
+    }
+
+    resp
 }
 
 /// JSON-RPC success envelope.

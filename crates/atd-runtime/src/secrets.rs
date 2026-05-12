@@ -153,9 +153,12 @@ pub trait TokenBroker: Send + Sync {
     ///   `require_bearer`).
     /// - `Ok(Some(identity))` — bearer validated; `identity` carries
     ///   caller id, capabilities, optional secrets + expiry hints.
-    /// - `Err(BrokerError::Lookup)` — bearer is malformed (broker SHOULD
-    ///   fast-reject so probing for valid tokens by trial doesn't hit
-    ///   storage).
+    /// - `Err(BrokerError::Lookup)` — transient look-up failure (DB
+    ///   down, network blip). HTTP listener maps to 503 + `Retry-After: 5`
+    ///   per SP-token-broker-phase2 §4.4. Brokers using `Lookup` for
+    ///   "malformed bearer" should switch to a synchronous reject path
+    ///   (e.g. return `Ok(None)`) so the listener emits 401 +
+    ///   `WWW-Authenticate: Bearer error="invalid_token"` instead.
     /// - `Err(BrokerError::Expired)` — bearer recognised but past expiry.
     /// - `Err(BrokerError::Revoked)` — bearer recognised but its grant
     ///   was administratively revoked.
@@ -297,16 +300,21 @@ impl TokenBroker for InMemoryTokenBroker {
             }
             // Parse just enough to extract the leaf's audience (the
             // signature is re-verified in full by verify_jwt below).
-            let leaf_payload = crate::ucan::parse_jwt(bearer)
-                .map_err(|e| BrokerError::Lookup(format!("UCAN parse: {e}")))?;
+            // SP-token-broker-phase2 §4.4 wire mapping update: parse
+            // failures, unregistered audiences, and verify failures
+            // (signature / attenuation / etc.) are all "well-formed-
+            // looking but invalid token" → `Ok(None)` → HTTP 401
+            // `invalid_token`. Reserve `Err(Lookup)` for transient
+            // broker storage failures only; reserve `Err(Internal)`
+            // for broker bugs.
+            let leaf_payload = match crate::ucan::parse_jwt(bearer) {
+                Ok(p) => p,
+                Err(_) => return Ok(None),
+            };
 
-            let caller_id = self
-                .ucan_audiences
-                .get(&leaf_payload.aud)
-                .cloned()
-                .ok_or_else(|| {
-                    BrokerError::Lookup(format!("unregistered UCAN audience: {}", leaf_payload.aud))
-                })?;
+            let Some(caller_id) = self.ucan_audiences.get(&leaf_payload.aud).cloned() else {
+                return Ok(None);
+            };
 
             // The broker pins audience to the JWT's own aud (which we
             // just confirmed maps to a registered caller). Dispatch can
@@ -316,12 +324,16 @@ impl TokenBroker for InMemoryTokenBroker {
             cfg.max_chain_depth = self.ucan_max_chain_depth;
             cfg.revocation_store = self.ucan_revocation_store.clone();
 
-            let caps = crate::ucan::verify_jwt(bearer, &cfg, std::time::SystemTime::now())
-                .map_err(|e| match e {
-                    crate::ucan::UcanVerifyError::Expired { .. } => BrokerError::Expired,
-                    crate::ucan::UcanVerifyError::Revoked { cid } => BrokerError::Revoked(cid),
-                    other => BrokerError::Lookup(format!("UCAN verify: {other}")),
-                })?;
+            let caps = match crate::ucan::verify_jwt(bearer, &cfg, std::time::SystemTime::now()) {
+                Ok(c) => c,
+                Err(crate::ucan::UcanVerifyError::Expired { .. }) => {
+                    return Err(BrokerError::Expired);
+                }
+                Err(crate::ucan::UcanVerifyError::Revoked { cid }) => {
+                    return Err(BrokerError::Revoked(cid));
+                }
+                Err(_) => return Ok(None),
+            };
 
             let secrets = self.bundles.get(&caller_id).cloned();
             Ok(Some(BearerIdentity {
@@ -539,15 +551,15 @@ mod tests {
             let jwt = build_jwt(p, &sk_user);
 
             let broker = InMemoryTokenBroker::new(); // no register_ucan_audience
-            match broker.resolve_bearer(&jwt).await {
-                Err(BrokerError::Lookup(msg)) => {
-                    assert!(
-                        msg.contains("unregistered UCAN audience"),
-                        "expected lookup-error mentioning audience, got: {msg}"
-                    );
-                }
-                other => panic!("expected Lookup error, got {other:?}"),
-            }
+            // SP-token-broker-phase2 §4.4: well-formed but unrecognised
+            // → Ok(None) → 401 invalid_token. (Previously this was
+            // BrokerError::Lookup; corrected in phase-2 to match the
+            // semantic of "Lookup = transient backend failure".)
+            let r = broker.resolve_bearer(&jwt).await;
+            assert!(
+                matches!(r, Ok(None)),
+                "expected Ok(None) for unregistered audience, got {r:?}"
+            );
         }
 
         #[tokio::test]
@@ -576,9 +588,12 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn resolve_bearer_ucan_jwt_bad_signature_returns_lookup() {
-            // Signed by sk_x but iss claims to be sk_user → BadSignature
-            // → Lookup at the broker.
+        async fn resolve_bearer_ucan_jwt_bad_signature_returns_ok_none() {
+            // Signed by sk_x but iss claims to be sk_user → BadSignature.
+            // SP-token-broker-phase2 §4.4: signature/attenuation/etc.
+            // verify failures are "well-formed-looking but invalid token"
+            // → Ok(None) → HTTP 401 invalid_token. (Previously surfaced
+            // as BrokerError::Lookup, which would have mapped to 503.)
             let sk_user = signing_key_for_seed(1);
             let sk_agent = signing_key_for_seed(2);
             let sk_x = signing_key_for_seed(99);
@@ -596,15 +611,11 @@ mod tests {
             let mut broker = InMemoryTokenBroker::new();
             broker.register_ucan_audience(&agent_did, "agent:A");
 
-            match broker.resolve_bearer(&jwt).await {
-                Err(BrokerError::Lookup(msg)) => {
-                    assert!(
-                        msg.contains("UCAN verify") || msg.contains("signature"),
-                        "expected verify-failure lookup error, got: {msg}"
-                    );
-                }
-                other => panic!("expected Lookup, got {other:?}"),
-            }
+            let r = broker.resolve_bearer(&jwt).await;
+            assert!(
+                matches!(r, Ok(None)),
+                "expected Ok(None) for bad signature, got {r:?}"
+            );
         }
 
         #[tokio::test]
