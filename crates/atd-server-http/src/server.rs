@@ -299,7 +299,11 @@ async fn handle_mcp_post(
 
     // Step 3: Method dispatch.
     match req.method.as_str() {
-        "initialize" => handle_initialize(req.id, &app.server_version),
+        "initialize" => handle_initialize(
+            req.id,
+            &app.server_version,
+            app.state.config.token_broker.as_ref(),
+        ),
         "notifications/initialized" => handle_initialized_notification(req.id),
         "tools/list" => handle_tools_list(req.id, &app.state),
         "tools/call" => handle_tools_call(req.id, &app.state, identity.as_ref(), req.params).await,

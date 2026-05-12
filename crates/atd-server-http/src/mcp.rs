@@ -123,22 +123,51 @@ pub fn ok_response(id: Option<Value>, result: Value) -> axum::response::Response
     .into_response()
 }
 
-/// Build the `initialize` reply. Echoes `serverInfo` (name + version)
-/// and an empty `capabilities.tools` map. SP-streamable-http §4.2:
-/// `initialize` does NOT enter the dispatch state machine — the listener
-/// synthesises this reply directly. Mirrors
-/// `celia-cli/src/http_server.rs:417-435`.
-pub fn handle_initialize(id: Option<Value>, server_version: &str) -> axum::response::Response {
+/// Build the `initialize` reply. Echoes `serverInfo` (name + version),
+/// an empty `capabilities.tools` map, and — when a `TokenBroker` is
+/// wired — the broker's `accepted_token_formats()` as an `experimental`
+/// hint (SP-token-broker-phase2 §8.2 last entry).
+///
+/// SP-streamable-http §4.2: `initialize` does NOT enter the dispatch
+/// state machine — the listener synthesises this reply directly.
+/// Mirrors `celia-cli/src/http_server.rs:417-435`.
+pub fn handle_initialize(
+    id: Option<Value>,
+    server_version: &str,
+    token_broker: Option<&Arc<dyn atd_runtime::TokenBroker>>,
+) -> axum::response::Response {
     let (name, version) = split_server_version(server_version);
+    let mut capabilities = json!({ "tools": {} });
+
+    // SP-token-broker-phase2 §4.2 / §8.2 — the listener does NOT route
+    // on this field; it is a diagnostic / discovery hint so clients +
+    // operators can see at a glance which bearer formats the deployed
+    // broker accepts. MCP's `capabilities.experimental` map is the
+    // designated extension slot for non-MCP-spec capabilities.
+    if let Some(broker) = token_broker {
+        let formats = broker.accepted_token_formats();
+        if !formats.is_empty() {
+            let formats_value = serde_json::Value::Array(
+                formats
+                    .iter()
+                    .map(|f| serde_json::Value::String((*f).to_string()))
+                    .collect(),
+            );
+            capabilities["experimental"] = json!({
+                "atd": {
+                    "acceptedTokenFormats": formats_value
+                }
+            });
+        }
+    }
+
     let info = json!({
         "protocolVersion": "2025-06-18",
         "serverInfo": {
             "name": name,
             "version": version,
         },
-        "capabilities": {
-            "tools": {},
-        },
+        "capabilities": capabilities,
     });
     ok_response(id, info)
 }
@@ -448,7 +477,7 @@ mod tests {
 
     #[tokio::test]
     async fn initialize_returns_server_info_with_tools_capability() {
-        let resp = handle_initialize(Some(json!(1)), "atd-test 0.3.0");
+        let resp = handle_initialize(Some(json!(1)), "atd-test 0.3.0", None);
         let body = body_to_json(resp).await;
         assert_eq!(body["jsonrpc"], "2.0");
         assert_eq!(body["id"], 1);
@@ -456,6 +485,57 @@ mod tests {
         assert_eq!(body["result"]["serverInfo"]["version"], "0.3.0");
         assert!(body["result"]["capabilities"]["tools"].is_object());
         assert_eq!(body["result"]["protocolVersion"], "2025-06-18");
+        // No broker → no `experimental.atd.acceptedTokenFormats`.
+        assert!(body["result"]["capabilities"]["experimental"].is_null());
+    }
+
+    #[tokio::test]
+    async fn initialize_echoes_broker_accepted_token_formats_when_wired() {
+        use atd_runtime::secrets::{ResolveBearerFuture, ResolveFuture, TokenBroker};
+        #[derive(Debug)]
+        struct DeclaringBroker;
+        impl TokenBroker for DeclaringBroker {
+            fn resolve<'a>(&'a self, _caller_id: Option<&'a str>) -> ResolveFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn resolve_bearer<'a>(&'a self, _bearer: &'a str) -> ResolveBearerFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn accepted_token_formats(&self) -> &'static [&'static str] {
+                &["ucan-jwt", "opaque", "ce-pairing-code"]
+            }
+        }
+        let broker: Arc<dyn TokenBroker> = Arc::new(DeclaringBroker);
+        let resp = handle_initialize(Some(json!(1)), "atd-test 0.3.0", Some(&broker));
+        let body = body_to_json(resp).await;
+        let formats =
+            &body["result"]["capabilities"]["experimental"]["atd"]["acceptedTokenFormats"];
+        assert_eq!(
+            formats,
+            &json!(["ucan-jwt", "opaque", "ce-pairing-code"]),
+            "broker formats should appear in initialize.capabilities.experimental.atd"
+        );
+    }
+
+    #[tokio::test]
+    async fn initialize_omits_experimental_when_broker_declares_empty_formats() {
+        use atd_runtime::secrets::{ResolveBearerFuture, ResolveFuture, TokenBroker};
+        #[derive(Debug)]
+        struct SilentBroker;
+        impl TokenBroker for SilentBroker {
+            fn resolve<'a>(&'a self, _caller_id: Option<&'a str>) -> ResolveFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn resolve_bearer<'a>(&'a self, _bearer: &'a str) -> ResolveBearerFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            // returns &[] (default impl) — listener should NOT emit
+            // an empty acceptedTokenFormats array, just omit the field.
+        }
+        let broker: Arc<dyn TokenBroker> = Arc::new(SilentBroker);
+        let resp = handle_initialize(Some(json!(1)), "atd-test 0.3.0", Some(&broker));
+        let body = body_to_json(resp).await;
+        assert!(body["result"]["capabilities"]["experimental"].is_null());
     }
 
     #[tokio::test]
