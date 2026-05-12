@@ -105,6 +105,8 @@ impl ServerBuilder {
                     token_broker: arc.token_broker.clone(),
                     max_ucan_chain_depth: arc.max_ucan_chain_depth,
                     ucan_revocation_store: arc.ucan_revocation_store.clone(),
+                    frame_deadline_active_ms: arc.frame_deadline_active_ms,
+                    frame_deadline_handshake_ms: arc.frame_deadline_handshake_ms,
                 }
             }),
             tier_policy: self.tier_policy,

@@ -82,6 +82,17 @@ pub struct SharedServerConfig {
     /// Adopters wrap their existing revocation table (e.g. celia's
     /// `consent.status='revoked'`) behind this trait.
     pub ucan_revocation_store: Option<Arc<dyn crate::ucan::UcanRevocationStore>>,
+    /// Per-frame deadline applied to reads/writes on a connection that has
+    /// already completed the `Hello` handshake. Long enough to cover a
+    /// reasonable tool call's slowest reply (e.g. `host:media.convert` at
+    /// 25s). Default `30_000` ms. SP-concurrency-baseline §5.2.
+    pub frame_deadline_active_ms: u64,
+    /// Per-frame deadline applied to the pre-Hello handshake window. Short
+    /// enough to fail fast under a single-threaded server starvation
+    /// (the §1.2 root cause of the 2026-05-12 celia incident) so the SDK
+    /// retry path can reissue against a less contended worker. Default
+    /// `5_000` ms. SP-concurrency-baseline §5.2.
+    pub frame_deadline_handshake_ms: u64,
 }
 
 impl SharedServerConfig {
@@ -99,6 +110,8 @@ impl SharedServerConfig {
             token_broker: None,
             max_ucan_chain_depth: 5,
             ucan_revocation_store: None,
+            frame_deadline_active_ms: 30_000,
+            frame_deadline_handshake_ms: 5_000,
         }
     }
 }

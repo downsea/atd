@@ -50,6 +50,10 @@ impl Server {
             // SP can flow these through ServerConfig so adopters override.
             max_ucan_chain_depth: 5,
             ucan_revocation_store: None,
+            // SP-concurrency-baseline §5.2: defaults match SharedServerConfig::for_test()
+            // and can be tuned via a future ServerConfig surfacing.
+            frame_deadline_active_ms: 30_000,
+            frame_deadline_handshake_ms: 5_000,
         };
         Self {
             state: Arc::new(ServerState {
@@ -91,6 +95,19 @@ impl Server {
     /// builder-style mutator that fits the existing pattern without
     /// growing the public `ServerConfig` surface (a follow-up SP can
     /// promote it there once more adopters need it).
+    /// SP-concurrency-baseline §5.2 adopter hook — override per-frame deadlines
+    /// without growing the public `ServerConfig` surface. Adopters whose
+    /// deployment needs a faster fail-fast on stalled connections (e.g. a
+    /// high-throughput sidecar where 5s handshake is too generous) call
+    /// this before `run()`. Mirrors `set_tier_policy` / `set_middleware` —
+    /// a one-shot builder-style mutator that fits the existing pattern.
+    pub fn set_frame_deadlines(&mut self, active_ms: u64, handshake_ms: u64) {
+        let state = Arc::get_mut(&mut self.state)
+            .expect("set_frame_deadlines must be called before run() hands out Arcs");
+        state.config.frame_deadline_active_ms = active_ms;
+        state.config.frame_deadline_handshake_ms = handshake_ms;
+    }
+
     pub fn set_ucan_revocation_store(
         &mut self,
         store: Arc<dyn atd_runtime::ucan::UcanRevocationStore>,

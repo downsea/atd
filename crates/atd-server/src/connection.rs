@@ -8,10 +8,11 @@
 //! stream, forward to runtime dispatch, write the response frame.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::net::UnixStream;
 
-use atd_protocol::wire::{read_frame, write_frame};
+use atd_protocol::wire::{WireError, read_frame_with_deadline, write_frame_with_deadline};
 use atd_protocol::{Request, Response};
 
 use crate::server::ServerState;
@@ -28,14 +29,35 @@ pub(crate) async fn handle_connection(
     // `client_id`. `None` until the first Hello; shared with every RunTool
     // CallContext and stamped on audit events.
     let mut caller_id: Option<String> = None;
+    // SP-concurrency-baseline §5.2: tighter deadline during the pre-Hello
+    // handshake window so a stalled connection fails fast and frees the
+    // worker. The active deadline covers long-running tool calls.
+    let mut hello_seen = false;
     loop {
-        let req: Request = match read_frame(&mut reader).await {
+        let deadline = Duration::from_millis(if hello_seen {
+            state.config.frame_deadline_active_ms
+        } else {
+            state.config.frame_deadline_handshake_ms
+        });
+        let req: Request = match read_frame_with_deadline(&mut reader, Some(deadline)).await {
             Ok(r) => r,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
-            Err(e) => return Err(e),
+            // Peer closed cleanly — normal end-of-stream.
+            Err(WireError::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                return Ok(());
+            }
+            // Stalled peer — close the connection so the worker isn't held
+            // hostage. The SDK's connect-retry path (Phase C) reissues against
+            // a less contended worker.
+            Err(WireError::Timeout(_)) => return Ok(()),
+            Err(e) => return Err(e.into()),
         };
+        if matches!(req, Request::Hello { .. }) {
+            hello_seen = true;
+        }
         let resp = dispatch(&state, &tracker, &mut caps, &mut caller_id, req).await;
-        write_frame(&mut writer, &resp).await?;
+        write_frame_with_deadline(&mut writer, &resp, Some(deadline))
+            .await
+            .map_err::<std::io::Error, _>(Into::into)?;
     }
 }
 
@@ -204,6 +226,8 @@ mod tests {
             token_broker: None,
             max_ucan_chain_depth: 5,
             ucan_revocation_store: None,
+            frame_deadline_active_ms: 30_000,
+            frame_deadline_handshake_ms: 5_000,
         }
     }
 
