@@ -1,105 +1,187 @@
-# ATD Architecture (v1)
+# ATD Architecture
 
-**Version:** 1.0 — 2026-04-24
-**Implementation baseline:** `sp12-canonical-dispatch` (or the most recent commit on master containing the four dispatch primitives described in §4.2).
-**Scope:** Normative architecture for the **reference implementation** (the `atd-*` crate family in this repository). Complements but does not replace the ATD whitepaper (`docs/whitepaper/atd-v3-multi-device.md`) or the wire reference (`docs/protocol/wire-format.md`).
-**Authority:** Where this document disagrees with `docs/design.md` (which predates SP-1), this document is authoritative. Where it disagrees with the v3 whitepaper on aspirational scope, the whitepaper remains authoritative for the protocol's long-term direction; this document is authoritative for what the reference implementation commits to.
+**Scope:** Normative architecture for the **reference implementation** —
+the `atd-*` crate family in this repository. Describes the system as it
+stands today, not how it got here. (Historical / by-release notes live
+in [`CHANGELOG.md`](../CHANGELOG.md); per-SP design rationale lives in
+`docs/superpowers/specs/`.)
+
+**Authority:** Where this document disagrees with `docs/design.md`,
+this document is authoritative. Where it disagrees with the v3
+whitepaper on aspirational scope, the whitepaper remains authoritative
+for the protocol's long-term direction.
+
 **License:** Apache-2.0.
 
 ---
 
 ## Table of contents
 
-1. [The protocol identity](#1-the-protocol-identity)
-2. [The layer model](#2-the-layer-model)
-3. [Schema Layer](#3-schema-layer)
-4. [Dispatch Layer](#4-dispatch-layer)
-5. [Security Layer](#5-security-layer)
-6. [Extensibility](#6-extensibility)
-7. [Skills Layer (adjacent)](#7-skills-layer-adjacent)
-8. [Component / crate map](#8-component--crate-map)
-9. [Non-goals (explicit)](#9-non-goals-explicit)
-10. [Evolution path](#10-evolution-path)
-
-**Reading guidance:** External protocol implementers — start with §2 and §3. Internal contributors — status tables in §3-§6 each row cites an `issues/` file or SP tag; pick work by status. Decision-makers — §1, §9, §10 give the identity, boundaries, and direction.
-
-**Legend for status-table glyphs** (used throughout §3-§6):
-
-| Glyph | Meaning |
-|---|---|
-| ✅ | **implemented** — code + tests + docs present |
-| ⚠️ | **partial** — code exists; runtime skeletal, tests thin, or documented aspect missing |
-| 🔨 | **in-progress** — actively being landed at this document's write time |
-| ❌ | **missing** — not started; row cites `docs/issues/<file>.md` |
-| 🚫 | **non-goal** — deferred by design; row cites §9 |
-| 📜 | **informational** — type/field exists but documented as not load-bearing |
+1. [What ATD is](#1-what-atd-is)
+2. [The unified schema](#2-the-unified-schema)
+3. [The layer model](#3-the-layer-model)
+4. [Wire & types](#4-wire--types)
+5. [Dispatch](#5-dispatch)
+6. [Security](#6-security)
+7. [Middleware](#7-middleware)
+8. [Skills layer (adjacent)](#8-skills-layer-adjacent)
+9. [Component & crate map](#9-component--crate-map)
+10. [Non-goals](#10-non-goals)
 
 ---
 
-## 1. The protocol identity
+## 1. What ATD is
 
-### 1.1 One-sentence definition
+**ATD (Agent Tool Dispatch)** is a wire protocol that lets any LLM
+agent, on any framework, call any tool, on any platform — through a
+single typed RPC surface. The reference implementation in this repo is
+the Rust source of truth: a `atd-protocol` types crate, a
+`atd-runtime` server runtime, an `atd-sdk` client SDK, two listener
+crates (`atd-server` for Unix sockets, `atd-server-http` for HTTP),
+middleware crates, built-in tools, and adopter integrations.
 
-ATD (Agent Tool Dispatch) is a protocol that lets **any tool, on any platform, be callable by any agent, through any framework**.
+The four "any"s frame the interoperability claim:
 
-The four "any"s frame the interoperability claim. Today:
-
-| Dimension | Fragmentation | ATD's answer |
+| Dimension | Fragmentation today | ATD's answer |
 |---|---|---|
-| Any tool | CLI, REST, MCP, native SDK — mutually incompatible shapes | One tool definition maps to multiple bindings |
-| Any platform | Linux / macOS / Windows / iOS / Android / HarmonyOS each have distinct call surfaces | Platform-available binding is auto-selected at dispatch time |
-| Any agent | Claude Code cannot consume OpenAI function-calling dicts without a shim | All agents call through a common client SDK; adapters produce per-provider dicts when needed |
+| Any tool | CLI, REST, MCP, native SDK — incompatible shapes | One `ToolDefinition` maps to multiple bindings |
+| Any platform | Linux / macOS / Windows / iOS / Android / HarmonyOS each have distinct call surfaces | Binding selection is server-side at dispatch time |
+| Any agent | Claude Code can't consume OpenAI function-calling shapes without a shim | All agents call the same SDK; adapters render per-provider dicts |
 | Any framework | LangChain tool ≠ MCP tool ≠ Apple App Intent | One definition, many framework consumers |
 
-### 1.2 What this document is
+Three audiences read this document:
 
-A normative architecture reference for the **reference implementation** published in this repository. It documents the layer model, the mechanisms each layer implements, the mapping from layers to crates, and the evolution path.
+- **External protocol implementers** — authors of Go / Java / Swift /
+  TypeScript / ArkTS SDKs, or tool-server implementers in languages
+  this repository does not ship. Read §2 (unified schema), §4 (wire
+  types), §5 (dispatch contract).
+- **Internal contributors** working against the reference
+  implementation. Read §3 (layers) and §9 (crate map) to find where
+  to make changes.
+- **Decision-makers** evaluating adoption. Read §1, §2, §10
+  (non-goals).
 
-Three reader classes:
+**Not this document:**
 
-- **External protocol implementers** — authors of Go / Java / Swift / TS / ArkTS SDKs, or tool-server implementers in languages this repository does not ship. This document gives them the layer model, wire contract, capability semantics, and binding extension points.
-- **Internal contributors** — working against the reference implementation. This document gives them per-layer status, crate maps, and the SP roadmap for deciding what to pick up.
-- **Decision-makers** — evaluating adoption. This document gives them identity, non-goals, and direction.
+- Not the byte-level wire reference — see
+  [`docs/protocol/wire-format.md`](protocol/wire-format.md).
+- Not the release history — see [`CHANGELOG.md`](../CHANGELOG.md) and
+  the tag list for what landed when.
+- Not a rewrite of the whitepaper —
+  [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md)
+  remains authoritative for long-term aspirational scope.
 
-### 1.3 What this document is not
+---
 
-- Not the wire-level reference — see [`docs/protocol/wire-format.md`](protocol/wire-format.md).
-- Not a roadmap commitment calendar — see §10 for the directional path; specific dates depend on adopter timing.
-- Not a rewrite of the whitepaper — [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md) remains authoritative for the protocol's long-term aspirational scope. This document reconciles whitepaper direction with implementation reality.
-- Not a successor to `docs/design.md` in a way that deletes history — `design.md` is retained as the original Phase 0 spec for archival context; this document supersedes it as the current reference.
+## 2. The unified schema
 
-### 1.4 Relationship to existing documents
+> *"Does ATD follow a unified schema?"* — Yes, and it's published as a
+> first-class artifact that any language can consume directly.
 
-| Document | Relationship |
+The atomic claim ATD makes — and the one feature most worth understanding
+first — is that **every message on the wire, in every direction, in
+every transport (UDS or HTTP), serialises to a shape defined by a
+single machine-readable schema**: `/atd-protocol-schema.json`. This
+schema is generated from the Rust type definitions in `atd-protocol`
+via `schemars` and validated against the [JSON Schema 2020-12
+meta-schema](https://json-schema.org/draft/2020-12/schema). CI gates
+drift between the Rust source and the published JSON.
+
+### 2.1 What the schema covers
+
+The published schema describes the complete wire vocabulary:
+
+| Layer | Schema-covered types |
 |---|---|
-| `docs/whitepaper/atd-v3-multi-device.md` | Aspirational protocol scope. Whitepaper authoritative on long-term direction; this doc authoritative on reference-implementation commitments. |
-| `docs/whitepaper/atd-v3-skills-architecture-brief.md` | Source for the five-layer stack diagram replicated in §2. |
-| `docs/design.md` | Original Phase 0 spec. Superseded by this document for architecture questions; retained for history. |
-| `docs/protocol/wire-format.md` | Wire-level reference — byte framing, message types, full type tables. Refer out to it; this document does not repeat wire details. |
-| `docs/protocol/error-codes.md` | Error taxonomy. Refer out. |
-| `docs/integrations/*.md` | Consumer-side guides per framework. This document gives them the layer model they assume. |
-| `docs/issues/*.md` | Per-issue gap tracking. Every `❌` row in this document cites an `issues/` file. |
+| Envelope | `ClientMessage` (=`Request`), `ServerMessage` (=`Response`) |
+| Handshake | `Hello`, `HelloAck`, `Ping`, `Pong` |
+| Discovery | `ToolList` request / response; `ToolSchema` request / response; `ToolSummary` (per-tool entry); `DiscoverFilter` |
+| Invocation | `RunTool` request, `RunToolContinue` request (cursor continuation), `ToolResultResponse` (success/error union), `CallOptions` |
+| Tool description | `ToolDefinition`, `ToolCapability`, `ToolBinding`, `ToolSafety`, `ToolResources`, `ToolTrust`, `ToolErrorDef` |
+| Enums | `SafetyLevel`, `ToolVisibility`, `TrustLevel`, `ToolTier`, `BindingProtocol` |
+| Errors | `AtdError` taxonomy with wire codes (see `docs/protocol/error-codes.md`) |
+| Pagination | `CursorPayload`, `next_cursor` field on `ToolResultResponse` |
+| Capability negotiation | `CapabilitySet`, `Hello.requested_capabilities`, `HelloAck.granted_capabilities`, `Hello.ucan_tokens` |
 
-## 2. The layer model
+If a Rust type in `atd-protocol` is `pub`, it's in the schema. If a
+field crosses the wire, it's in the schema. There is no per-transport
+divergence: the same `RunTool` envelope flows over a Unix socket (via
+`atd-server`) or over HTTP/MCP-JSON-RPC (via `atd-server-http`); both
+listeners deserialise into the same Rust types.
 
-### 2.1 Stack
+### 2.2 Why a single schema matters
 
-Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/atd-v3-skills-architecture-brief.md) Slide 1:
+- **Cross-language SDK parity.** A TypeScript SDK, a Go SDK, or a
+  Swift SDK generated from `atd-protocol-schema.json` is automatically
+  type-compatible with the Rust SDK and the Rust server. No
+  hand-port-and-pray for matching shapes.
+- **Cross-transport parity.** UDS and HTTP listeners share the
+  same `atd-runtime::dispatch::dispatch_request` entry point and the
+  same type-checked envelope handling. Adding a third transport (say,
+  WebSocket) means writing a new listener that calls the same
+  `dispatch_request` — no schema changes.
+- **Audit & analysis.** Any field name that appears in an audit log,
+  any error code an agent surfaces, any tool metadata an LLM sees —
+  all of these are traceable to the published schema. There's no
+  hidden field reachable only by reading the Rust source.
+- **Conformance testability.** The `atd-conformance` crate ships test
+  scenarios that verify any ATD-speaking server against the schema's
+  contractual behaviours. Pass the suite and you're interoperable.
+
+### 2.3 Sanitization
+
+Tool ids like `ref:fs.read` carry a colon and a dot, which break LLM /
+MCP function-name slots. The schema's identity rule is paired with a
+canonical bidirectional sanitiser in `atd-sdk::sanitize`:
+`ref:fs.read` ↔ `ref_fs_read`. Both forms appear in protocol traffic —
+the canonical (`ref:fs.read`) over the wire, the sanitised
+(`ref_fs_read`) inside LLM tool calls. The sanitiser is part of the
+SDK so every consumer applies it identically.
+
+### 2.4 Schema as build artifact
+
+The schema is checked into the repo at `/atd-protocol-schema.json`. A
+`gen-schema` binary regenerates it from the Rust types; CI runs the
+regenerator and rejects PRs whose committed JSON drifts from what the
+Rust types currently emit. The schema is also validated against the
+JSON Schema 2020-12 meta-schema — malformed schema content fails CI
+before any adopter sees it.
+
+The Python SDK at `python/src/atd_client/types.py` is currently
+hand-ported; a follow-up SP will switch it to schema-generated. The
+hand-port is currently gated by integration tests against the Rust
+server; drift bugs would surface there.
+
+### 2.5 Stability commitment
+
+The schema follows the same 0.x semver line as the workspace crates:
+**additive changes are minor bumps; field removal or shape change is
+a major bump**. Adopters tracking master can rely on schema additions
+being safe (existing code keeps deserialising). The 0.x → 1.0 cutover
+will freeze the schema for a v1 stability window; the cutover date is
+gated by adopter signal, not a calendar.
+
+---
+
+## 3. The layer model
+
+Three core mechanisms plus two extension mechanisms, drawn from the
+v3 whitepaper's stack diagram:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  User intent (voice · text · trigger)                           │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────┐
-│  Agent Framework                                                │
-│  (Claude Code · Cursor · Hermes · LangChain · custom)           │
-└────────────┬──────────────────────────────┬─────────────────────┘
+│  User intent (voice · text · trigger)                          │
+└────────────────────────────┬───────────────────────────────────┘
+                             │
+┌────────────────────────────▼───────────────────────────────────┐
+│  Agent framework                                               │
+│  (Claude Code · Cursor · Hermes · LangChain · custom)          │
+└────────────┬──────────────────────────────┬────────────────────┘
              │                              │
    via Skill │                              │ direct tool call
              ▼                              ▼
 ┌──────────────────────────────┐  ┌───────────────────────────┐
-│  Skills Layer (§7 — adjacent) │  │  (no Skill intermediary)  │
+│  Skills layer (§8 — adjacent)│  │  (no Skill intermediary)  │
 │  SKILL.md · atd-tools · body │  │  simple / one-shot tasks  │
 └──────────────┬───────────────┘  └──────────────┬────────────┘
                │                                 │
@@ -107,854 +189,773 @@ Adapted from [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/
                               │
                               ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  Client SDK (§4.1 + §6.4 ergonomic aliases)                     │
-│  discover · describe · call                                     │
+│  Client SDK                                                    │
+│  discover · describe · call · call_page · call_all             │
 └────────────────────────────┬───────────────────────────────────┘
                              │
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  Dispatch Layer (§4)                                            │
-│  capability gate · tier · binding · result middleware          │
+│  Dispatch (§5)                                                 │
+│  capability gate · tier · binding · cursor · middleware        │
 └────────────────────────────┬───────────────────────────────────┘
                              │
-     ┌──────┬──────┬──────┬──┴──────┬────────────────┐
-     ▼      ▼      ▼      ▼         ▼                ▼
-   ┌────┐┌─────┐┌──────┐┌────────────┐┌──────────────┐
-   │CLI ││ MCP ││ REST ││AppFunction ││ Distributed  │
-   │ (✅)││(✅)* ││(🚫)  ││(🚫)        ││ (🚫)         │
-   └────┘└─────┘└──────┘└────────────┘└──────────────┘
+              ┌──────────────┴───────────────┐
+              ▼                              ▼
+   ┌─────────────────────┐         ┌─────────────────────┐
+   │  Unix socket        │         │  HTTP / MCP JSON-RPC│
+   │  (atd-server)       │         │  (atd-server-http)  │
+   └─────────────────────┘         └─────────────────────┘
                              │
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  Tool Universe  (§4.2 NativeBinding + §6.1 extension points)    │
-│  ref:echo, ref:fs.*, ref:shell.*, ref:web.fetch, ...            │
+│  Tool universe (§6.2 NativeBinding + extension points)         │
+│  ref:echo, ref:fs.*, ref:shell.*, ref:web.fetch, ...           │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-\* MCP: as an external-client protocol reached through `atd-mcp-bridge` (a separate binary speaking MCP over stdio, forwarding to ATD). Not a server-side dispatch target.
+**Core mechanisms** (one section each):
 
-### 2.2 Three core mechanisms, two extensibility mechanisms
+- **Schema (§2 + §4)** — unified, machine-readable, single source of truth for every wire shape.
+- **Dispatch (§5)** — deterministic pipeline: capability gate → tier-aware deadlines → binding selection → tool invocation → cursor / middleware.
+- **Security (§6)** — classification + per-tool runtime controls + capability allow-listing + UCAN-lite tokens + multi-tenant secret routing + audit.
 
-**Core mechanisms** (each a top-level section in this document):
+**Extension mechanisms:**
 
-1. **Schema Layer (§3)** — one machine-readable description for a tool's intent semantics AND its concrete invocation contract, usable across all bindings
-2. **Dispatch Layer (§4)** — a deterministic pipeline through capability gate, tier-aware deadline resolution, binding selection, tool invocation, and result middleware
-3. **Security Layer (§5)** — classifications + per-tool runtime controls + connection-scoped capability allow-listing
+- **Bindings (§5.4)** — pluggable invocation back-ends. The reference impl ships `NativeBinding` and `CliBinding`; the trait is open.
+- **Middleware (§7)** — egress-validation / redaction pipeline. The reference impl ships path-redaction, FHIR validation, and HIPAA PHI redaction; the trait is open.
 
-**Extensibility mechanisms:**
+### 3.1 Two call graph examples
 
-4. **Tier system (§4.2.3)** — three tiers (`Hot` / `Warm` / `Cold`) map to per-call deadline + output-budget overrides; gives tool authors a way to signal cost/latency class without naming specific values
-5. **Binding extensibility (§6.1)** — pluggable invocation back-ends; v1 ships `NativeBinding` and `CliBinding`; more (MCP, REST, AppFunction, distributed) via the same trait
-
-### 2.3 Layer ↔ section cross-reference
-
-| Layer | Section | Primary crate | Status glance |
-|---|---|---|---|
-| Schema | [§3](#3-schema-layer) | `crates/atd-protocol/` | mostly ✅; machine-readable schema file ❌ |
-| Dispatch core (discover/describe/call) | [§4.1](#41-core-dispatch) | `crates/atd-runtime/` + `crates/atd-sdk/` | ✅ |
-| Dispatch · binding abstraction | [§4.2.1](#421-binding-abstraction) | `crates/atd-runtime/src/binding.rs` | ✅ (SP-12) |
-| Dispatch · tier-aware deadlines | [§4.2.2](#422-tier-aware-deadlines) | `crates/atd-runtime/src/tier.rs` | ✅ (SP-12) |
-| Dispatch · capability gate | [§4.2.3](#423-capability-gate) | `crates/atd-runtime/src/capability.rs` | ✅ (SP-12) |
-| Dispatch · result-middleware pipeline | [§4.2.4](#424-result-middleware-pipeline) | `crates/atd-runtime/src/middleware.rs` | ✅ (SP-12, one built-in) |
-| Dispatch · sessions & cancellation | [§4.2.5](#425-sessions-and-cancellation) | — | ❌ deferred by design |
-| Dispatch · ergonomic aliases | [§4.2.6](#426-ergonomic-aliases) | — | ❌ SDK-only; planned |
-| Security · classifications | [§5.1](#51-classification-taxonomy) | `crates/atd-protocol/` | ✅ |
-| Security · per-tool runtime controls | [§5.2](#52-per-tool-runtime-controls) | per-tool files in `crates/atd-tools-*/src/` | ✅ where applicable |
-| Security · capability tokens | [§5.3](#53-capability-tokens) | `crates/atd-runtime/src/capability.rs` + `crates/atd-runtime/src/ucan/` | ✅ v1 (allow-list); ✅ UCAN-lite (SP-capability-v2, 2026-05-11) |
-| Security · audit logging | [§5.4](#54-audit-logging) | — | ❌ |
-| Security · rate limiting & concurrency | [§5.5](#55-rate-limiting-and-concurrency) | — | ❌ |
-| Security · dry-run consistency | [§5.6](#56-dry-run-consistency) | per-tool files | ⚠️ |
-| Skills (adjacent) | [§7](#7-skills-layer-adjacent) | — | out of scope for ATD core |
-
-### 2.4 Two-pager call graph examples
-
-**Example A: direct agent → ATD (one-shot):**
+**Direct agent → ATD** (one-shot):
 
 ```
-agent.llm
-    ↓ decides tool_id = "ref:shell.exec" and args = {"command": "uname -s"}
+agent.llm picks tool_id = "ref:shell.exec", args = {"command": "uname -s"}
+  ↓
 atd_sdk::AtdClient::call(tool_id, args, CallOptions { .. })
-    ↓ writes length-prefixed JSON over Unix socket
-atd-ref-server accepts connection
-    ↓ dispatcher: capability gate → registry lookup → tier deadline → binding → tool
+  ↓ length-prefixed JSON over Unix socket
+atd-server accepts connection (or atd-server-http, same dispatch downstream)
+  ↓ dispatch: Hello capability gate → registry → tier → binding → tool
 NativeBinding::invoke(&args)
-    ↓ executes
+  ↓ executes
 ToolResult { success: true, data: { stdout: "Linux\n", exit_code: 0, .. } }
-    ↓ result-middleware pipeline (RedactPathsMiddleware rewrites any $HOME paths)
-    ↓ serialized, length-prefixed JSON back
+  ↓ middleware pipeline (RedactPathsMiddleware rewrites $HOME paths)
+  ↓ serialise, length-prefixed JSON back
 atd_sdk delivers ToolResult to agent
 ```
 
-**Example B: Skills runtime → ATD (multi-step):**
+**Skill body → ATD** (multi-step):
 
 ```
-skills_runtime loads skill @acme/morning-briefing per user intent
-    ↓ install-time: runtime verified atd-tools: required are discoverable on the socket
-skill body executed in agent context
-    ↓ body step 1 says: call hms:health.sleep.get for yesterday
+Skills runtime loads skill @acme/morning-briefing per user intent
+  ↓ install-time: required atd-tools verified discoverable on socket
+skill body executes in agent context
+  ↓ step 1: call hms:health.sleep.get for yesterday
 atd_sdk::AtdClient::call("hms:health.sleep.get", { "date": "2026-04-23" }, ..)
-    ↓ same dispatch path as Example A
-    ... (body continues with step 2, step 3)
-skill returns to agent context with synthesised output
+  ↓ identical dispatch path as Example A
+  ... (body continues with step 2, step 3)
+skill returns to agent with synthesised output
 ```
 
-Both examples traverse exactly the same ATD dispatch. The Skills runtime is an agent-side orchestrator; it does not modify ATD's dispatch.
+Both paths traverse identical ATD dispatch. The Skills layer is an
+agent-side orchestrator on top; it does not modify dispatch.
 
-## 3. Schema Layer
+---
 
-### 3.1 Definition
+## 4. Wire & types
 
-The schema layer is the set of types and invariants that describe what a tool is — independent of any specific binding, transport, or agent framework. A valid ATD message — request or response — serializes to JSON shapes defined at this layer.
+The wire is **length-prefixed JSON** over a duplex byte stream. The
+two listener crates (`atd-server` over Unix sockets,
+`atd-server-http` over HTTP+SSE) translate transport-level framing
+into the same in-memory `ClientMessage` / `ServerMessage` types from
+`atd-protocol`. Tool servers depending on `atd-runtime` see the same
+type surface regardless of transport.
 
-The schema layer owns:
+### 4.1 The top-level envelope
 
-- **Envelope types** — `ClientMessage` / `ServerMessage` (the wire messages)
-- **Tool types** — `ToolSummary` (discover response), `ToolDefinition` (describe response), `ToolResult` (call response)
-- **Structural types** — `ToolCapability`, `ToolBinding`, `ToolSafety`, `ToolResources`, `ToolTrust`
-- **Enums** — `SafetyLevel`, `ToolVisibility`, `TrustLevel`, `ToolTier`, `BindingProtocol`
-- **Error taxonomy** — `AtdError` (9 variants) with `is_retryable()` + `suggest_fix()` contracts
-- **Name sanitization** — `ref:fs.read` → `ref_fs_read` for LLM/MCP name slots
+`ClientMessage` (the request union) variants:
 
-The schema layer does NOT own: dispatch behavior, security enforcement, binding execution. Those are §4 and §5.
+| Variant | Purpose |
+|---|---|
+| `Hello` | Connection handshake. Carries `client_id`, `requested_capabilities`, optional `ucan_tokens`. Server replies with `HelloAck` containing the intersected `granted_capabilities`. |
+| `Ping` | Heartbeat / liveness check. Server replies `Pong`. |
+| `ToolList` | Discovery. Returns `Vec<ToolSummary>` filtered per `DiscoverFilter` (visibility, capability requirements, tier). |
+| `ToolSchema` | Per-tool deep-describe. Returns the full `ToolDefinition` including JSON input/output schemas and intent examples. |
+| `RunTool` | Invocation. Carries `tool_id`, `args: serde_json::Value`, `CallOptions`. Returns `ToolResultResponse` (success-with-data or error-with-code). |
+| `RunToolContinue` | Pagination continuation. Carries the opaque `cursor` returned by a prior `RunTool` / `RunToolContinue`. |
 
-### 3.2 Current state
+`ServerMessage` mirrors with response variants (`HelloAck`, `Pong`,
+`ToolListResponse`, `ToolSchemaResponse`, `ToolResultResponse`). The
+`ToolResultResponse` envelope carries `result: ToolResult` (data or
+error) plus an optional `next_cursor: Option<String>`.
 
-| Component | Source | Status | Tests | Notes |
-|---|---|---|---|---|
-| `ToolSummary` (incl. `input_schema`) | `crates/atd-protocol/src/summary.rs` | ✅ | types roundtrip tests | `input_schema` added in SP-10 Task 2.5 so LLM adapters emit real schemas |
-| `ToolDefinition` + sub-structs | `crates/atd-protocol/src/tool.rs` | ✅ | roundtrip tests | — |
-| `ToolResult` (Success/Error variants) | `crates/atd-protocol/src/result.rs` | ✅ | — | |
-| `AtdError` (9 variants + `is_retryable` + `suggest_fix`) | `crates/atd-protocol/src/error.rs` | ✅ | — | See [`docs/protocol/error-codes.md`](protocol/error-codes.md) for the reference table |
-| `SafetyLevel` / `ToolVisibility` / `TrustLevel` / `BindingProtocol` | `crates/atd-protocol/src/enums.rs` | ✅ | — | |
-| `ToolTier` enum (`Hot` / `Warm` / `Cold`) | `crates/atd-protocol/src/enums.rs` | ✅ | — | Runtime semantics in §4.2.2 |
-| `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Field exists; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
-| `ToolResources.max_concurrent` | same | 📜 | — | Same — declared, not enforced |
-| `ToolTrust.signature` | `crates/atd-protocol/src/tool.rs` | 📜 | — | Always `None`; issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md) |
-| UCAN payload types (`UcanPayload`, `UcanHeader`, `UcanCapability`) | `crates/atd-runtime/src/ucan/types.rs` | ✅ | unit + integration tests | SP-capability-v2 landed 2026-05-11. Lives in `atd-runtime::ucan` (not `atd-protocol`) because the verifier consumes them server-side; protocol carries opaque JWT strings on the wire via `Hello.ucan_tokens`. |
-| Sanitize (`sanitize_tool_name` + `desanitize_tool_name`) | `crates/atd-sdk/src/sanitize.rs` | ✅ | 6 tests | Moved from bridge in SP-10 Task 1 |
-| `ToolDefinition.output_schema` | `crates/atd-protocol/src/tool.rs` | ✅ | tool roundtrip tests | Was previously unlisted; surfaced in describe responses. |
-| `ToolErrorDef` / `ToolDefinition.errors[]` | `crates/atd-protocol/src/tool.rs` | ✅ | `tests/error_def_roundtrip.rs` | Added in SP-protocol-schema. Built-ins ship `errors: vec![]`; per-tool catalogs are a future SP. |
-| Python schema mirror | `python/src/atd_client/types.py` | ✅ | — | Hand-ported; drift-prone |
-| **Machine-readable protocol schema** (`atd-protocol-schema.json`) | `/atd-protocol-schema.json` | ✅ | — | Generated by gen-schema bin (SP-protocol-schema). CI gates drift + metaschema validity. |
+### 4.2 The tool description
 
-### 3.3 Target state
+A `ToolDefinition` returned by `ToolSchema` exposes the contract an
+agent uses to decide whether and how to call the tool:
 
-The schema layer reaches full v1 when:
+```rust
+pub struct ToolDefinition {
+    pub id: String,                       // canonical e.g. "ref:fs.read"
+    pub name: String,                     // human-friendly
+    pub description: String,
+    pub version: String,
+    pub capability: ToolCapability,       // domain, actions, tags, intent_examples
+    pub input_schema: serde_json::Value,  // JSON Schema 2020-12
+    pub output_schema: serde_json::Value,
+    pub bindings: Vec<ToolBinding>,       // protocol + per-binding config
+    pub safety: ToolSafety,               // level, dry_run support, side_effects
+    pub resources: ToolResources,         // timeout_ms, max_concurrent, ...
+    pub trust: ToolTrust,                 // publisher, trust_level, signature
+    pub visibility: ToolVisibility,       // Read / Write / Dangerous / System / Hidden
+    pub required_capabilities: Vec<String>,
+    pub tier: Option<ToolTier>,           // Hot / Warm / Cold
+    pub errors: Vec<ToolErrorDef>,        // tool-specific error catalog
+}
+```
 
-1. A machine-readable `atd-protocol-schema.json` is generated from the Rust type definitions (via `schemars`), published in-repo, and validated against the [JSON Schema 2020-12 meta-schema](https://json-schema.org/draft/2020-12/schema). Tracked in issue [`schema-protocol-machine-readable-missing`](issues/2026-04-24-schema-protocol-machine-readable-missing.md).
-2. CI verifies schema ↔ Rust type drift on every push.
-3. External implementers (TypeScript, Go, Swift, ArkTS) consume the JSON schema directly instead of reading Rust source.
+Every field is part of the published schema. `ToolSummary` (returned
+by `ToolList`) is a thinner projection — id, name, description,
+visibility, capability shorthand, input_schema — designed for LLM
+context efficiency.
 
-Beyond v1: the schema layer accumulates optional additions as new capabilities land — session types, capability-token types — always additive, always backward-compatible per the 0.x semver contract.
+### 4.3 Error taxonomy
 
-### 3.4 Gap → SP mapping
+`AtdError` is a closed union of error variants, each with a numeric
+wire code:
 
-| Gap | Next SP | Severity |
+| Code | Variant | Meaning |
 |---|---|---|
-| `ToolTrust.signature` unverified | Deferred to Phase 2 per [§9.4](#9-non-goals-explicit) | Low for v1 |
-| `ToolResources.rate_limit_per_min` + `.max_concurrent` ignored | Covered in §5.5 (dispatch-enforcement problem, not schema) | — |
+| 1000 | `InvalidArgs` | Schema mismatch on `args` |
+| 1001 | `CapabilityDenied` | Caller lacks a required capability |
+| 1002 | `RateLimited` | Per-tool semaphore or rate-limiter refused |
+| 1003 | `BrokerFailed` | `TokenBroker` returned an error during resolve |
+| 1010-1013 | UCAN errors | `INVALID` / `EXPIRED` / `TOO_DEEP` / `AUDIENCE_MISMATCH` |
+| 1020 | `CursorExpired` | Continuation cursor past TTL |
+| 1021 | `CursorInvalid` | Cursor HMAC verification failed |
+| 2xxx | Tool errors | Tool-specific via `ToolErrorDef` |
+| 5xxx | Server errors | Internal / unreachable |
 
-### 3.5 See also
+`AtdError::is_retryable() -> bool` and `AtdError::suggest_fix() -> &str`
+let agents and SDKs decide retry posture without re-reading the
+taxonomy. The reference table is `docs/protocol/error-codes.md`.
 
-- [`docs/protocol/wire-format.md`](protocol/wire-format.md) — the authoritative wire-level reference, including byte framing + full type tables
-- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — `AtdError` taxonomy + server-emitted error codes
-- [`docs/issues/2026-04-24-schema-protocol-machine-readable-missing.md`](issues/2026-04-24-schema-protocol-machine-readable-missing.md)
-- [`docs/issues/2026-04-24-security-trust-signature-unverified.md`](issues/2026-04-24-security-trust-signature-unverified.md)
+### 4.4 Cursor pagination
 
-## 4. Dispatch Layer
+For tools whose honest result exceeds the 1 MB advisory output
+budget (large FHIR exports, multi-month query windows), the wire
+carries an opaque, HMAC-signed `next_cursor` string on
+`ToolResultResponse`. Clients re-invoke via `RunToolContinue { tool_id,
+cursor }`. The cursor binds to `(tool_id, caller_id, args_fingerprint,
+page_index, issued_at_unix, server_session)` so it can't be replayed
+against tampered args or stolen across callers; verification is
+stateless. Default TTL is 5 minutes; wire cap is 512 bytes (CBOR
+encoding fits comfortably).
 
-### 4.1 Core dispatch
+The reference impl is `atd_runtime::cursor::{CursorIssuer,
+CursorPayload, args_fingerprint}`; tools opt in by overriding
+`Tool::supports_pagination` + `Tool::call_paginated`. The SDK exposes
+`AtdClient::call_page` (single page) and `AtdClient::call_all`
+(auto-walks the cursor chain with `MergePolicy::{ConcatArray,
+ConcatField, FirstPageOnly}`). Non-paginating tools serve a single
+`RunTool` response with `next_cursor = None` and never see the
+continuation path.
 
-`discover` / `describe` / `call` — the three APIs that the Client SDK exposes and the server responds to. Length-prefixed JSON over a Unix socket.
+### 4.5 Sanitization
 
-| Component | Source | Status | Tests | Notes |
-|---|---|---|---|---|
-| Wire framing (length-prefixed JSON, UTF-8) | `crates/atd-sdk/src/wire.rs` | ✅ | unit tests | See [`docs/protocol/wire-format.md`](protocol/wire-format.md) |
-| `ClientMessage::ToolList` / `ToolSchema` / `RunTool` | `crates/atd-sdk/src/protocol.rs` | ✅ | roundtrip tests | |
-| `Registry::dispatch()` (server-side routing) | `crates/atd-runtime/src/registry.rs` | ✅ | integration tests | Tool id → `Arc<dyn Tool>` |
-| `Tool` trait + `CallContext` | `crates/atd-runtime/src/registry.rs` + `context.rs` | ✅ | — | — |
-| `AtdClient::connect` / `discover` / `describe` / `call` / `ping` | `crates/atd-sdk/src/client.rs` | ✅ | 8 integration tests across workspace | — |
-| Python mirror (`AtdClient` + `AtdClientSync`) | `python/src/atd_client/` | ✅ | 45 pytest tests | — |
+Tool ids contain `:` and `.`, which break LLM / MCP function-name
+slots. `atd-sdk::sanitize::sanitize_tool_name` returns
+`ref_fs_read` for `ref:fs.read`; `desanitize_tool_name` inverts.
+Both forms appear in protocol traffic — canonical on the wire, sanitised
+inside LLM tool-calling shapes. The MCP bridge applies the same rule
+so a tool id is unambiguous regardless of which slot it landed in.
 
-### 4.2 Dispatch primitives (v1 — per SP-12 and follow-ups)
+---
 
-Beyond core dispatch, the server layers four additional primitives that make the "ATD = agent-era POSIX" claim concrete. The primitives compose; each call flows:
+## 5. Dispatch
+
+Every call traverses a deterministic pipeline:
 
 ```
-accept connection → Hello handshake (capability gate) → receive RunTool
+accept connection
+  → Hello handshake (capability gate, optional UCAN verify)
+  → receive RunTool / RunToolContinue
   → registry.get(tool_id)
   → capability check (refuse if required_capabilities ⊄ granted)
-  → tier-aware deadline resolution (timeout + max_output_bytes)
-  → binding.invoke(args, &ctx)
-  → result middleware pipeline
-  → serialize response
+  → tier-aware deadline + max_output_bytes resolution
+  → TokenBroker::resolve(caller_id) → CallContext::secrets
+  → binding.invoke(args, &ctx)         // or call_paginated when cursor set
+  → middleware pipeline (RedactPaths, FHIR, PII, ...)
+  → serialise ToolResultResponse + optional next_cursor
 ```
 
-#### 4.2.1 Binding abstraction
+Dispatch is transport-agnostic: both `atd-server` (UDS) and
+`atd-server-http` (HTTP) call into the same
+`atd_runtime::dispatch::dispatch_request` entry point.
 
-| Component | Source | Status | Tests | Notes |
-|---|---|---|---|---|
-| `Binding` trait | `crates/atd-runtime/src/binding.rs` | ✅ (SP-12) | SP-12 unit tests | |
-| `NativeBinding` (delegates to `Tool` impl) | same | ✅ | — | Default for every registered built-in tool |
-| `CliBinding` (spawn subprocess, map JSON args to argv, honor deadlines) | same | ✅ | SP-12 tests | `ref:external.uname` is the demo tool |
-| `MCP` / `REST` / `AppFunction` bindings | — | 🚫 | — | See [§9.5](#9-non-goals-explicit). Trait designed to extend without breaking existing bindings. |
+### 5.1 The core APIs
 
-The binding trait's contract: given `args: serde_json::Value` and a `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. The trait is the extension point for future invocation back-ends.
-
-#### 4.2.2 Tier-aware deadlines
-
-| Component | Source | Status | Notes |
-|---|---|---|---|
-| `Tier` type (`Hot` / `Warm` / `Cold`) | `crates/atd-runtime/src/tier.rs` | ✅ (SP-12) | Resolution of per-call deadline + max_output_bytes based on the tool's declared tier, overridable via `--tier-override` CLI flag |
-| Default deadlines per tier | same | ✅ | `Hot` = 300ms, `Warm` = 5s, `Cold` = 60s at time of writing; verify against `crates/atd-runtime/src/tier.rs` before quoting |
-| Tool-declared tier → dispatch honor | `crates/atd-runtime/src/registry.rs` | ✅ | Existing built-in tools: most ship as `Warm`; ref:external.uname (CliBinding demo) uses `Warm`. Re-classification PRs welcome. |
-| Hot-tier warmup / Cold-tier lazy-load | — | 🚫 | See [§9.5](#9-non-goals-explicit). `Hot` / `Cold` today mean latency/cost class, not lifecycle policy. |
-
-#### 4.2.3 Capability gate
-
-| Component | Source | Status | Notes |
-|---|---|---|---|
-| `Hello` wire message (client → server on connect) | `crates/atd-sdk/src/protocol.rs` | ✅ (SP-12) | Client requests a subset of capabilities it plans to use |
-| Server-side allow-list (`--grant-capability`) | `crates/atd-ref-server/src/main.rs` | ✅ | CLI-declared at startup: which capabilities the socket allows in total |
-| `CapabilitySet` type + intersection logic | `crates/atd-runtime/src/capability.rs` | ✅ | — |
-| Enforcement: refuse tools whose `required_capabilities` ⊄ granted | `crates/atd-runtime/src/registry.rs` | ✅ | Returns `AtdError::CapabilityDenied` with error code `1001` |
-| UCAN-lite tokens (delegation, revocation, signatures) | `crates/atd-runtime/src/ucan/` | ✅ (SP-capability-v2) | Landed 2026-05-11. JWT-shape + Ed25519 + did:key + chain attenuation + audience pin + revocation store. Additive to the allow-list above; granted = strings ∪ ucan. |
-
-The v1 capability gate is connection-scoped and allow-list-based — sufficient for the 80% case of "limit what an adopter's socket exposes." UCAN-lite tokens (SP-capability-v2, landed 2026-05-11) add per-call authorization with delegation chains and audience pinning. UCAN-lite is **additive**: existing SP-12 `--grant-capability` adopters keep working untouched; clients that supply `Hello.ucan_tokens` get `granted = granted_strings ∪ granted_ucan`. See `crates/atd-runtime/src/ucan/` + §9.3 (gate-trigger note) + §10 row.
-
-#### 4.2.4 Result-middleware pipeline
-
-| Component | Source | Status | Notes |
-|---|---|---|---|
-| `Middleware` trait | `crates/atd-runtime/src/middleware.rs` | ✅ (SP-12) | Runs on success before wire reply |
-| `Pipeline` composition | same | ✅ | Composed at startup via repeated `--middleware` CLI flags |
-| `RedactPathsMiddleware` (redact `$HOME` paths) | same | ✅ | Enabled by default; disable with `--middleware none` |
-| Additional builtins: `pii_redact`, `injection_detect`, `image_meta_strip`, `trim`, `format` | — | ❌ | Tracked for future SPs — see §10 |
-| Third-party middleware registration | — | ⚠️ | Trait is public; no crate boundary prevents a third party writing one. Discoverability is informal. |
-
-The pipeline's contract: each middleware receives the prior result + metadata; can rewrite or reject; chain short-circuits on rejection. Built-ins ship as examples; operators compose per deployment.
-
-#### 4.2.5 Sessions and cancellation
-
-| Component | Status | Notes |
+| API | Purpose | SDK form |
 |---|---|---|
-| `session.start` / `session.end` wire messages | ❌ | Not shipped. Issue [`dispatch-session-cancel-not-implemented`](issues/2026-04-24-dispatch-session-cancel-not-implemented.md) |
-| `cancel(call_id)` | ❌ | Same issue |
-| Call-id correlation (client-visible mid-flight) | ❌ | Requires design |
+| `discover` | Enumerate visible tools | `AtdClient::discover(filter) -> Vec<ToolSummary>` |
+| `describe` | Get the full `ToolDefinition` for one tool | `AtdClient::describe(tool_id) -> ToolDefinition` |
+| `call` | Invoke and return a single result | `AtdClient::call(tool_id, args, CallOptions) -> ToolResult` |
+| `call_page` | One page of a paginated tool | `AtdClient::call_page(tool_id, args, Option<&cursor>, CallOptions)` |
+| `call_all` | Auto-walks the cursor chain | `AtdClient::call_all(tool_id, args, CallAllOptions)` |
+| `ping` | Liveness | `AtdClient::ping()` |
+| `hello` | Capability negotiation | `AtdClient::hello(Some(client_id), requested_caps) -> Vec<String>` |
 
-The session/cancel design surface is wide (state scope, wire mechanism, idempotency, concurrency). Deferring preserves the option to design against a concrete adopter's requirements rather than guessing.
+The Python SDK at `python/src/atd_client/` mirrors the API surface
+with both sync and async flavours (`AtdClient` / `AtdClientSync`).
 
-#### 4.2.6 Ergonomic aliases
+### 5.2 Capability gate
 
-| Component | Status | Notes |
+Two complementary mechanisms compose at Hello time:
+
+**1. Operator allow-list (strings).** The server is started with a set
+of capability strings it offers (e.g. `--grant-capability healthkit:read
+--grant-capability healthkit:write`). The client `Hello.
+requested_capabilities` is intersected with the offer; any capability
+in `Hello.requested_capabilities` not offered by the server is
+silently dropped. The resulting `granted_capabilities` is returned in
+`HelloAck`. Tools declaring `required_capabilities: ["healthkit:read"]`
+are refused (`CapabilityDenied`, code 1001) when called by a client
+whose `granted_capabilities` does not contain `healthkit:read`.
+
+The intersection is strict subset in both directions:
+
+- Requested but not offered → not granted.
+- Offered but not requested → not granted.
+- Requested ∧ offered → granted.
+
+**2. UCAN-lite bearer tokens.** When a client sends one or more
+JWT-shape `Hello.ucan_tokens`, the server's UCAN verifier
+(`atd_runtime::ucan::verify_jwt`) walks the attenuation chain
+(`prf[]` linking child to parent), checks Ed25519 signatures via
+`did:key` audience pins, and emits the capability subset the leaf
+token actually carries. The dispatch-level `granted_capabilities` for
+that call becomes `strings ∪ ucan_capabilities`. Revocation is
+consulted on every chain link via the `UcanRevocationStore` trait.
+Bounded chain depth (default 5).
+
+UCAN-lite is **additive**: clients that don't supply tokens see only
+the string allow-list path. Both paths produce the same
+`granted_capabilities` shape at dispatch time, so tools never know
+which path their caller used.
+
+### 5.3 Tier-aware deadlines
+
+Each tool declares a `ToolTier` (`Hot` / `Warm` / `Cold`). The
+dispatch layer resolves a per-call deadline + max-output-bytes budget
+from the tool's tier, overridable per-call via `CallOptions::deadline_ms`
+and per-server via `--tier-override`. Tier is a latency/cost class
+signal — not a lifecycle policy.
+
+| Tier | Default deadline | Typical use |
 |---|---|---|
-| SDK-side alias → canonical-id transform | ❌ | Planned SDK-only (client rewrites before sending). Server unaware. Rationale: v3 whitepaper Appendix J. |
-| Alias DSL grammar | ❌ | Not yet specified |
-| Built-in alias pack | ❌ | Not yet assembled |
+| `Hot` | sub-second | Sync side-effect-free queries (time, environment) |
+| `Warm` | seconds | Most tools — file IO, shell, web fetch |
+| `Cold` | minutes | Slow imports, large exports, model inference |
 
-### 4.3 Target state
+Cursor-paginated tools pay the tier deadline **per page**, so a Cold
+tool can stream over a long total wall-time without violating its
+page-level SLO.
 
-v1 dispatch layer is complete when:
-- Core dispatch ✅ (done)
-- Binding abstraction ✅ (done — SP-12)
-- Tier-aware deadlines ✅ (done — SP-12)
-- Capability gate ✅ (done — SP-12)
-- Result middleware pipeline ✅ with at least one built-in (done — SP-12)
-- Ergonomic aliases (SDK-only) — planned
-- Sessions / cancellation — **intentionally not in v1**; see [§9.2](#9-non-goals-explicit)
+### 5.4 Bindings
 
-v2 dispatch extends with additional bindings, more built-in middleware, and potentially sessions if adopter demand materializes.
+A binding is the abstract way `dispatch` turns an `(args,
+CallContext)` pair into a `Result<Value, ToolCallError>`. The trait
+is `Binding`; the two reference impls:
 
-### 4.4 Gap → SP mapping
-
-| Gap | Next SP | Status |
-|---|---|---|
-| Ergonomic aliases (SDK-side) | Proposed SP after SP-13 | ❌ |
-| Additional built-in middleware (pii_redact, etc.) | Proposed SP | ❌ |
-| Sessions / cancellation | — | 🚫 per [§9.2](#9-non-goals-explicit) |
-
-### 4.5 See also
-
-- [`docs/protocol/wire-format.md`](protocol/wire-format.md) — wire-level protocol, message definitions
-- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — error taxonomy
-- [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — SP-12 design spec for the four primitives
-- [`docs/issues/2026-04-24-dispatch-session-cancel-not-implemented.md`](issues/2026-04-24-dispatch-session-cancel-not-implemented.md)
-- [`docs/issues/2026-04-24-dispatch-tier-hardcoded-warm.md`](issues/2026-04-24-dispatch-tier-hardcoded-warm.md) — **note:** this issue described state *before* SP-12; verify with `git log` whether it's still open
-- [`docs/issues/2026-04-24-dispatch-binding-single-impl.md`](issues/2026-04-24-dispatch-binding-single-impl.md) — same note, pre-SP-12
-- [`docs/issues/2026-04-24-dispatch-preferred-binding-ignored.md`](issues/2026-04-24-dispatch-preferred-binding-ignored.md)
-
-## 5. Security Layer
-
-### 5.1 Classification taxonomy
-
-Every tool declares three classifications as part of its `ToolDefinition`. They are **descriptive metadata** — callers and human operators use them to reason about risk. They are NOT (in v1) enforcement mechanisms on their own; §5.2-§5.5 describe the actual runtime controls.
-
-| Classification | Values | Declaring field |
-|---|---|---|
-| Safety level | `Read` / `Write` / `Financial` / `Privacy` / `Physical` / `Destructive` | `ToolSafety::level` |
-| Visibility | `Read` / `Write` / `Dangerous` / `System` / `Hidden` | `ToolVisibility` (top-level) |
-| Trust level | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
-
-Status: ✅ implemented in `crates/atd-protocol/`. Every built-in tool declares all three. LLM adapters surface `Visibility` and `SafetyLevel` to agent-framework tool pickers where supported.
-
-**`Hidden` semantics.** A tool with `ToolVisibility::Hidden` is excluded from `Request::ToolList` discover responses but remains reachable via `Request::ToolSchema { tool_id }` and `Request::RunTool { tool_id, ... }`. Use this for vendor-side raw schema endpoints, integration-test tools, or debug helpers that would clutter an LLM's catalog. Hiding is server-enforced at the `atd-server::connection::dispatch` boundary; the SDK's `DiscoverFilter::visibility = Hidden` returns empty because the server never emits Hidden summaries. See SP-tool-visibility-hidden (§10).
-
-Trust signatures (`ToolTrust::signature`) are declarative-only in v1 (`📜 informational`). Full signature verification is 🚫 non-goal — see [§9.4](#9-non-goals-explicit).
-
-### 5.2 Per-tool runtime controls
-
-Four specific runtime defenses run inside individual tools, not at the dispatch layer. Each defends a specific attack surface exposed by that tool's category.
-
-| Control | Applies to | Source | Status |
-|---|---|---|---|
-| **SSRF guard** (loopback + RFC1918 + link-local + CGN + TEST-NET + 0.0.0.0/8 + IPv4-mapped-private; re-checked on every redirect hop) | `ref:web.fetch` | `crates/atd-tools-web/src/fetch.rs::check_ssrf` | ✅ (SP-5) |
-| **Header allowlist** (Accept, Accept-Language, Referer, User-Agent only; Authorization + Cookie rejected with `InvalidArgs`) | `ref:web.fetch` | same file, `build_headers` | ✅ (SP-5) |
-| **Must-read-before-edit** (mtime + size proof required in session before `fs.edit` will apply) | `ref:fs.edit` | `crates/atd-runtime/src/tracker.rs` (ReadTracker), used from `crates/atd-tools-fs/src/edit.rs` | ✅ (SP-2) |
-| **SIGTERM → grace → SIGKILL subprocess timeout** | `ref:shell.exec` / `ref:shell.pwsh` | `crates/atd-tools-shell/src/shared.rs` | ✅ (SP-3) |
-| **Request-arg schema validation** (serde + per-tool checks) | all tools | per-tool `call` impls | ✅ |
-
-### 5.3 Capability tokens
-
-v1's capability mechanism is the connection-scoped allow-list described in [§4.2.3](#423-capability-gate). Clients request capabilities via the `Hello` message; the server intersects with its `--grant-capability` allow-list; tools declaring `required_capabilities` outside the intersection are refused with `AtdError::CapabilityDenied` (code `1001`).
-
-UCAN-lite tokens (JWT-shape + Ed25519 + did:key; full v1.0 UCAN's DAG-CBOR rejected) ✅ landed 2026-05-11 as SP-capability-v2 — see [§9.3](#9-non-goals-explicit) for the gate-trigger note (celia_phr Hermes orchestrator + sub-agent delegation), [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) for the design, and `crates/atd-runtime/src/ucan/` for the impl. UCAN is **additive** to the connection-scoped allow-list; adopters that don't supply tokens keep the SP-12 path unchanged.
-
-| Component | Status | Notes |
-|---|---|---|
-| Connection-scoped allow-list | ✅ (SP-12) | See §4.2.3 |
-| UCAN delegation tree | ✅ (SP-capability-v2, 2026-05-11) | UCAN-lite landed: JWT-shape + Ed25519 + did:key + 5-deep chain walker. See `crates/atd-runtime/src/ucan/{parse,verify}.rs`. Additive to the allow-list above. |
-| Token revocation store | ✅ (SP-capability-v2, 2026-05-11) | `UcanRevocationStore` trait + `InMemoryUcanRevocationStore` in `crates/atd-runtime/src/ucan/revocation.rs`. Consulted on every chain link during verification. Adopters wrap their durable store (e.g., celia's `consent.status='revoked'` rows) behind the same trait. |
-| Per-call agent identity tracking | ✅ (SP-operability-v1) | `CallContext.caller_id` populated from `Hello.client_id`; see `crates/atd-runtime/src/context.rs`. Prerequisite for UCAN tokens (§9.3). |
-
-### 5.4 Audit logging
-
-| Component | Status | Notes |
-|---|---|---|
-| Structured per-call audit (tool_id, args_hash, outcome, duration, caller, tier, binding) | ✅ (SP-operability-v1) | `CallEvent` schema v1 emitted per call; see `crates/atd-runtime/src/audit.rs`. |
-| `--audit-log <path>` CLI flag | ✅ (SP-operability-v1) | Enables `JsonLinesAuditSink` on the ref server. |
-| `tracing` subscriber integration | ✅ (SP-operability-v1) | `JsonLinesAuditSink` writes JSONL events alongside the existing `tracing` subscriber. |
-
-Audit is the observability spine for the other security layers. SP-operability-v1 landed this as the first security-adjacent SP post-SP-13; it unblocks meaningful multi-tenant authz work (§9.3 defers UCAN tokens, but audit no longer blocks that path).
-
-### 5.5 Rate limiting and concurrency
-
-| Component | Source | Status | Notes |
-|---|---|---|---|
-| `ToolResources.rate_limit_per_min` | `crates/atd-protocol/src/tool.rs` | 📜 | Declared on every tool; runtime ignores. Issue [`resource-limits-not-enforced`](issues/2026-04-24-resource-limits-not-enforced.md) |
-| `ToolResources.max_concurrent` | same | ✅ (SP-operability-v1) | Enforced by per-tool `tokio::sync::Semaphore` in `Registry`. |
-| Server-side semaphore wrapping per-tool invocation | `crates/atd-runtime/src/registry.rs` | ✅ (SP-operability-v1) | Refuses with `ERR_RATE_LIMITED` (1002, retryable) when permits are exhausted. |
-| Server-side rate-limiter (token bucket via `governor`) | — | ❌ | Still planned; `rate_limit_per_min` remains declarative. |
-| `AtdError::RateLimited` variant | `crates/atd-protocol/src/error.rs` | ✅ (SP-operability-v1) | Wire code 1002; see [`docs/protocol/error-codes.md`](protocol/error-codes.md). |
-
-### 5.6 Dry-run consistency
-
-| Component | Status | Notes |
-|---|---|---|
-| `CallOptions.dry_run` wire field | ✅ | Part of `RunTool` message. |
-| Server-side short-circuit on `dry_run: true` | ✅ (SP-operability-v1) | Uniform across tools; see [`docs/protocol/dry-run-contract.md`](protocol/dry-run-contract.md). |
-| `ToolSafety.dry_run` metadata correctness | ✅ (SP-operability-v1) | `shell.exec` / `shell.pwsh` corrected to `true` (they have side effects); field remains informational in v1. |
-| Per-tool dry-run semantics delegation | 🚫 v1 | Deferred to a possible SP-operability-v2: route `dry_run: true` to tools declaring `ToolSafety.dry_run: true` for tool-specific previews. |
-
-The v1 contract is a server-side short-circuit: the server returns a synthetic `tool_result` without invoking the tool. This closes the silent-execute footgun — `ref:shell.exec("rm -rf /", dry_run=true)` no longer runs the command.
-
-### 5.7 Target state (v1)
-
-v1 security posture closes when:
-
-- Classifications ✅ (done)
-- Per-tool runtime controls ✅ (done for current tool set)
-- Connection-scoped capability gate ✅ (done — SP-12)
-- Audit logging ✅ (landed — SP-operability-v1)
-- Rate limiting + max_concurrent enforcement ✅ (landed — SP-operability-v1)
-- Dry-run consistency ✅ (landed — SP-operability-v1)
-- Per-call agent identity tracking ✅ (landed — SP-operability-v1)
-- UCAN-lite tokens ✅ (SP-capability-v2, 2026-05-11; additive to allow-list — granted = strings ∪ ucan)
-- Tool signature verification 🚫 (Phase 2)
-
-### 5.8 Gap → SP mapping
-
-| Gap | Next SP | Status |
-|---|---|---|
-| Audit logging | SP-operability-v1 | ✅ |
-| Rate limiting + max_concurrent | SP-operability-v1 | ✅ |
-| Dry-run consistency | SP-operability-v1 | ✅ |
-| Per-call agent identity | SP-operability-v1 | ✅ |
-| UCAN-lite tokens | SP-capability-v2 (landed 2026-05-11) | ✅ |
-| Tool signature verification | Phase 2 — see [§9.4](#9-non-goals-explicit) | 🚫 |
-
-### 5.9 See also
-
-- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — error taxonomy including `CapabilityDenied`
-- [`docs/issues/2026-04-24-security-audit-logging-missing.md`](issues/2026-04-24-security-audit-logging-missing.md)
-- [`docs/issues/2026-04-24-resource-limits-not-enforced.md`](issues/2026-04-24-resource-limits-not-enforced.md)
-- [`docs/issues/2026-04-24-security-dry-run-inconsistent.md`](issues/2026-04-24-security-dry-run-inconsistent.md)
-- [`docs/issues/2026-04-24-security-capability-tokens-deferred.md`](issues/2026-04-24-security-capability-tokens-deferred.md)
-- [`docs/issues/2026-04-24-security-trust-signature-unverified.md`](issues/2026-04-24-security-trust-signature-unverified.md)
-
-## 6. Extensibility
-
-Four extension surfaces where ATD accepts code outside the reference implementation: new bindings, new tools, new middleware, and (v1+ planned) new aliases.
-
-### 6.1 Binding extensibility
-
-Adding a new binding back-end (for example: a gRPC binding, a WebAssembly binding, a REST binding):
-
-| Step | Contract |
+| Binding | Behaviour |
 |---|---|
-| 1. Implement `Binding` trait | Defined in `crates/atd-runtime/src/binding.rs`. Given `args: serde_json::Value` + `&CallContext`, return `Result<serde_json::Value, ToolCallError>`. Respect `ctx.deadline`. |
-| 2. Register an instance | `Registry::register_binding("grpc", Arc::new(GrpcBinding::new(...)))` at startup |
-| 3. Tools declare `bindings: [ToolBinding { protocol: BindingProtocol::..., config: ... }, ...]` | One tool may have multiple bindings; dispatch picks one (currently: first) |
+| `NativeBinding` | Delegates to a `Tool` impl in the same Rust process. Default for every registered built-in. |
+| `CliBinding` | Spawns a subprocess, maps JSON args to argv, captures stdout/stderr, honours `ctx.deadline` with SIGTERM-then-SIGKILL grace. Demo tool: `ref:external.uname`. |
 
-Current bindings:
+The trait is open. A `GrpcBinding`, `WasmBinding`, or hypothetical
+`McpBinding` would implement the same `Binding::invoke` signature; the
+dispatcher selects via `ToolBinding::protocol` on the tool's
+declaration. v1 always routes to the first binding a tool declares;
+multi-binding selection (honouring `CallOptions::preferred_binding`)
+is a small dispatcher upgrade if real multi-binding tools land.
 
-| Binding | Protocol enum | Status |
+### 5.5 Secret routing (TokenBroker)
+
+Adopters running multi-tenant — one server process serving many
+distinct OAuth users via one socket — need per-caller secrets without
+each caller seeing each other's tokens. The `TokenBroker` trait
+(`atd_runtime::secrets::TokenBroker`) is the extension point:
+
+```rust
+pub trait TokenBroker: Send + Sync {
+    fn resolve(&self, caller_id: Option<&str>) -> ResolveFuture;
+    fn resolve_bearer(&self, bearer: &str) -> ResolveBearerFuture;
+    fn accepted_token_formats(&self) -> &'static [&'static str];
+}
+```
+
+Reference implementations:
+
+- **`InMemoryTokenBroker`** — unit-test fixture / single-process
+  setup. UCAN-JWT branch dispatches via `register_ucan_audience()`.
+- **`FileTokenBroker`** (`atd_runtime::file_token_broker`) —
+  disk-backed. Persists per-bearer subdirs at
+  `${root}/${bearer_id}/{access_token,refresh_token,expires_at}.json`
+  with mode 0700 / 0600 on Unix. Holds a per-bearer refresh mutex
+  (`lock_refresh()`) so concurrent OAuth refresh attempts for the
+  same bearer can't double-round-trip. `is_near_expiry()` is a no-IO
+  predicate (default 5-minute window) adopters call to decide whether
+  to take the refresh path. Layout matches the existing single-tenant
+  on-disk scheme some adopters already use; migration is a one-`mv`-
+  per-bearer operation.
+
+Production deployments wrap a vault or secrets-manager behind a
+custom `impl TokenBroker`. The trait is `pub` and stable.
+
+`CallContext::secrets: Option<Arc<SecretBundle>>` is populated by the
+dispatcher before `Tool::call` runs. Tools that need secrets read them
+via `ctx.secrets().get("access_token")`; tools that don't, ignore the
+field. `SecretBundle` wraps values in `RedactedString` —
+`Debug`/`Display` impls refuse to print, so accidental log lines
+don't leak credentials. Audit events include only
+`secrets_resolved: bool`, never the key names or values.
+
+**HTTP bearer auth** is the same trait's `resolve_bearer` arm. The
+HTTP listener parses `Authorization: Bearer ...` headers, calls
+`broker.resolve_bearer(token)`, gets back a typed `BearerOutcome` with
+11 variants (Ok / OkShrunk / Expired / Revoked / Unknown / Internal /
+Lookup / ...) each mapped to a specific HTTP status +
+`WWW-Authenticate` + optional `Retry-After`. SSE bearer-refresh
+helper (`atd_server_http::sse_refresh`) does 60s heartbeat
+re-resolution and emits `RefreshEvent::{Refreshed, AuthLost}` for
+long-lived streams.
+
+### 5.6 Cursor pagination
+
+Already described in §4.4 from the wire-format angle. Dispatch-side
+specifics:
+
+- `CursorIssuer` is constructed once per server with a random
+  HMAC-SHA256 key + a `server_session` id; tools never see the
+  signing key. `ctx.cursor_issuer().issue(payload) -> String` mints a
+  signed cursor for the next page.
+- `Tool::supports_pagination` defaults to `false`; tools that opt
+  in override `call_paginated(args, ctx, cursor)` instead of `call`.
+- The dispatcher pre-verifies an incoming cursor against the same
+  issuer before invoking the tool: HMAC mismatch → `CursorInvalid`
+  (1021); past TTL → `CursorExpired` (1020); cross-tool reuse →
+  rejected at fingerprint comparison.
+
+The conformance scenario `paginated_dispatch` exercises a 100-row
+generator over 10 pages, asserts cross-tool and expired-cursor
+rejection, and verifies the SDK's `call_all` concatenation walks the
+full chain.
+
+### 5.7 Sessions and cancellation
+
+Not in v1. The design surface (state scope, wire mechanism,
+idempotency, concurrency semantics) is wide; deferring preserves the
+option to design against a concrete adopter requirement rather than
+guessing.
+
+---
+
+## 6. Security
+
+### 6.1 Three-axis classification
+
+Every tool declares three orthogonal classifications as part of its
+`ToolDefinition`. These are **descriptive metadata** — used by callers
+and operators to reason about risk; not enforcement mechanisms on
+their own (§5.2 capability gate + §6.3 per-tool runtime controls are
+the actual enforcement).
+
+| Classification | Values | Field |
 |---|---|---|
-| `NativeBinding` | `BindingProtocol::Cli` (historical name retained) | ✅ |
-| `CliBinding` (subprocess) | `BindingProtocol::Cli` | ✅ |
-| MCP binding | `BindingProtocol::Mcp` | 🚫 ([§9.5](#9-non-goals-explicit)) |
-| REST binding | `BindingProtocol::Rest` | 🚫 ([§9.5](#9-non-goals-explicit)) |
-| AppFunction binding | `BindingProtocol::AppFunction` | 🚫 ([§9.5](#9-non-goals-explicit)) |
-| Distributed binding | — | 🚫 ([§9.1](#9-non-goals-explicit)) |
+| Safety | `Read` / `Write` / `Financial` / `Privacy` / `Physical` / `Destructive` | `ToolSafety::level` |
+| Visibility | `Read` / `Write` / `Dangerous` / `System` / `Hidden` | `ToolVisibility` |
+| Trust | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
 
-**Runtime-routing note:** v1 always routes to the first (and usually only) binding a tool declares. `CallOptions::preferred_binding` is currently dropped; issue [`dispatch-preferred-binding-ignored`](issues/2026-04-24-dispatch-preferred-binding-ignored.md). If real multi-binding tools land, the dispatcher's selection logic needs a small upgrade (pick preferred if available; else first).
+LLM adapters surface `SafetyLevel` and `Visibility` to agent-framework
+tool pickers where supported. `Visibility::Hidden` excludes a tool
+from `ToolList` discovery but keeps it reachable via `ToolSchema` and
+`RunTool` (use for raw vendor endpoints, debug helpers, integration-
+test tools).
 
-### 6.2 Tool extensibility
+`ToolTrust::signature` is currently declarative; signature verification
+is a Phase-2 non-goal (see §10.4).
 
-Adding a new tool to the reference server (or to a third-party ATD server):
+### 6.2 Capability allow-listing
 
-| Step | Contract |
+Described in §5.2. The mechanism enforces:
+
+- Operator-declared capability strings at server start
+- Client-requested subset via `Hello.requested_capabilities`
+- UCAN-lite token capabilities via `Hello.ucan_tokens`
+- Per-tool `required_capabilities: Vec<String>`
+
+A tool whose `required_capabilities` is not a subset of the call's
+intersected `granted_capabilities` is refused with `CapabilityDenied`
+(code 1001).
+
+### 6.3 Per-tool runtime controls
+
+Defences that live inside specific tools, not at the dispatch layer.
+Each guards an attack surface that tool's category exposes:
+
+| Control | Applies to | Location |
+|---|---|---|
+| **SSRF guard** (loopback + RFC1918 + link-local + CGN + TEST-NET + 0.0.0.0/8 + IPv4-mapped-private; re-checked on every redirect hop) | `ref:web.fetch` | `crates/atd-tools-web/src/fetch.rs::check_ssrf` |
+| **Header allow-list** (Accept, Accept-Language, Referer, User-Agent only; Authorization + Cookie rejected with `InvalidArgs`) | `ref:web.fetch` | same file, `build_headers` |
+| **Must-read-before-edit** (mtime + size proof required before `fs.edit` will apply) | `ref:fs.edit` | `crates/atd-runtime/src/tracker.rs` + `crates/atd-tools-fs/src/edit.rs` |
+| **SIGTERM → grace → SIGKILL subprocess timeout** | `ref:shell.exec` / `ref:shell.pwsh` | `crates/atd-tools-shell/src/shared.rs` |
+| **Per-tool semaphore** (honours `ToolResources::max_concurrent`) | All tools | `crates/atd-runtime/src/registry.rs` |
+| **Request-arg schema validation** | All tools | per-tool `call` impls + serde |
+
+### 6.4 Audit
+
+Every dispatched call emits a structured `CallEvent` to the configured
+`AuditSink`:
+
+```rust
+pub struct CallEvent {
+    pub schema_version: u32,        // currently 1
+    pub call_id: String,
+    pub caller_id: Option<String>,
+    pub tool_id: String,
+    pub args_hash: String,           // SHA-256 of canonicalised args
+    pub tier: Option<ToolTier>,
+    pub binding: Option<&'static str>,
+    pub outcome: Outcome,            // Success / Error variant
+    pub duration_ms: u64,
+    pub secrets_resolved: bool,      // never the values
+    pub cursor_page: Option<u32>,    // 0 for initial RunTool
+    // ...
+}
+```
+
+The reference sink `JsonLinesAuditSink` writes JSONL to a configured
+path; reads happen via a bounded `tokio::sync::mpsc` channel + a
+dedicated writer task, so `on_call` is non-blocking and a slow disk
+backs up the writer queue rather than the dispatch loop. The
+`drops` counter is exposed via `Server::metrics_snapshot()`.
+
+Adopters needing different sinks (Kafka, OpenTelemetry, ...) implement
+`AuditSink` against their own pipeline. The trait is `pub` and stable.
+
+### 6.5 Rate limiting and concurrency
+
+| Mechanism | Behaviour |
 |---|---|
-| 1. Implement `Tool` trait | Defined in `crates/atd-runtime/src/registry.rs`. Return `ToolDefinition` in `definition()`; implement `call(args, ctx)` returning `Result<serde_json::Value, ToolCallError>`. |
-| 2. Register | `registry.register(Arc::new(MyTool::new()))` in `builtin.rs` or equivalent |
-| 3. Declare required capabilities, safety, tier, bindings | Via the returned `ToolDefinition` |
+| `ToolResources::max_concurrent` per-tool semaphore | Enforced in `Registry`; refuses with `RateLimited` (1002, retryable) when permits are exhausted. |
+| Multi-thread tokio runtime | Ref binaries default to `multi_thread` with `min(cpus, 4)` workers via `atd_runtime::default_worker_threads()`. The accept loop is no longer starved by a single in-flight call. |
+| Per-state frame deadlines on UDS connections | 5 s handshake, 30 s active; configurable via `Server::set_frame_deadlines`. |
+| SDK connect retry with exponential backoff + ±20% jitter | `AtdClient::connect_with_options` configurable via `ConnectOptions` or `ATD_CONNECT_RETRIES` env. |
+| Server-side rate-limiter (token bucket via `governor`) | Not in v1. `ToolResources::rate_limit_per_min` is currently declarative only. |
 
-Tools outside this repo can implement the same trait and register in their own binary that links `atd-runtime`. The reference server is not required to host all tools; any crate can host a `Registry` and serve an ATD socket.
+The 50-client `concurrent_handshake_storm` conformance scenario
+verifies the SLO: p99 < 200 ms per client (measured 125 ms on a
+4-core developer host), 0 errors, 0 audit drops.
 
-Canonical examples: `crates/atd-tools-{echo,fs,shell,web}/`.
+### 6.6 Dry-run
 
-### 6.3 Middleware extensibility
+`CallOptions::dry_run: bool` is a wire field. Server-side, the
+dispatcher short-circuits a `dry_run: true` call with a synthetic
+`tool_result` without invoking the tool, so
+`ref:shell.exec("rm -rf /", dry_run=true)` no longer runs the
+command. `ToolSafety::dry_run: true` on a tool's metadata signals
+that the tool itself has a meaningful dry-run preview path; routing
+to that path is a follow-up. v1 is pure server-side short-circuit.
 
-Adding a new result-middleware:
+---
 
-| Step | Contract |
-|---|---|
-| 1. Implement `Middleware` trait | Defined in `crates/atd-runtime/src/middleware.rs`. Given the prior result + metadata, return a (possibly rewritten) result or an error to short-circuit the chain. |
-| 2. Register | `Pipeline::from_flags(["my_middleware", ...])` at startup, or programmatically via `Pipeline::add(Arc::new(MyMiddleware))` |
-| 3. Enable per deployment | CLI: repeated `--middleware <name>` flags compose a chain in declaration order |
+## 7. Middleware
 
-Middleware receives the `ToolResult::Success` case only; errors flow past untouched. Middleware can transform `success.data`, strip metadata fields, or reject with an error (rare; usually used for policy enforcement like "never return paths starting with `/etc/`").
+The middleware pipeline is the egress-side hook between a tool's
+successful return and the wire reply. The trait
+(`atd_runtime::Middleware`) takes `(tool_id, &ToolDefinition, &mut
+serde_json::Value)`; implementations can rewrite the value, strip
+sensitive sub-trees, or reject by mutating to an error envelope.
+Errors flow past untouched.
 
-Built-ins so far: `RedactPathsMiddleware`. Proposed additions — see §10 roadmap.
+Pipelines are composed at `Server::new` time:
 
-### 6.4 Ergonomic aliases (SDK-only)
+```rust
+let mut server = Server::new(registry, cfg);
+server.set_middleware(vec![
+    Arc::new(FhirMiddleware::default()),
+    Arc::new(PiiRedactMiddleware::default()),
+    Arc::new(RedactPathsMiddleware::default()),
+]);
+```
 
-Planned, not yet shipped.
+### 7.1 Built-in middleware
 
-| Component | Status | Target |
+| Middleware | Crate | What it does |
 |---|---|---|
-| SDK-side alias table (e.g., `current_time` → `ref:system.time`) | ❌ | SDK exposes a registration API |
-| Alias → canonical id resolution before `call()` | ❌ | Transform happens in the client before serialization; server sees canonical id only |
-| Built-in alias pack | ❌ | One pack per high-traffic domain (fs, shell, web) |
+| `RedactPathsMiddleware` | `atd-runtime` | Strips or masks JSON-Pointer paths in arbitrary result trees (e.g. removing `$HOME` paths from shell output). |
+| `FhirMiddleware` | `atd-middleware-fhir` | FHIR R4 egress validation. Confirms `resourceType` is in the 12-resource known set; verifies coding-system URIs against `ALLOWED_SYSTEMS_DEFAULT` (75 URIs, kept set-equal to celia's `whitelists.toml` via the I1 drift-guard); enforces required-field presence per resource. Three `MismatchPolicy` variants: `AnnotateAndPass` (default — attaches `_fhir_validation_errors`), `ReplaceWithError` (rewrites payload to a structured error envelope — fail-closed semantics, used by adopters with strict invariants), `StripOffending` (drops the offending sub-tree, keeps the rest). |
+| `PiiRedactMiddleware` | `atd-middleware-pii-redact-medical` | HIPAA Safe Harbor PHI redaction. 18 identifier categories × 13 JSON-Pointer paths × 7 `RedactionStrategy` variants + 5 catch-all regex (SSN / driver's license / IP / URL / email). `PiiRedactConfig::{fhir_aware, disable_regex_phi, ...}` flags for opt-out paths. |
 
-**Scope discipline:** the alias mechanism is SDK-side; the server does not participate. This mirrors v3 Appendix J's recommended approach and avoids protocol-level ambiguity.
+Both medical middlewares live in standalone crates so adopters that
+don't ship FHIR-shaped or PHI-bearing payloads don't pull the deps.
 
-### 6.5 Extension-point checklist
+### 7.2 The whitelist invariant (I1)
 
-A third-party implementer asking "what can I extend without forking the reference server?" — the answer for v1:
+`atd_middleware_fhir::ALLOWED_SYSTEMS_DEFAULT` is the canonical set of
+permitted CodeSystem URIs at FHIR egress. It is **kept set-equal** to
+a vendored copy of celia's source-of-truth
+`crates/celia-types/data/whitelists.toml`, located at
+`crates/atd-middleware-fhir/vendor/celia-whitelists.toml`. A unit test
+in `crates/atd-middleware-fhir/src/systems.rs` parses the vendored
+toml via `include_str!` and asserts set equality at every `cargo
+test`. If either side drifts, the test fails with the exact set
+difference printed.
 
-| You want to... | Extension surface | Requires fork of ref-server? |
-|---|---|---|
-| Add a new tool (any domain) | `Tool` trait implementation | No |
-| Add a new binding back-end | `Binding` trait implementation | No |
-| Add a new result middleware | `Middleware` trait implementation | No |
-| Add an SDK-side alias | SDK's alias-registration API (when landed) | No |
-| Change the wire format | — | Yes (not an extension point) |
-| Change the error taxonomy | — | Yes |
-| Add a new `ToolTier` variant | — | Yes |
+The reverse direction (celia → atd) is enforced symmetrically: celia
+imports `ALLOWED_SYSTEMS_DEFAULT` via `use atd_middleware_fhir::
+ALLOWED_SYSTEMS_DEFAULT;` and runs the same set-equality assertion
+against its generated constant. Either repo updating its set in
+isolation fails one of the two CI gates.
 
-### 6.6 See also
+### 7.3 Writing new middleware
 
-- [`crates/atd-runtime/src/binding.rs`](../crates/atd-runtime/src/binding.rs) — `Binding` trait definition
-- [`crates/atd-runtime/src/middleware.rs`](../crates/atd-runtime/src/middleware.rs) — `Middleware` trait definition
-- [`crates/atd-runtime/src/registry.rs`](../crates/atd-runtime/src/registry.rs) — `Tool` trait and registration
-- [`docs/superpowers/specs/2026-04-25-sp12-canonical-dispatch.md`](superpowers/specs/2026-04-25-sp12-canonical-dispatch.md) — origin of the `Binding` / `Middleware` traits
+Implement the trait:
 
-## 7. Skills Layer (adjacent)
+```rust
+impl Middleware for MyMiddleware {
+    fn on_result(
+        &self,
+        tool_id: &str,
+        def: &ToolDefinition,
+        result: &mut serde_json::Value,
+    );
+}
+```
 
-The Skills layer (SKILL.md files + `atd-tools:` dependency declarations + progressive-disclosure skill bodies) is drawn as a stack layer in the ATD v3 brief. From a protocol standpoint, Skills is an **upstream consumer** of ATD — not part of ATD itself.
+Register via `Server::set_middleware(vec![...])`. The trait is `pub`
+and stable; nothing prevents a third party publishing
+`atd-middleware-<topic>` crates. Middleware order matters — pipelines
+run top-down — so adopters compose deterministically.
 
-### 7.1 Division of concern
+---
+
+## 8. Skills layer (adjacent)
+
+The Skills layer (SKILL.md files + `atd-tools:` dependency
+declarations + progressive-disclosure skill bodies) sits *above* ATD
+in the v3 stack diagram. From a protocol standpoint, Skills is an
+**upstream consumer** of ATD, not part of ATD itself.
+
+### 8.1 Division of concern
 
 | Concern | Owner |
 |---|---|
 | SKILL.md authoring, validation, install | Skills runtime (Anthropic Skills, OpenClaw ClawHub, third parties) |
 | Progressive disclosure into agent context | Skills runtime |
-| `atd-tools:` dependency declarations | SKILL.md format (owned by Skills spec); ATD's contribution is stable tool IDs |
-| Invoking ATD tools from a skill body | Skills runtime calls ATD client (`atd_client.call(...)` in Python, `atd_sdk::call(...)` in Rust) like any other agent |
+| `atd-tools:` dependency declarations | SKILL.md format; ATD's contribution is stable tool ids |
+| Invoking ATD tools from a skill body | Skills runtime calls the ATD SDK like any other agent |
 | The `discover` / `describe` / `call` API the skill body relies on | ATD (this project) |
 
-### 7.2 ATD's commitments toward Skills
+### 8.2 ATD's Skills-side commitments
 
 - Stable `discover` / `describe` / `call` semantics
 - Stable `AtdError` taxonomy
-- Stable tool-id conventions (namespace + dot segments; sanitization rules documented in §3)
+- Stable tool-id conventions (namespace + dot-segments + sanitization rules)
+- Stable meta-tool naming convention for skills discovery
 
-### 7.3 ATD's non-commitments
+### 8.3 The meta-tool convention
 
-- ATD does not parse SKILL.md
-- ATD does not own per-platform skill install paths or progressive-disclosure runtime; those are convention-driven (see §7.5) and easily overridable. ATD ships an optional `atd skills sync` helper that writes per-target paths derived from the [skills meta-tool convention](protocol/wire-format.md#11-skills-meta-tool-convention).
-- ATD does not store skill state across calls
+ATD servers that expose skills do so via two reserved tool ids:
 
-### 7.4 Two consumption patterns
+- `<publisher>:<service>.skills.list` — returns a list of skill
+  manifests (id, name, summary).
+- `<publisher>:<service>.skills.get` — returns one skill's body +
+  metadata by id.
 
-1. **Direct agent → ATD** (one-shot) — agent LLM decides `tool_id` + `args`; see [§2.4 Example A](#24-two-pager-call-graph-examples)
-2. **Skill body → ATD** (multi-step, orchestrated) — skill runtime loads a skill body into agent context; body calls ATD tools in sequence; see [§2.4 Example B](#24-two-pager-call-graph-examples)
+This is a **convention**, not a wire-level message. Clients call it
+via the standard `RunTool` path; servers register two tools like any
+other. The `atd-cli skills sync` subcommand walks any server
+implementing the convention and writes SKILL.md files into
+per-platform target directories (hermes, claude-code, stdout).
 
-Both patterns traverse identical ATD dispatch. Skills adds orchestration on top; it does not modify dispatch.
+### 8.4 What ATD does not commit to
 
-### 7.5 Skills meta-tool convention + sync
+- ATD does not parse SKILL.md.
+- ATD does not own per-platform install paths.
+- ATD does not retain skill state across calls.
 
-The [skills meta-tool convention](protocol/wire-format.md#11-skills-meta-tool-convention) (SP-skills-discovery-convention, 2026-04-27) standardizes how ATD servers publish their skills via two meta-tool ids — `<publisher>:<service>.skills.list` and `<publisher>:<service>.skills.get`. The `atd skills sync` subcommand (atd-cli) pulls those skills into per-platform directories (hermes, claude-code, stdout). First adopter: `healthkit_cli` v1.3.0, exposing 26 SKILL.md files via `huawei:hms.healthkit.skills.list/get`.
+---
 
-Reverse direction — generating SKILL.md stubs FROM tool definitions for the 26+ SKILL.md-compatible platforms — remains a future SP candidate. This is an ATD-side generator; the Skills runtime side is unchanged.
+## 9. Component & crate map
 
-### 7.6 See also
-
-- [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/atd-v3-skills-architecture-brief.md) — the v3 brief defining the Skills layer positioning
-- [`docs/integrations/openclaw.md`](integrations/openclaw.md) — interim MCP-bridge workaround until SKILL.md generation lands
-
-## 8. Component / crate map
-
-### 8.1 Principle
-
-A clean logical decomposition of the reference implementation has three core components + satellites:
-
-- **Protocol** (the spec): types, wire format, sanitization rules. Shared between SDK and runtime; depends on neither.
-- **SDK** (the client side): how agents and framework integrations call ATD. Depends on Protocol.
-- **Runtime** (the server side): how tools get invoked. Depends on Protocol, not on SDK.
-- **Tools**: concrete tool implementations. Logically separate from Runtime; in v1 they share a crate for convenience.
-- **Bridges**: protocol translators (MCP ⇄ ATD is the only one shipped). Consume SDK; speak an external protocol outward.
-- **Binaries**: end-user artifacts (`atd` CLI, `atd-ref-server` binary). Thin wrappers.
-
-### 8.2 Current → target mapping
-
-The current crate layout (post-`SP-refactor-v1`) cleanly separates each logical component into its own crate. The table below names each logical component and its current home.
-
-| Logical component | Current crate | Status | Notes |
-|---|---|---|---|
-| **Protocol** (types, wire, sanitize) | `atd-protocol` | ✅ | Consolidated in SP-refactor-v1. |
-| **Rust SDK** | `atd-sdk` | ✅ | Renamed from `atd-client` in SP-refactor-v1. Adapters feature-gated. |
-| **Python SDK** | `python/src/atd_client/` | ⚠️ pending Python-mirror SP | Still named `atd_client`; rename deferred. |
-| **Runtime** (`Tool` trait, `Registry`, dispatch, binding, middleware, tier, capability) | `atd-runtime` | ✅ | Extracted from `atd-ref-server` in SP-refactor-v1. Transport-agnostic. |
-| **Server transport (Unix socket)** (Unix-socket listener, accept loop, per-connection task) | `atd-server` | ✅ | Extracted from `atd-ref-server` in SP-listener-extract (triggered by `healthkit_cli` first-vendor-server signal). Pair with `atd-runtime` to host any ATD-speaking server. |
-| **Server transport (HTTP)** (HTTP listener + MCP JSON-RPC translator + bearer auth) | `atd-server-http` | ✅ | Landed via SP-streamable-http + SP-1.B (2026-05-11). Sibling of `atd-server`; consumes the same `atd-runtime::Registry`. First adopter: `celia_phr` (`celia-cli` migrated its `/mcp` route to delegate here). |
-| **Built-in tools** (echo, fs, shell, web) | `atd-tools-echo`, `atd-tools-fs`, `atd-tools-shell`, `atd-tools-web` | ✅ | Split per-domain in SP-refactor-v1. |
-| **MCP bridge** | `atd-mcp-bridge` | ✅ | Binary |
-| **CLI** | `atd-cli` | ✅ | Binary — `atd` command |
-| **Ref-server binary** | `atd-ref-server` (binary name `atd-ref-server`) | ✅ | Slim wiring of `atd-server` + `atd-runtime` + `atd-tools-*` into the reference / demo binary. |
-| **Cross-vendor demo bin** | `atd-mock-weather-server` | ✅ | 3 canned `mock:weather.*` tools for the cross-vendor composition demo (SP-cross-vendor-mock-demo). Boots side-by-side with `healthkit_cli` via `scripts/cross-vendor-demo.sh`. |
-| **Examples** | `examples/` (not published) | ✅ | |
-| **Conformance suite** (future) | not yet | ❌ | Future SP (SP-8) |
-
-### 8.3 Dependency graph (current)
+### 9.1 Layering
 
 ```
-atd-protocol
+atd-protocol (wire types, schema, sanitize)
    ▲
-   ├── atd-sdk (client + adapters)
+   ├── atd-sdk (client API; discover/describe/call/call_page/call_all/hello)
    │       ▲
-   │       ├── atd-mcp-bridge
-   │       └── atd-cli
+   │       ├── atd-mcp-bridge        (MCP-over-stdio → ATD)
+   │       ├── atd-cli               (reference CLI client)
+   │       └── atd-conformance       (reusable test suite + bin)
    │
-   └── atd-runtime (Tool/Binding/Middleware/Registry/dispatch — transport-agnostic)
+   └── atd-runtime (Tool/Binding/Middleware/Registry/dispatch;
+                    TokenBroker + InMemoryTokenBroker + FileTokenBroker;
+                    UCAN-lite verifier; CursorIssuer; AuditSink;
+                    MetricsCounters)
            ▲
            ├── atd-tools-echo
            ├── atd-tools-fs
            ├── atd-tools-shell
            ├── atd-tools-web
-           ├── atd-server (Unix-socket listener + connection task)
+           ├── atd-middleware-fhir              (FHIR R4 egress validation;
+           │                                     ALLOWED_SYSTEMS_DEFAULT;
+           │                                     vendored celia whitelists.toml)
+           ├── atd-middleware-pii-redact-medical (HIPAA Safe Harbor PHI redaction)
+           │
+           ├── atd-server          (Unix-socket listener + connection task)
            │       ▲
-           │       ├── atd-ref-server (slim binary: wires runtime + tools + server)
-           │       │       ▲
-           │       │       └── atd-mock-weather-server (cross-vendor demo bin;
-           │       │           SP-cross-vendor-mock-demo)
+           │       ├── atd-ref-server          (reference binary;
+           │       │       ▲                    wires runtime + tools + server)
+           │       │       └── atd-mock-weather-server  (cross-vendor demo bin;
+           │       │                                     publish = false)
            │       │
-           │       └── + vendor servers (e.g. healthkit_cli's atd_server)
+           │       └── + vendor servers (e.g. healthkit_cli)
            │           depend directly on atd-runtime + atd-server,
            │           skip atd-ref-server entirely
            │
-           └── atd-server-http (HTTP listener + MCP JSON-RPC translator
-                                + bearer auth via TokenBroker)
+           └── atd-server-http     (HTTP listener + MCP JSON-RPC translator +
+                                    bearer auth + origin gate +
+                                    SSE bearer-refresh helper)
                    ▲
-                   └── + vendor HTTP servers (e.g. celia_phr's celia-cli)
-                       depend on atd-runtime + atd-server-http;
-                       first cloud-hosted adopter, triggered HTTP-transport
-                       gate (architecture §9.7 → §10).
+                   └── + vendor HTTP servers (e.g. celia_phr)
+                       depend on atd-runtime + atd-server-http
 ```
 
-Python SDK (`python/src/atd_client/`) mirrors `atd-protocol` + `atd-sdk` as a standalone Python package with its own sanitize + adapters. Python rename to `atd_sdk` is a deferred SP.
+### 9.2 Per-crate purpose
 
-### 8.4 Refactor history
-
-Target layout landed in `SP-refactor-v1` (tag `sp-refactor-v1`). Pre-refactor
-state is available at tag `pre-refactor-v1` if someone needs the historical
-crate-lumping for comparison. The refactor was mechanical: zero behavior
-change, zero wire-format change, binary names (`atd`, `atd-ref-server`,
-`atd-mcp-bridge`) unchanged.
-
-### 8.5 Refactor triggers (resolved)
-
-The refactor triggers discussed in prior doc versions have been resolved; see §8.4 above for the landing record.
-
-### 8.6 See also
-
-- [`docs/superpowers/specs/2026-04-24-crate-refactor-design.md`](superpowers/specs/2026-04-24-crate-refactor-design.md) — design spec for SP-refactor-v1
-- [`docs/design.md`](design.md) — the original Phase 0 spec that established the pre-refactor crate names
-
-## 9. Non-goals (explicit)
-
-These are intentional exclusions for v1.x. Each entry states: what the non-goal is, why it's out of scope, and what event would re-open it.
-
-### 9.1 Multi-device routing
-
-**What:** The v3 whitepaper's device-class routing (phone / watch / earbuds / tablet / pc / car / tv) with per-device-class binding selection.
-
-**Why deferred:** Requires a device registry, device-availability probing, binding fallback logic, and hardware to validate against. No adopter yet depends on this in the reference implementation.
-
-**Re-opens when:** A device-vendor adopter (HarmonyOS, Apple, Google) commits to implementing an ATD server exposing device-scoped tools.
-
-### 9.2 Distributed sessions (migrate / fork / handoff)
-
-**What:** Cross-device session migration, forking, handoff as described in v3 §2.6.
-
-**Why deferred:** Strictly depends on multi-device routing (§9.1). Without multiple devices to route between, the distributed-session primitives have no use case.
-
-**Re-opens when:** Multi-device routing lands AND an adopter has a cross-device agent use case (e.g., start on watch, finish on phone).
-
-### 9.3 ~~Full UCAN capability tokens~~ — gate triggered 2026-05-11; tracked under §10 as SP-capability-v2
-
-**Status change (2026-05-11):** Previously deferred under the gate "multi-tenant deployment needs per-agent authorization finer than per-socket." That gate framing was incorrect — the *real* gate is **sub-agent delegation**, which a concrete adopter (`celia_phr`) has been articulating for some time:
-
-> "Agent A may delegate read-only access to Patient X to its sub-agent B."
-> — celia `ATD_FUTURE_ISSUES.md:30-32`
-
-Today celia's RBAC is a flat exact-string match: two agents collaborating on one PHR session must both appear in the `consent` table independently — the user must re-pair B from scratch even though A already holds a superset authority and wants to lend a subset. **Hermes's "orchestrator + N specialised children" workflow is held back by exactly this.**
-
-UCAN's `aud` field (audience-pinned tokens) + chain attenuation (a child can strip caps but cannot add them) map 1:1 to celia's existing `consent.scope` column without semantic translation — see [`SP-capability-v2`](superpowers/specs/2026-05-11-sp-capability-v2-design.md) §1.2 + §4.5.
-
-**What lands:** A UCAN-lite profile (JWT-shape on the wire, Ed25519 only, `did:key` only) additive to the SP-12 string allow-list. `Hello` gains an optional `ucan_tokens` field; when non-empty, granted caps = `granted_strings ∪ granted_ucan`. SP-12 adopters keep working untouched.
-
-**What stays out of scope:** Full UCAN v1.0 normative compliance (DAG-CBOR rejected; JWT-shape adopted for HTTP-header ergonomics + JOSE infra reuse), multi-algorithm crypto, `did:web` / `did:agent`, OAuth shim, ZK / quorum signatures. See spec §3.
-
-**Tracked at §10 as:** `UCAN capability tokens (SP-capability-v2)` — design ✅, plan ✅, implementation ✅ landed 2026-05-11. Adopter validation pending: celia_phr (Hermes orchestrator delegation chain — see [`celia_phr/docs/sp-capability-v2-adopter.md`](file:///home/nan/code/pha/celia_phr/docs/sp-capability-v2-adopter.md)), healthkit_cli (passive — additive, no regression; see [`healthkit_cli/docs/sp-capability-v2-no-regression.md`](file:///home/nan/code/healthkit_cli/docs/sp-capability-v2-no-regression.md)).
-
-### 9.4 Tool signature verification
-
-**What:** Cryptographic signatures on `ToolDefinition.publisher` + `trust_level` with verification at discovery time.
-
-**Why deferred:** Requires a signing ceremony, a key distribution story, and at least one non-reference publisher. None exist. See [§5.1](#51-classification-taxonomy) + issue [`security-trust-signature-unverified`](issues/2026-04-24-security-trust-signature-unverified.md).
-
-**Re-opens when:** A tool marketplace with multiple publishers exists AND an adopter demands verification. Likely sigstore-based.
-
-### 9.5 REST, AppFunction, and distributed bindings
-
-**What:** Additional binding back-ends named by `BindingProtocol` but not yet implemented.
-
-**Why deferred:** `NativeBinding` + `CliBinding` cover all current tools. REST would enable cloud-hosted tools; AppFunction would enable mobile-native tools; distributed would enable cross-machine tools. Each requires a real adopter to inform the contract.
-
-**Re-opens when:** A concrete tool (or tool author) surfaces a binding need and is willing to co-design the contract.
-
-### 9.6 Native Skills-layer support
-
-**What:** ATD becoming aware of SKILL.md / progressive disclosure / skill state management.
-
-**Why deferred:** Wrong layer. Skills is an orchestrator above ATD ([§7](#7-skills-layer-adjacent)). Merging them would couple two projects with different adopters and different evolution cadences.
-
-**Re-opens when:** Never, likely. ATD and Skills are designed to coexist, not merge.
-
-### 9.7 ~~HTTP transport for the wire protocol~~ — moved to §10 (gate triggered 2026-05-11)
-
-**Status change (2026-05-11):** This non-goal opened. The gate condition ("a cloud-hosted ATD deployment surfaces a real need") was triggered by the `celia_phr` adopter in 2026-05. Three SPs cover the evolution:
-
-- [`SP-streamable-http`](superpowers/specs/2026-05-11-sp-streamable-http-design.md) — HTTP transport design (MCP JSON-RPC translator, origin gate, SSE for streaming)
-- [`SP-token-broker-phase2`](superpowers/specs/2026-05-11-sp-token-broker-phase2-design.md) — bearer auth wire integration (`BearerIdentity` + `resolve_bearer`)
-- **SP-1.B implementation** — no formal plan was drafted; landed directly as commits `db3287c` (phase-2 spec) → `dcdfd92` (`BearerIdentity` + `resolve_bearer`) → `0448aad` (HTTP transport body in new `atd-server-http` crate, see §8.2)
-
-The corresponding §10 row is now ✅ instead of 🚫. The historical 🚫 deferral rationale is preserved in git at tag `whitepaper-atd-v3`. Adopters seeking the HTTP transport contract should read SP-streamable-http and the `atd-server-http` crate, not this section.
-
-**Open Phase-2 follow-ups (still 🚫 v1):** TLS termination, OAuth/OIDC integration, request signing — these remain adopter-side (Celia's `CeliaConsentTokenBroker` is the reference adopter pattern). ATD owns transport + bearer plumbing; adopters own credential issuance.
-
-## 10. Evolution path
-
-A directional roadmap — **not a commitment calendar**. Each row states the item, the layer it touches, its status (from the status vocabulary), the proposed or expected SP number, a rough quarter, and the gating condition.
-
-| Item | Layer | Status | Target SP | Rough window | Gate |
-|---|---|---|---|---|---|
-| Audit logging (structured per-call events) | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; JsonLinesAuditSink via --audit-log flag; CallEvent schema v1. |
-| Rate limiting + `max_concurrent` enforcement | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; per-tool tokio Semaphore in Registry; ERR_RATE_LIMITED (1002) wire code. |
-| Dry-run consistency across tools | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; server-side short-circuit documented in docs/protocol/dry-run-contract.md; shell.exec/pwsh ToolSafety.dry_run corrected to true. |
-| Per-call agent identity tracking | Security | ✅ | SP-operability-v1 | 2026-04-24 | Landed; CallContext.caller_id populated from Hello.client_id; prerequisite for UCAN tokens (arch §9.3). |
-| Machine-readable `atd-protocol-schema.json` | Schema | ✅ | SP-protocol-schema | 2026-04-25 | Landed; gen-schema bin + CI drift check; see SP-protocol-schema. |
-| Conformance suite (sanitize / wire / behavior categories) | Cross-cutting | ✅ | SP-8 | 2026-04-24 | Landed; `atd-conformance` crate with 32 fixtures + `run_conformance` API + CLI binary; self-conformance integration test green. |
-| Conformance: capability-denied gated tool | Cross-cutting | ✅ | SP-8.1 | 2026-04-24 | Landed; `ref:conformance.denied_op` returns ERR_CAPABILITY_DENIED (1001); fixture restored to behavior category. |
-| Conformance: rate-limit fixture (`saturate_op`) | Cross-cutting | ✅ | SP-8.2 | 2026-04-25 | Landed; `ref:conformance.saturate_op` exercises ERR_RATE_LIMITED (1002) wire path. |
-| Ergonomic aliases DSL (SDK-only) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate; low priority |
-| Additional built-in middleware (pii_redact, injection_detect, image_meta_strip) | Dispatch | ❌ | proposed SP | Q3 2026 | No strict gate |
-| Sessions + cancellation | Dispatch | 🚫 v1 | — | undecided | Need a concrete adopter use case |
-| TypeScript SDK | SDK | ❌ | TBD | undecided | Waiting for a concrete TS adopter |
-| Crate refactor (atd-protocol / atd-sdk / atd-runtime / atd-tools-*) | Cross-cutting | ✅ | SP-refactor-v1 | 2026-04-24 | Landed; see §8.4 |
-| Extract socket listener from atd-ref-server into reusable `atd-server` crate | Dispatch (transport) | ✅ | SP-listener-extract | 2026-04-25 | Landed; Server/ServerConfig/connection moved to crates/atd-server. atd-ref-server reduced to binary + built-in tool wiring. Triggered by `healthkit_cli` first-vendor-server signal — vendors can now depend on atd-runtime + atd-server without pulling atd-ref-server's built-in tools. Full adopter arc (failure → fix → win) in [`docs/integrations/healthkit.md`](integrations/healthkit.md). |
-| `ToolVisibility::Hidden` variant + server-side discover filter | Wire / Dispatch | ✅ | SP-tool-visibility-hidden | 2026-04-27 | Landed; protocol bump 0.2.x → 0.3.0; one new variant in `atd-protocol::enums::ToolVisibility`; filter at `atd-server::connection::dispatch`'s `Request::ToolList` boundary; conformance covered via `ref:conformance.hidden_op` + 3 new fixtures using the new declarative `expect_tools_exclude` primitive. Replaces the per-binary `--expose-raw-tools` workaround that healthkit_cli v1.2.0 used; v1.3.0 of healthkit_cli will drop the flag and register raw tools as Hidden unconditionally. |
-| Skills meta-tool convention + `atd skills sync` | Skills (adjacent) | ✅ | SP-skills-discovery-convention | 2026-04-27 | Landed; convention defined in [`docs/protocol/wire-format.md`](protocol/wire-format.md#11-skills-meta-tool-convention) §11; `atd skills sync` subcommand ships in atd-cli with hermes / claude-code / stdout targets; `healthkit_cli` v1.3.0 first adopter, exposing 26 SKILL.md files via `huawei:hms.healthkit.skills.list/get`. §7.3 softened: ATD ships an optional sync helper but does not own per-platform install paths. Promotion to wire-level `Request::SkillList/Get` deferred until 2+ vendors adopt without divergence. |
-| Cross-vendor composition demo (`atd-mock-weather-server`) | Cross-cutting | ✅ | SP-cross-vendor-mock-demo | 2026-04-27 | Landed; new bin crate `atd-mock-weather-server` with 3 canned `mock:weather.*` tools; `scripts/cross-vendor-demo.sh` boots healthkit + mock-weather side-by-side; [`docs/integrations/cross-vendor-pattern.md`](integrations/cross-vendor-pattern.md) documents the composition pattern. Closes #5 option (a). Real second-vendor adopter (#5 (b)/(c)) deferred; live LLM transcript capture is a human follow-up. |
-| `TokenBroker` extension point (Phase 1) | Dispatch | ✅ | SP-token-broker-phase1 | 2026-04-27 | Landed; `atd-runtime::TokenBroker` trait + `RedactedString` + `InMemoryTokenBroker` reference impl; plumbed through `ServerConfig::token_broker` and `CallContext::secrets`; new `ERR_BROKER_FAILED = 1003` wire code; audit `CallEvent` gains `secrets_resolved: bool`. No protocol message change. Closes Phase 1 of #4; Phase 2 (healthkit_cli adoption) and Phase 3 (live two-tenant demo) deferred to follow-up SPs. |
-| `TokenBroker` Phase 2 — bearer auth on the wire | Dispatch (security) | ✅ | SP-token-broker-phase2 | 2026-05-12 | Landed across SDK + runtime + HTTP listener. Foundation (`BearerIdentity` + `TokenBroker::resolve_bearer` + `accepted_token_formats`) at `dcdfd92`; design spec at `db3287c`. C-segment 1-3 (post-SP-cap-v2) added: typed `BearerOutcome` with 11 variants + per-variant HTTP status / `WWW-Authenticate` / `Retry-After` mapping (spec §4.4), `error_response_with_headers` helper, `Server::set_ucan_revocation_store` adopter hook (`89e08ab`), SSE bearer-refresh helper `atd_server_http::sse_refresh` with 60s heartbeat re-resolve + `RefreshEvent::{Refreshed, AuthLost}` (spec §4.7), `/initialize` echoing `broker.accepted_token_formats()` under `capabilities.experimental.atd.acceptedTokenFormats`. Adopter integration validated via `celia_phr`'s `CeliaConsentTokenBroker` (11 smoke tests green). Tag: `sp-token-broker-phase2`. |
-| HTTP transport (`atd-server-http` crate) | Dispatch (transport) | ✅ | SP-streamable-http + SP-1.B | 2026-05-11 | Landed; design at [`docs/superpowers/specs/2026-05-11-sp-streamable-http-design.md`](superpowers/specs/2026-05-11-sp-streamable-http-design.md); ref impl in `crates/atd-server-http/` (commits `758ce40` spec / `dcdfd92` runtime / `0448aad` body). MCP JSON-RPC translator + origin gate + bearer auth. Replaces §9.7's prior 🚫 v1 deferral — gate condition ("cloud-hosted adopter") triggered by `celia_phr` 2026-05. Phase-2 follow-ups still 🚫: TLS termination, OAuth/OIDC, request signing — adopter-side. |
-| Result pagination (cursor primitive for large tool outputs) | Wire / Dispatch | ✅ | SP-pagination-v1 | 2026-05-12 | Landed across `atd-protocol` + `atd-runtime` + `atd-sdk` + `atd-server-http` + `atd-mcp-bridge` + `atd-conformance`. Wire-format additions (all back-compat): `Request::RunToolContinue { tool_id, cursor }`, `Response::ToolResultResponse.next_cursor: Option<String>`, error codes `1020 ERR_CURSOR_EXPIRED` / `1021 ERR_CURSOR_INVALID`. Tool author API: `Tool::supports_pagination() -> bool` + `Tool::call_paginated(args, ctx, cursor) -> PaginatedResult` default-impl trait methods. Reference cursor impl in `atd_runtime::cursor`: HMAC-SHA256-signed CBOR-encoded `CursorPayload` bound to `(tool_id, caller_id, args_fingerprint, page_index, issued_at_unix, server_session)`, 512-byte wire cap, 5-min default TTL, stateless verification. SDK ergonomics: `AtdClient::call_page` (per-page) + `AtdClient::call_all` (auto-loop with `MergePolicy::{ConcatArray, ConcatField, FirstPageOnly}`). HTTP cursor passthrough via `arguments.__cursor` + `nextCursor`. MCP bridge degrade-or-passthrough (env `ATD_MCP_PASSTHROUGH_CURSOR=1`). Conformance: `paginated_dispatch` scenario validates 100-row generator end-to-end (10 pages × 10 rows + per-page audit tagging + cross-tool cursor rejection). Tag: `sp-pagination-v1`. Perf-v1 iteration axis 2 (axis 1 = SP-concurrency-baseline). |
-| Concurrency baseline (multi-thread runtime + wire deadlines + SDK retry + mpsc audit sink + metrics) | Dispatch (runtime) | ✅ | SP-concurrency-baseline | 2026-05-12 | Landed across `atd-protocol` + `atd-sdk` + `atd-runtime` + `atd-server` + `atd-ref-server` + `atd-mock-weather-server` + `atd-conformance`. Closes the 2026-05-12 celia 10-concurrent benchmark failure (`current_thread` ref-server starved the accept loop, hermes session-init timed out, 60% of sessions loaded zero tools). Five-axis intervention: (a) `WireError` typed enum + `read_frame_with_deadline` / `write_frame_with_deadline` with per-state deadlines (5s handshake / 30s active); (b) `AtdClient::connect` exponential-backoff retry + ±20% jitter, env-tunable via `ATD_CONNECT_RETRIES`; (c) ref binaries flipped to `multi_thread` runtime via `atd_runtime::default_worker_threads()` (default `min(cpus, 4)`); (d) `JsonLinesAuditSink` rewritten to bounded `tokio::sync::mpsc` + dedicated drain task (non-blocking `on_call`, drops counter); (e) `MetricsCounters` + `Server::metrics_snapshot()` for adopter observability. Verified by `concurrent_handshake_storm` conformance scenario — 50 simultaneous clients × (Hello + ToolList + 5×ToolSchema) measured at **wall=127ms, p50=116ms, p99=125ms, 0 errors, 0 audit drops** vs the pre-SP incident's 71s wall + 60% session-init failure at 10× lower concurrency. Tag: `sp-concurrency-baseline`. Atd-bench criterion suite (regression-gate against future SPs) tracked as follow-up. |
-| Medical middleware suite (FHIR validation + PHI redaction) | Dispatch (middleware) | ✅ | SP-medical-middleware | 2026-05-12 | Landed as two sibling crates: `atd-middleware-fhir` (egress FHIR R4 shape + 70-URI coding whitelist + 12-resource required-field table; verbatim port of celia's `crates/celia-core/src/fhir/{systems,validate}.rs`) and `atd-middleware-pii-redact-medical` (HIPAA Safe Harbor 18 identifier categories: 13 JSON-Pointer paths × 7 RedactionStrategies + 5 catch-all regex for SSN/license/IP/URL/email). Both implement the existing `atd_runtime::Middleware` trait; mount via `Server::set_middleware(vec![Arc::new(FhirMiddleware::default()), Arc::new(PiiRedactMiddleware::default())])`. Tag: `sp-medical-middleware`. Workspace grew 14→16 crates. Tests: 18 + 28 unit + 2 + 2 + 2 e2e = 52 new. Adopter validation: `celia_phr` (4-step migration per spec §7.2; tracked at `celia_phr/docs/sp-medical-middleware-adopter.md`); `healthkit_cli` (opt-in, no regression; tracked at `healthkit_cli/docs/sp-medical-middleware-no-regression.md`). |
-| Phase L.0 — celia federation foundation (FileTokenBroker + whitelist drift-guard + 5-AC verification) | Cross-repo (federation) | ✅ | Phase L.0 | 2026-05-13 | Landed in atd-mvp#7, tag `phase-l-0`. Three deliverables: (a) `atd_runtime::FileTokenBroker` — disk-backed `TokenBroker` impl persisting per-bearer subdirs at mode 0700/0600 on Unix, per-bearer refresh mutex (`lock_refresh()`), no-IO `is_near_expiry()` predicate with 5-min default window. Layout matches healthkit_cli v1.2.0 single-tenant scheme — adopter migration is one `mv` per bearer. (b) Cross-repo invariant I1 drift-guard: `atd-middleware-fhir/vendor/celia-whitelists.toml` vendors celia's source-of-truth toml; `include_str!`-loaded set-equality test asserts `ALLOWED_SYSTEMS_DEFAULT` matches at every `cargo test`. Whitelist grew 70 → 75 (added CVX, HL7 v2-0203, allergyintolerance-clinical/-verification, Synthea). Celia side runs symmetric assertion via `use atd_middleware_fhir::ALLOWED_SYSTEMS_DEFAULT;` — either repo updating its set in isolation fails one of the two CI gates. (c) `crates/atd-conformance/tests/phase_l_baseline.rs` — three new e2e tests prove the five primitives celia depends on compose end-to-end: AC3 (TokenBroker per-`BearerIdentity` routing via `FileTokenBroker` over wire), AC4 (`FhirMiddleware::MismatchPolicy::ReplaceWithError` payload rewrite), AC5 (CapabilitySet Hello-time strict-subset). AC1+AC2 cited as covered by `paginated_dispatch` tests. Unblocks celia_phr#39 (L.1+L.2 — `AtdUpstreamIngest` + `SyncOrchestrator`) and celia_phr PR #38 (Phase L plan). 620/620 workspace tests green. |
-| MCP server-side binding (`BindingProtocol::Mcp`) | Dispatch (binding) | 🚫 v1 | — | undecided | Adopter with an MCP-native tool set |
-| REST binding | Dispatch (binding) | 🚫 v1 | — | undecided | Cloud-hosted tool with REST API |
-| AppFunction binding | Dispatch (binding) | 🚫 v1 | — | undecided | Mobile-vendor adopter |
-| UCAN-lite capability tokens (SP-capability-v2) | Security | ✅ | SP-capability-v2 | 2026-05-11 | Landed end-to-end across UDS + HTTP transports. Spec ([`docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](superpowers/specs/2026-05-11-sp-capability-v2-design.md)) + plan ([`docs/superpowers/plans/2026-05-11-sp-capability-v2.md`](superpowers/plans/2026-05-11-sp-capability-v2.md)) + impl in `crates/atd-runtime/src/ucan/{parse,verify,revocation,types,error}.rs` + `Hello.ucan_tokens` wire field + 4 new wire codes (1010 INVALID / 1011 EXPIRED / 1012 TOO_DEEP / 1013 AUDIENCE_MISMATCH). Verified: 27 unit tests + 12 integration tests across atd-protocol/atd-runtime/atd-server/atd-server-http. Tag: `sp-capability-v2`. Gate triggered by celia_phr (Hermes orchestrator + sub-agent delegation). UCAN-lite = JWT-shape + Ed25519 + did:key only; additive to SP-12 string allow-list (Hello adds `ucan_tokens`, granted = strings ∪ ucan). Replaced §9.3's prior 🚫 v1 deferral. |
-| Tool signature verification | Security | 🚫 v1 | — | Phase 2 | Multi-publisher marketplace |
-| Multi-device routing | Dispatch | 🚫 v1 | — | Phase 2 | Device-vendor adopter |
-| Distributed sessions | Dispatch | 🚫 v1 | — | Phase 2 | Multi-device lands first |
-| Native Skills-layer integration | Cross-cutting | 🚫 forever | — | — | Intentionally separate project |
-| ~~HTTP transport~~ | Dispatch | ✅ | SP-streamable-http + SP-1.B | 2026-05-11 | **Moved up** — see HTTP transport row above. Gate condition triggered by `celia_phr` adopter; row retained as a marker of the 🚫→✅ transition. |
-
-### 10.1 Update cadence
-
-This document is maintained by the ATD maintainers (see `CODEOWNERS`). Expected cadence:
-
-- **Per major SP:** The SP's plan includes a step to update this document's relevant status tables.
-- **Per minor SP:** Update only if status glyphs change or new issues are filed.
-- **Quarterly:** Re-read §9 (non-goals) and §10 (roadmap) for stale entries; re-open or close as needed.
-
-### 10.2 When to amend this document vs file an issue
-
-- **File an issue** in `docs/issues/` for a specific gap that needs tracking and fixing.
-- **Amend this document** when: (a) a gap is closed (update status glyph, remove the issue link), (b) a new non-goal is added or removed, (c) the layer model itself changes (rare — would signal a semver-breaking moment), or (d) a new layer / component / extension point is added.
-
-### 10.3 Versioning this document
-
-This document is `v1.0`. A `v2.0` version would be warranted when:
-
-- A non-goal category moves out of 🚫 (e.g., multi-device routing lands)
-- The layer count changes (e.g., a new layer is inserted)
-- The extension-point contracts change incompatibly
-
-Minor edits (status updates, new entries in §10) do NOT require a version bump. They're tracked by `git log`.
-
-## 11. Deployment shapes & concurrency
-
-ATD ships two blessed transport shapes. The choice is a deployment-context call — both are first-class, both meet the same protocol-level SLOs.
-
-### 11.1 Desktop / sidecar (UDS via `atd-server` + `atd-mcp-bridge`)
-
-```
-   ┌────────────────────────┐         ┌──────────────────────┐
-   │  Hermes Agent /        │  stdio  │  atd-mcp-bridge      │
-   │  Claude Code / etc.    │ ──────► │  (one per session)   │
-   └────────────────────────┘         └──────────┬───────────┘
-                                                  │ UDS
-                                                  ▼
-                                      ┌──────────────────────┐
-                                      │  atd-ref-server      │
-                                      │  (multi_thread tokio,│
-                                      │   4 workers default) │
-                                      └──────────────────────┘
-```
-
-- **Process model:** one bridge subprocess per LLM session; MCP-over-stdio convention.
-- **Concurrency:** ref-server runs multi-thread (`min(cpus, 4)` workers by default; `ATD_WORKER_THREADS` overrides).
-- **Wire deadlines:** 5s during pre-Hello handshake, 30s during active dispatch (configurable on `SharedServerConfig.frame_deadline_*_ms`).
-- **SDK retry:** `AtdClient::connect` retries 5× with 50→800ms exponential backoff + ±20% jitter (`ATD_CONNECT_RETRIES` / `ATD_CONNECT_BACKOFF_*` overrides).
-- **When to use:** local LLM tooling, single-user dev environments, on-device PHR/HRA agents (celia_phr, healthkit_cli, anos).
-
-### 11.2 Cloud / multi-tenant (HTTP via `atd-server-http`)
-
-```
-   ┌────────────────────────┐  HTTPS  ┌──────────────────────┐
-   │  Agent fleet           │ ──────► │  axum / hyper        │
-   │  (Anthropic / OpenAI / │         │  keep-alive          │
-   │   self-hosted)         │         └──────────┬───────────┘
-   └────────────────────────┘                    │ in-process
-                                                  ▼
-                                      ┌──────────────────────┐
-                                      │  atd-server-http     │
-                                      │  (adopter-controlled │
-                                      │   tokio runtime)     │
-                                      └──────────────────────┘
-```
-
-- **Process model:** one long-lived server process per host; clients are HTTP requests.
-- **Concurrency:** the adopter binary owns `#[tokio::main]`; celia_phr uses `multi_thread` with `num_cpus`. The same wire-deadline / audit-mpsc / metrics infrastructure applies in-process.
-- **Bearer auth + UCAN-lite:** per request (SP-token-broker-phase2 + SP-capability-v2).
-- **When to use:** hosted SaaS, fleet-of-agents on shared infra, browser → ATD via Streamable HTTP.
-
-### 11.3 Concurrency invariants (protocol-level, not transport-level)
-
-These hold across both deployment shapes:
-
-- `read_frame` / `write_frame` are deadline-bounded — a stalled peer cannot hold a worker forever (SP-concurrency-baseline §5.2).
-- `AtdClient::connect` retries with jitter — spawn-storm fan-in absorbed at the SDK boundary (§5.3).
-- `AuditSink::on_call` is non-blocking on the dispatch hot path — the default `JsonLinesAuditSink` uses a bounded mpsc + dedicated drain task (§5.4).
-- `Server::metrics_snapshot()` surfaces `accepted_connections` / `dispatched_requests` / `dispatch_errors_by_code` / `audit_events_total` / `audit_drops_total` without imposing a Prometheus pipeline (§5.7).
-- `atd-conformance::concurrent_handshake_storm` enforces these at 50 simultaneous clients × 7 RPCs each — any server claiming ATD conformance must pass.
-
-### 11.4 SLOs (measured on 4-core commodity Linux; CI runners accept 2× headroom)
-
-| Metric | Target | Measured (2026-05-12 ref-server) |
+| Crate | Layer | Purpose |
 |---|---|---|
-| Storm p50 (50 × Hello + ToolList + 5×ToolSchema) | < 100ms | 116ms* |
-| Storm p99 | < 200ms | 125ms |
-| Storm errors (connection-lost / handshake-stalled) | 0 / 50 | 0 / 50 |
-| Storm audit drops (default mpsc capacity 1024) | 0 / 350 events | 0 / 350 |
+| `atd-protocol` | Schema | Wire types, codec, sanitize. The schema's Rust source. |
+| `atd-sdk` | Client | Rust client API. Discover / describe / call / call_page / call_all / hello. |
+| `atd-runtime` | Server core | `Tool` trait, `Registry`, dispatch pipeline, `Binding` + `Middleware` + `CursorIssuer` + `TokenBroker` (+ `FileTokenBroker`) + `AuditSink` + UCAN verifier + `MetricsCounters`. Transport-agnostic. |
+| `atd-server` | Transport | Unix-socket listener; per-connection task with handshake + frame deadlines. |
+| `atd-server-http` | Transport | HTTP listener + MCP JSON-RPC translator + bearer auth + origin gate + SSE bearer-refresh helper. |
+| `atd-middleware-fhir` | Middleware | FHIR R4 egress validation. `ALLOWED_SYSTEMS_DEFAULT` (75 URIs) kept set-equal to celia via vendored toml + drift-guard. |
+| `atd-middleware-pii-redact-medical` | Middleware | HIPAA Safe Harbor PHI redaction. 18 categories × 13 paths × 7 strategies + 5 regex. |
+| `atd-tools-echo` / `-fs` / `-shell` / `-web` | Built-in tools | Reference tool implementations; depend on `atd-runtime`. |
+| `atd-mcp-bridge` | Bridge bin | MCP-over-stdio gateway forwarding to any ATD server. |
+| `atd-cli` | Bin | Reference CLI client — `atd` command, including `atd skills sync`. |
+| `atd-ref-server` | Bin | Reference server binary wiring runtime + tools + Unix server. |
+| `atd-mock-weather-server` | Bin (`publish = false`) | Cross-vendor composition demo helper; boots alongside other ATD servers. |
+| `atd-conformance` | Test suite + bin | Reusable conformance scenarios. Includes `concurrent_handshake_storm`, `paginated_dispatch`, `phase_l_baseline` (5-AC cross-repo verification). Adopters dev-dep on it to test their implementation. |
 
-\* p50 = 116ms is slightly over the 100ms aspirational target because each storm client serially issues 7 RPCs over its UDS socket; the per-RPC RTT is < 20ms and the median is dominated by the 5×ToolSchema cost. Tightening this further is `SP-observability-v2` territory (per-RPC histograms + bottleneck attribution).
+### 9.3 Extension points
 
-### 11.5 Large results & pagination
+Where third-party code attaches without forking the reference server:
 
-For tools whose honest result exceeds the 1MB output budget (e.g., healthkit's `query_observations` over a 6-month window, celia's `list_observations` over an active patient), ATD ships an opt-in pagination primitive — **landed in [`SP-pagination-v1`](superpowers/specs/2026-05-12-sp-pagination-v1-design.md), tag `sp-pagination-v1`**. Wire-format additions:
-
-| Wire | Shape | Notes |
+| You want to... | Surface | Requires fork? |
 |---|---|---|
-| `Request::RunToolContinue` | `{ tool_id, cursor }` | New variant; fetch next page of a paginated tool result |
-| `Response::ToolResultResponse.next_cursor` | `Option<String>` | Opaque continuation handle; absent on terminal pages and non-paginating tools |
-| `ERR_CURSOR_EXPIRED` | `1020` | TTL exceeded or server-session nonce mismatch (server restart invalidation) |
-| `ERR_CURSOR_INVALID` | `1021` | HMAC verification failure / malformed framing / cross-tool mismatch |
+| Add a new tool | `Tool` trait impl + `Registry::register` | No |
+| Add a new binding | `Binding` trait impl | No |
+| Add a new middleware | `Middleware` trait impl + `Server::set_middleware` | No |
+| Add a new auth scheme | `TokenBroker` trait impl + `ServerConfig::token_broker` | No |
+| Add a new audit sink | `AuditSink` trait impl + `ServerConfig::audit_sink` | No |
+| Add a new transport | New listener crate calling `atd_runtime::dispatch::dispatch_request` | No |
+| Add SDK-side aliases | `AtdClient::with_aliases` (planned, SDK-only) | No |
+| Change the wire format | — | Yes (not an extension point) |
+| Add a new `ToolTier` variant | — | Yes |
 
-Reference cursor implementation in `atd-runtime::cursor`: HMAC-SHA256-signed CBOR-encoded `CursorPayload` bound to `(tool_id, caller_id, args_fingerprint, page_index, issued_at_unix, server_session)`. 512-byte wire cap (256-byte opaque-state budget for tool-defined continuation state). 5-minute default TTL. **Stateless**: server doesn't keep a cursor table — verification is HMAC-only, scaling horizontally without shared state.
+### 9.4 Workspace versioning
 
-Tool author API:
-- `Tool::supports_pagination() -> bool` (default `false`) — opt-in flag
-- `Tool::call_paginated(args, ctx, cursor) -> PaginatedResult` — default impl wraps `call` returning `next_cursor: None`. Override both to paginate. Existing tools work unchanged.
+All publishable crates share `workspace.package.version` (currently
+`0.3.0`). Adopters pinning one crate get a consistent set across the
+whole stack — the 0.x line is intentionally lockstep. The 0.x → 1.0
+cutover will introduce per-crate independent versioning; gated by
+adopter signal.
 
-SDK ergonomics (`atd-sdk`):
-- `AtdClient::call_page(tool_id, args, cursor, opts)` — fetch one page
-- `AtdClient::call_all(tool_id, args, opts)` — auto-loop with `MergePolicy::{ConcatArray, ConcatField, FirstPageOnly}`. Sanity-bounded by `max_pages: 100` and `max_total_bytes: 32 MiB`; hitting either returns `AtdError::PaginationLimitExceeded { pages_fetched, bytes_fetched }`.
+`atd-mock-weather-server` is the only `publish = false` crate — it's a
+demo-only bin.
 
-Transport surface:
-- **HTTP** (`atd-server-http`): cursor rides as `arguments.__cursor` on the way in; `nextCursor` on the way out. Both directions are MCP-compatible extensions — cursor-unaware clients ignore unknown fields.
-- **MCP bridge** (`atd-mcp-bridge`): default mode appends a structured truncation notice to `content` when a cursor would otherwise be lost (LLMs see "more data available; ask user or narrow args"). `ATD_MCP_PASSTHROUGH_CURSOR=1` switches to native passthrough for cursor-aware MCP clients (Hermes patched, future MCP spec).
+---
 
-v1 constraints (documented for future SP revisits):
-- Paginated tools execute through native (in-process) semantics, bypassing the `Binding` abstraction. CLI / future MCP / REST bindings cannot paginate — pagination state doesn't survive subprocess boundaries. A future SP can add stateful continuation protocols if a CLI-backed paginated tool emerges.
-- Single-process cursor signing key — multi-instance deployments behind a load balancer should share a key via env (`ATD_CURSOR_SIGNING_KEY=base64...`); the listener crates' `Server::new` random-key default targets single-instance deployments.
+## 10. Non-goals
 
-Conformance: `atd-conformance::tests::paginated_dispatch` exercises the 100-row generator end-to-end — 10 pages × 10 rows, terminal-page cursor omission, cross-tool cursor rejection, per-page audit tagging via `CallEvent.cursor_page`.
+ATD intentionally does NOT pursue the following — neither in v1 nor as
+extension points. Each non-goal has a rationale; an adopter signal can
+move any of them onto the roadmap, but the bar is concrete need rather
+than aspiration.
 
-### 11.6 The incident that motivated this section
+### 10.1 Multi-device routing
 
-On 2026-05-12, celia_phr ran a 10-query × 10-concurrent benchmark against the ATD reference stack (DeepSeek V4 Pro ↔ Hermes Agent ↔ MCP stdio ↔ `atd-mcp-bridge` ↔ `atd-ref-server`). Six of ten sessions failed to load any tools: `prompt_tokens` collapsed from the expected ~5200 (tool-schema-loaded baseline) to ~180-190 (no-tools fallback). Hermes's log showed the smoking gun:
+ATD dispatches to one socket per connection. It does not route a call
+to "whichever device the user is using right now"; that's an
+agent-framework concern. The protocol gives every device a clean ATD
+endpoint and stops there.
 
-```
-Failed to connect to MCP server 'celia' (atd-mcp-bridge): Connection lost
-MCP server 'celia' failed initial connection after 3 attempts, giving up
-```
+### 10.2 Distributed sessions (migrate / fork / handoff)
 
-Three structural causes in three lines of code: ref-server's `#[tokio::main(flavor = "current_thread")]` serialized 10 simultaneous bridge connections through one OS thread; `read_frame` was unbounded so a stalled handshake held the worker indefinitely; `AtdClient::connect` had no retry / backoff so transient EAGAIN-class failures propagated to the MCP transport, which exhausted its 3-attempt budget against an equally starved server. A hidden fourth cliff at the audit layer (mutex-blocked synchronous file I/O on every dispatch) would have surfaced at ~50 dispatches/sec once the first three were fixed.
+A session in ATD scopes to one connection. Migrating a session
+across processes, forking it for parallel exploration, or handing it
+off across hosts — all out of scope. Adopters that need this build it
+on top.
 
-SP-concurrency-baseline (§5.1-§5.7) addresses all four. Post-SP, the same workload at 50× concurrency completes in 127ms with zero errors. The conformance test in `crates/atd-conformance/tests/concurrent_handshake_storm.rs` runs this scenario on every `cargo nextest run --workspace` invocation — future regressions surface in the SP author's pre-commit gate, not in an adopter's production benchmark.
+### 10.3 Tool signature verification
+
+`ToolTrust::signature` is a declarative field; verification is
+non-goal. A signature scheme requires PKI infrastructure
+(publisher keys, key rotation, revocation) the protocol does not
+currently specify. When an adopter ships a real signing pipeline, the
+verification logic can be added without changing the wire shape.
+
+### 10.4 REST / AppFunction / distributed bindings
+
+The `Binding` trait can host any of these, but the reference impl
+ships only `NativeBinding` and `CliBinding`. Production adopters
+needing REST or platform-specific bindings implement the trait
+themselves; the protocol does not bless one rendering.
+
+### 10.5 Native Skills-layer support
+
+ATD is intentionally separate from the Skills runtime; it provides
+stable primitives the runtime consumes. SKILL.md parsing, install
+path management, and progressive disclosure live in the Skills
+runtime (Anthropic Skills / OpenClaw / ...), not here.
+
+### 10.6 Per-tool dry-run preview semantics
+
+v1's dry-run is a server-side short-circuit (returns a synthetic
+`tool_result` without invoking the tool). Routing `dry_run: true`
+to tools whose `ToolSafety::dry_run` is `true` so they can produce
+tool-specific previews is a future axis, not currently on the roadmap.
+
+### 10.7 Per-tool rate-limiter enforcement
+
+`ToolResources::rate_limit_per_min` is declarative only. The
+`max_concurrent` axis is enforced via per-tool semaphores;
+adding a token-bucket rate limiter (via the `governor` crate) is
+straightforward when an adopter needs it, but the v1 line stops at
+semaphores.
+
+---
+
+## See also
+
+- [`CHANGELOG.md`](../CHANGELOG.md) — what landed in each release.
+- [`docs/release-plan-v0.3.0.md`](release-plan-v0.3.0.md) — current
+  release plan + per-crate publication matrix + pre-release
+  checklist.
+- [`docs/protocol/wire-format.md`](protocol/wire-format.md) — byte-level
+  wire reference; supplements §4.
+- [`docs/protocol/error-codes.md`](protocol/error-codes.md) — full
+  `AtdError` taxonomy table.
+- [`/atd-protocol-schema.json`](../atd-protocol-schema.json) — the
+  unified machine-readable schema (§2).
+- [`docs/superpowers/specs/`](superpowers/specs/) — per-SP design
+  rationale.
+- [`docs/issues/`](issues/) — tracked gaps and adopter validation
+  records.
+- [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md)
+  — long-term aspirational scope.
+- [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/atd-v3-skills-architecture-brief.md)
+  — stack diagram source.
