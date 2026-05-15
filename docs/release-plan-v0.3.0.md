@@ -105,14 +105,16 @@ uncommitted changes.
 
 ### 3.1 Code gates
 
-- [ ] `cargo nextest run --workspace` → 620/620 (current baseline)
-- [ ] `cargo clippy --workspace --all-features --all-targets -- -D warnings`
-      → **currently fails** in `atd-server-http`, `atd-tools-fs`,
+- [x] `cargo nextest run --workspace` → 620/620 (verified 2026-05-15)
+- [x] `cargo clippy --workspace --all-features --all-targets -- -D warnings`
+      → **all green** (cleared 2026-05-15 in PR #9 / commit `f5563fc`).
+      Originally failed in `atd-server-http`, `atd-tools-fs`,
       `atd-ref-server` example, and one `mcp.rs` non-snake-case
-      identifier. **Blocker** — must be cleaned up before publish.
-      (Mechanical struct-literal rewrites + one `#[allow(non_snake_case)]`
-      on the test fn; ~1 hour of work.)
-- [ ] `cargo fmt --all -- --check` → clean
+      identifier; 12 lint sites across 5 crates fixed with struct-
+      literal rewrites + `Default` impl + identifier rename + small
+      `needless_borrow` / `ptr_arg` / `cloned_ref_to_slice_refs`
+      polish. No runtime behaviour change; 620/620 still green.
+- [x] `cargo fmt --all -- --check` → clean (verified 2026-05-15)
 - [ ] `cargo build --workspace --release` → no warnings beyond
       clippy clean
 - [ ] `cargo doc --workspace --no-deps` → no broken intra-doc
