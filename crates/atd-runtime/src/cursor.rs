@@ -91,8 +91,17 @@ pub enum CursorError {
     /// Maps to `ERR_CURSOR_EXPIRED` on the wire.
     #[error("cursor expired")]
     Expired,
-    /// HMAC verification failed (forged, tampered, or wrong-key cursor).
-    /// Maps to `ERR_CURSOR_INVALID` on the wire.
+    /// HMAC verification failed AND the cursor's embedded `server_session`
+    /// matches the current issuer's nonce. This narrows the cause to real
+    /// forgery / tampering: an attacker constructed a body whose nonce
+    /// happened to match (or, with probability 2⁻⁶⁴, key rotation that
+    /// preserved the nonce). Maps to `ERR_CURSOR_INVALID` on the wire —
+    /// adopters should surface as a security signal.
+    ///
+    /// Server restart (random key AND random nonce both rotated) is the
+    /// expected lifecycle of single-instance deployments and is reported
+    /// as [`Self::Expired`] instead, so adopters can transparently drop
+    /// the persisted cursor and re-issue.
     #[error("cursor signature invalid")]
     InvalidSignature,
     /// Malformed encoding (bad base64, bad CBOR). Maps to `ERR_CURSOR_INVALID`.
@@ -180,8 +189,43 @@ impl CursorIssuer {
             HmacSha256::new_from_slice(&self.key).expect("HMAC accepts arbitrary key lengths");
         mac.update(body);
         // Constant-time tag comparison via the hmac crate.
-        mac.verify_slice(tag)
-            .map_err(|_| CursorError::InvalidSignature)?;
+        if mac.verify_slice(tag).is_err() {
+            // HMAC verification failed. Two physical causes share this code
+            // path:
+            //   (a) Forgery / tampering — someone produced a cursor whose
+            //       body doesn't authenticate under our key.
+            //   (b) Key rotation — this process was restarted, the issuer's
+            //       random key changed, and an adopter is replaying a
+            //       cursor signed by a previous incarnation of the same
+            //       logical server. This is the **expected** lifecycle for
+            //       single-instance deployments where `ATD_CURSOR_SIGNING_KEY`
+            //       is not set.
+            //
+            // Adopters want to differentiate: (a) is a security signal that
+            // should be surfaced loudly, (b) is "drop the persisted cursor
+            // and re-issue from the initial RunTool". Probe-decode the body
+            // *unverified* to read its `server_session` nonce and split:
+            //
+            //   - nonce ≠ self.session_nonce → key + nonce both rotated at
+            //     startup → return `Expired` (maps to ERR_CURSOR_EXPIRED on
+            //     the wire); adopters know to drop and re-issue.
+            //   - nonce == self.session_nonce → either real tampering, or
+            //     the astronomically unlikely 2⁻⁶⁴ nonce collision after a
+            //     key rotation → return `InvalidSignature` (ERR_CURSOR_INVALID);
+            //     adopters surface as a security signal.
+            //
+            // The probe-decode is `ciborium::from_reader`; CBOR is panic-safe
+            // by design and a malformed body simply collapses to Format-style
+            // failure → fall through to `InvalidSignature` (we can't tell
+            // (a) from (b) in that case, so we're conservative and pick the
+            // security-signal variant).
+            if let Ok(probe) = ciborium::from_reader::<CursorPayload, _>(body)
+                && probe.server_session != self.session_nonce
+            {
+                return Err(CursorError::Expired);
+            }
+            return Err(CursorError::InvalidSignature);
+        }
         let payload: CursorPayload =
             ciborium::from_reader(body).map_err(|e| CursorError::Format(e.to_string()))?;
         if payload.server_session != self.session_nonce {
@@ -360,13 +404,76 @@ mod tests {
     }
 
     #[test]
-    fn verify_rejects_wrong_key() {
+    fn verify_treats_server_restart_as_expired_not_forgery() {
+        // The real-world server-restart shape: both `key` and
+        // `session_nonce` are freshly minted by `random_signing_key()` /
+        // OS RNG, so they differ from the previous incarnation. Adopters
+        // replaying an old cursor must see `Expired` (1020), not
+        // `InvalidSignature` (1021), so they know to drop the persisted
+        // cursor and re-issue the original `RunTool`.
         let issuer_a = fresh_issuer();
-        let issuer_b = fresh_issuer(); // different random key
+        let issuer_b = fresh_issuer(); // different random key AND nonce
         let cursor = issuer_a.issue(mk_payload(&issuer_a, 1)).unwrap();
         match issuer_b.verify(&cursor, 300) {
+            Err(CursorError::Expired) => {}
+            other => panic!("expected Expired (server restart), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn verify_rejects_real_forgery_with_invalid_signature() {
+        // Attacker holds a legitimate cursor and tampers with the body
+        // (flipping the page_index byte by re-encoding). The nonce
+        // embedded in the forged body necessarily matches our current
+        // session (since we re-encode under our own nonce); HMAC must
+        // still fail because the attacker doesn't have our key. The
+        // probe-decode path sees nonce-match and correctly classifies
+        // this as `InvalidSignature` (1021) — the security-signal code.
+        let issuer = fresh_issuer();
+        let original = issuer.issue(mk_payload(&issuer, 1)).unwrap();
+
+        // Synthesize a body with a different page_index but the *same*
+        // (current) nonce, then concatenate someone else's HMAC tag
+        // (use the original tag — guaranteed not to match the tampered
+        // body).
+        let combined = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&original)
+            .unwrap();
+        let (_orig_body, orig_tag) = combined.split_at(combined.len() - 32);
+
+        let tampered_payload = CursorPayload {
+            tool_id: "test:tool".into(),
+            caller_id: Some("test-caller".into()),
+            args_fingerprint: [0u8; 32],
+            page_index: 999, // ← attacker's chosen value
+            issued_at_unix: now(),
+            server_session: issuer.session_nonce(), // ← current nonce
+            opaque_state: vec![],
+        };
+        let mut tampered_body = Vec::new();
+        ciborium::into_writer(&tampered_payload, &mut tampered_body).unwrap();
+
+        let mut forged = tampered_body;
+        forged.extend_from_slice(orig_tag);
+        let forged_cursor = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&forged);
+
+        match issuer.verify(&forged_cursor, 300) {
             Err(CursorError::InvalidSignature) => {}
-            other => panic!("expected InvalidSignature, got {other:?}"),
+            other => panic!("expected InvalidSignature (real forgery), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn verify_unparseable_body_after_hmac_fail_is_invalid_signature() {
+        // Garbage CBOR + garbage HMAC tag (combined long enough to pass
+        // the length check). The probe-decode fails; we fall through to
+        // `InvalidSignature` rather than guessing — conservative posture.
+        let issuer = fresh_issuer();
+        let garbage = vec![0xffu8; 64]; // 32B body + 32B tag, all 0xff
+        let garbage_cursor = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&garbage);
+        match issuer.verify(&garbage_cursor, 300) {
+            Err(CursorError::InvalidSignature) => {}
+            other => panic!("expected InvalidSignature for unparseable, got {other:?}"),
         }
     }
 
