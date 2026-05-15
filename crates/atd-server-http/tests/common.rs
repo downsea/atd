@@ -67,11 +67,17 @@ pub struct EchoStub {
     def: ToolDefinition,
 }
 
-impl EchoStub {
-    pub fn new() -> Self {
+impl Default for EchoStub {
+    fn default() -> Self {
         Self {
             def: stub_def("ref:echo.say"),
         }
+    }
+}
+
+impl EchoStub {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -225,12 +231,15 @@ pub fn http_config_with_ucan_broker(
     }
     let broker_arc: Arc<dyn atd_runtime::TokenBroker> = Arc::new(broker);
 
-    let mut shared = atd_runtime::dispatch::SharedServerConfig::for_test();
-    shared.token_broker = Some(broker_arc);
-    shared.granted_capabilities = server_allow_list;
+    let shared = atd_runtime::dispatch::SharedServerConfig {
+        token_broker: Some(broker_arc),
+        granted_capabilities: server_allow_list,
+        ..atd_runtime::dispatch::SharedServerConfig::for_test()
+    };
 
-    let mut cfg = HttpServerConfig::default();
-    cfg.require_bearer = require_bearer;
-    cfg.shared = Arc::new(shared);
-    cfg
+    HttpServerConfig {
+        require_bearer,
+        shared: Arc::new(shared),
+        ..HttpServerConfig::default()
+    }
 }

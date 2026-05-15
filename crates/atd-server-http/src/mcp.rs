@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tools_call_echo_returns_isError_false_with_serialised_result() {
+    async fn tools_call_echo_returns_is_error_false_with_serialised_result() {
         let state = state_with_echo();
         let params = json!({"name": "ref:echo.say", "arguments": {"hi": "x"}});
         let resp = handle_tools_call(Some(json!(3)), &state, None, params).await;

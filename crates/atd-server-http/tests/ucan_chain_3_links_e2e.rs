@@ -87,7 +87,13 @@ async fn three_link_chain_u_to_a_to_b_admits_request_and_lists_tools() {
     // 3-link: U → A → B (leaf), where A→B's prf is [U→A].
 
     // Leaf: A → B (attenuates to [records:read])
-    let leaf = payload_with(&did_a, &did_b, &["records:read"], &[root_jwt.clone()], exp);
+    let leaf = payload_with(
+        &did_a,
+        &did_b,
+        &["records:read"],
+        std::slice::from_ref(&root_jwt),
+        exp,
+    );
     let leaf_jwt = build_jwt(leaf, &sk_a);
 
     // Broker recognises B as caller "agent-B".

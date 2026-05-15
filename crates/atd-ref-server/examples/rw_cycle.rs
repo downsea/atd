@@ -36,9 +36,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = workdir.path().join("demo.txt");
 
     // Start server in a background task
-    let mut config = ServerConfig::default();
-    config.socket_path = sock.clone();
-    config.cwd = workdir.path().to_path_buf();
+    let config = ServerConfig {
+        socket_path: sock.clone(),
+        cwd: workdir.path().to_path_buf(),
+        ..ServerConfig::default()
+    };
     let server = Server::new(builtin_registry(false), config);
     let _server_handle = Arc::new(tokio::spawn(async move {
         let _ = server.run().await;

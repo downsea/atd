@@ -313,7 +313,7 @@ mod tests {
     async fn read_non_utf8_returns_encoding_error() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bin.dat");
-        std::fs::write(&path, &[0xff, 0xfe, 0xfd]).unwrap();
+        std::fs::write(&path, [0xff, 0xfe, 0xfd]).unwrap();
         let t = FsReadTool::new();
         let ctx = CallContext::for_test();
         let err = t

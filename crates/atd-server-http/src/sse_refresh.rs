@@ -268,15 +268,7 @@ mod tests {
                 _ => MutState::default(),
             };
             // Snapshot value we'll respond with
-            let snapshot = match st {
-                MutState::Ok => MutState::Ok,
-                MutState::OkShrunk => MutState::OkShrunk,
-                MutState::Expired => MutState::Expired,
-                MutState::Revoked(s) => MutState::Revoked(s),
-                MutState::Unknown => MutState::Unknown,
-                MutState::Internal(s) => MutState::Internal(s),
-                MutState::Lookup(s) => MutState::Lookup(s),
-            };
+            let snapshot = st;
             Box::pin(async move {
                 match snapshot {
                     MutState::Ok => Ok(Some(BearerIdentity {
