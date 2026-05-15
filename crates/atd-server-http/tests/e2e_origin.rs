@@ -56,8 +56,10 @@ async fn loopback_origin_accepted() {
 
 #[tokio::test]
 async fn extra_origin_admits_verbatim_match() {
-    let mut cfg = HttpServerConfig::default();
-    cfg.extra_origins = vec!["https://celia.health".to_string()];
+    let cfg = HttpServerConfig {
+        extra_origins: vec!["https://celia.health".to_string()],
+        ..HttpServerConfig::default()
+    };
     let running = spawn_server(echo_registry(), cfg).await;
     let (status, body) = post_with_origin(running.addr, "https://celia.health").await;
     assert_eq!(status, hyper::StatusCode::OK);

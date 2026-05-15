@@ -397,7 +397,7 @@ mod tests {
     async fn edit_non_utf8_returns_encoding_error() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("bin.dat");
-        std::fs::write(&path, &[0xff, 0xfe, 0xfd]).unwrap();
+        std::fs::write(&path, [0xff, 0xfe, 0xfd]).unwrap();
         let (ctx, _tr) = ctx_with_read(&path).await;
         let t = FsEditTool::new();
         let err = t

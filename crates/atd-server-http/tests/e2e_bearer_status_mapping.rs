@@ -98,14 +98,17 @@ impl TokenBroker for ValidBroker {
 }
 
 fn cfg_with_broker(broker: Arc<dyn TokenBroker>) -> HttpServerConfig {
-    let mut shared = atd_runtime::dispatch::SharedServerConfig::for_test();
-    shared.token_broker = Some(broker);
-    shared.granted_capabilities = vec!["echo".to_string()];
+    let shared = atd_runtime::dispatch::SharedServerConfig {
+        token_broker: Some(broker),
+        granted_capabilities: vec!["echo".to_string()],
+        ..atd_runtime::dispatch::SharedServerConfig::for_test()
+    };
 
-    let mut cfg = HttpServerConfig::default();
-    cfg.require_bearer = true;
-    cfg.shared = Arc::new(shared);
-    cfg
+    HttpServerConfig {
+        require_bearer: true,
+        shared: Arc::new(shared),
+        ..HttpServerConfig::default()
+    }
 }
 
 /// POST `/mcp` with the given bearer and parse status + body + a

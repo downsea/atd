@@ -6,7 +6,7 @@
 //! - `dispatch_errors_by_code` accumulates per Response::Error code
 //! - `audit_drops_total` mirrors the JsonLinesAuditSink's drop counter
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -93,7 +93,7 @@ impl std::io::Write for SharedBuf {
     }
 }
 
-async fn wait_for_sock(path: &PathBuf) {
+async fn wait_for_sock(path: &Path) {
     let deadline = std::time::Instant::now() + Duration::from_secs(3);
     while !path.exists() {
         if std::time::Instant::now() > deadline {

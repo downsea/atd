@@ -52,14 +52,17 @@ fn config_with_broker(require_bearer: bool, token: &str, caller: &str) -> HttpSe
     };
     let broker: Arc<dyn atd_runtime::TokenBroker> = Arc::new(FixedBroker::new(token, identity));
 
-    let mut shared = atd_runtime::dispatch::SharedServerConfig::for_test();
-    shared.token_broker = Some(broker);
-    shared.granted_capabilities = vec!["echo".to_string()];
+    let shared = atd_runtime::dispatch::SharedServerConfig {
+        token_broker: Some(broker),
+        granted_capabilities: vec!["echo".to_string()],
+        ..atd_runtime::dispatch::SharedServerConfig::for_test()
+    };
 
-    let mut cfg = HttpServerConfig::default();
-    cfg.require_bearer = require_bearer;
-    cfg.shared = Arc::new(shared);
-    cfg
+    HttpServerConfig {
+        require_bearer,
+        shared: Arc::new(shared),
+        ..HttpServerConfig::default()
+    }
 }
 
 #[tokio::test]
