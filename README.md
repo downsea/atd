@@ -18,6 +18,36 @@ Desktop, Cursor, Hermes, and any other MCP-speaking agent.
 > work will rename it to `atd` once adopters have migrated to crates.io
 > versions.
 
+## What's new in 0.3.0 (federation + multi-tenant + performance + medical)
+
+Highlights since `v0.2.1`. Full inventory in [`CHANGELOG.md`](CHANGELOG.md);
+release strategy and per-crate publish matrix in
+[`docs/release-plan-v0.3.0.md`](docs/release-plan-v0.3.0.md).
+
+- **Perf-v1** — multi-thread tokio runtime + per-state wire deadlines + SDK
+  connect-retry + bounded mpsc audit sink + metrics counters
+  (`sp-concurrency-baseline`); HMAC-signed cursor pagination across the
+  wire + `AtdClient::call_page` / `call_all` SDK ergonomics
+  (`sp-pagination-v1`). 50-client storm: p99=125ms, 0 errors, 0 audit drops.
+- **Security** — UCAN-lite capability tokens with attenuation chains +
+  revocation store (`sp-capability-v2`); HTTP bearer auth on the wire
+  with typed `BearerOutcome` + SSE refresh helper
+  (`sp-token-broker-phase2`); disk-backed `FileTokenBroker` for
+  multi-tenant production deployments (`phase-l-0`).
+- **Medical** — `atd-middleware-fhir` (FHIR R4 egress validation + 75-URI
+  coding whitelist set-equal to celia's source-of-truth) and
+  `atd-middleware-pii-redact-medical` (HIPAA Safe Harbor PHI redaction).
+  Both mount via the existing `Middleware` trait.
+- **Transports** — `atd-server-http` for HTTP/MCP-JSON-RPC adopters
+  alongside the original UDS listener (`sp-streamable-http`).
+- **Federation** — Phase L.0 cross-repo invariant `I1` keeps atd-mvp's
+  coding-system whitelist set-equal to celia's via vendored toml +
+  `include_str!`-loaded drift-guard test (`phase-l-0`).
+
+If you're a path-dep adopter (`celia_phr`, `healthkit_cli`), `cargo
+update` picks up everything above. crates.io publish for v0.3.0 is
+gated by the checklist in the release-plan doc.
+
 ## Quick start
 
 ```bash
