@@ -299,17 +299,32 @@ cbrain 的 W1–W10 路线图（见 `cbrain/docs/research/14`）：
 **atd-mvp 端**：
 - `docs/design.md` —— 协议设计文档
 - `docs/protocol/wire-format.md` —— v0.1.0 wire spec
-- `docs/protocol/error-codes.md` —— 错误码表（cbrain 申请 2000–2099 命名空间）
-- `crates/atd-protocol` / `python/src/atd_client/` —— 现有实现
+- `docs/protocol/error-codes.md` —— 错误码表（cbrain 申请 2000–2099 命名空间；P1-6 will formalize）
+- `crates/atd-protocol` / `python/src/atd_client/` —— client / protocol crates
+- `python/src/atd_server/` —— **NEW** Python server runtime (P0-1 ship, 2026-05-19)
+- `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` —— SP-server-py-v1 design
+- `docs/superpowers/plans/2026-05-19-sp-server-py-v1.md` —— SP-server-py-v1 phasing plan
+- `docs/integrations/python-server.md` —— **NEW** cbrain-style hello-world + adopter guide
 
 ---
 
 ## 8. Recommended next step（给 atd 团队）
 
-1. atd 团队 ACK 本 issue 并标注每项的状态（accept / defer / 需求澄清）；
-2. **先动 P0-1 Python server runtime** —— 这是当前唯一硬阻塞；
-3. cbrain 维护方在 cbrain repo 用 vendored shim 开干 W1，不阻塞；
-4. atd 团队 ship 后 cbrain 切换 + 关闭本 issue。
+> **2026-05-19 update**: steps 1-2 done same session, ahead of expectation. Steps 3-4 revised below.
+
+**Original cbrain ask (kept for history):**
+
+1. ~~atd 团队 ACK 本 issue 并标注每项的状态（accept / defer / 需求澄清）；~~ ✅ done, see §9.1
+2. ~~**先动 P0-1 Python server runtime** —— 这是当前唯一硬阻塞；~~ ✅ done, **shipped same session** (SP-server-py-v1 Phase A-H)
+3. cbrain 维护方在 cbrain repo 用 vendored shim 开干 W1，不阻塞； ⚠ obsoleted — cbrain can consume upstream `atd_server` directly; shim no longer needed
+4. atd 团队 ship 后 cbrain 切换 + 关闭本 issue。 → now reads: **cbrain 切换 + close P0-1 row + remaining SPs (P0-2 / P1-3+4 / P1-6) follow their own timelines**
+
+**Post-ship next step (revised):**
+
+1. cbrain team: merge `worktree-cbrain-triage-and-sp-server-py-v1` to master (or cherry-pick the 8 atd-side commits), pull `atd_server` via path-dep, follow `docs/integrations/python-server.md`. Estimated ~2h.
+2. atd team: pick up the smaller queued SPs in priority order — **P1-6 (error namespace, ~2 days)** + **P2-9 (session model docs, ~3 days)** are the lowest-hanging that unblock cross-adopter coordination. **P0-2 (release binaries)** removes cbrain's onboarding paper cut at W6.
+3. atd team: file `SP-cancel-streaming-v1` design before cbrain W7 — the Phase-2 seam in `atd_server` is ready, but the wire-level `request_id` decision (added to `Request::RunTool`?) needs cross-adopter agreement first.
+4. close criteria: this issue closes when P0-2 + P1-3+4 + P1-6 ship. P2-* SPs proceed independently and are tracked outside this umbrella.
 
 如需 cbrain 团队提供更多细节或同步会议，请 ping `cbrain/docs/research/` 或在本 issue 评论。
 
@@ -327,17 +342,17 @@ ACK 已收到。本节是 ATD 团队对 §3 全部 11 项的 per-item 裁决与 
 
 | # | cbrain ask | 裁决 | SP slot | 备注 |
 |---|---|---|---|---|
-| **P0-1** | Python server runtime | ✅ **shipped 2026-05-19** | **`SP-server-py-v1`** Phase A-H | spec + plan + all 8 phases landed in one session: skeleton / handshake / registry / dispatch / middleware (P2-8 bundled) / conformance subset (22/24 fixtures, 96% coverage) / docs. cbrain can now swap their `cbrain/sim/cbrain_sim/atd_shim/` for `from atd_server import AtdServer`. |
-| **P0-2** | `atd-mcp-bridge` 预编译二进制 | **accept · 下一个 SP** | `SP-release-binaries-v1` | GitHub Actions matrix 构建 (linux x86_64/aarch64 + macOS arm64) + tag-triggered GH release；pypi wrapper 视情况追加；目标 1 月内 |
-| **P1-3** | Cancel / abort | **accept · 与 P1-4 合并** | **`SP-cancel-streaming-v1`** | 二者都需要 per-`request_id` router on connection（v1 server runtime 留好 seam，v2 替换），合并设计省一次协议讨论；supersedes 既有 `2026-04-24-dispatch-session-cancel-not-implemented.md`；目标 6 周 |
-| **P1-4** | Chunked / streaming 响应 | **accept · 与 P1-3 合并** | `SP-cancel-streaming-v1` | 见上 |
-| **P1-5** | Binary payload | **defer · Phase 2 设计** | `SP-binary-frames-v1` (design only) | 协议 breaking change；cbrain W1-W10 base64 jpeg ≤100KB 完全够用；先出设计 spec 锁定方案 A vs B，impl 等真机阶段（cbrain M6+ 或 healthkit 后续需要时） |
-| **P1-6** | Adopter error 命名空间 | **accept · 文档 SP** | `SP-error-namespace-v1` (~2 天) | 分配：cbrain 2000-2099 / healthkit 3000-3099 / celia 4000-4099；`ToolErrorDef` 校验加在 `atd-protocol::sanitize`；目标 1 月内 |
-| **P2-7** | Python conformance runner | **accept · 依赖 P0-1** | `SP-conformance-py-v1` | P0-1 ship 后再开；既有 36 个 fixture 都是声明式数据，Python runner 是薄壳；目标 P0-1 +1 月 |
-| **P2-8** | Middleware hooks | ✅ **shipped 2026-05-19** (bundled in P0-1) | `SP-server-py-v1` Phase F | `@server.middleware(stage="pre_call" \| "post_call" \| "on_error")` 三阶段 + call_next 链；8 tests including the LIFO order proof |
-| **P2-9** | Session model 文档 | **accept · 文档 SP** | `SP-session-model-doc` (~3 天) | `HelloAck` 增加 `session_model: per_connection \| shared_world` 字段（向后兼容：缺省 = per_connection = 当前行为）；`docs/protocol/wire-format.md` 增加 "Session models" 章节；目标 1 月内 |
-| **P2-10** | 工具版本化 | **defer** | n/a yet | 真实需求但 cbrain 自己估 M6+ 才需要，且 healthkit/celia 暂未提；等到第二个 adopter 提同样诉求再开 SP |
-| **P2-11** | Capability 命名规范 | **accept · 文档 SP** | `SP-capability-naming-v1` (~1 周) | `docs/protocol/capability-naming.md` 新增；先列推荐 domain × action 矩阵（fs / shell / web / perception / manipulation / world / task / phr），社区评议 2 周后转 normative；目标 1.5 月内 |
+| **P0-1** | Python server runtime | ✅ **shipped 2026-05-19** | **`SP-server-py-v1`** Phase A-H | spec + plan + all 8 phases landed same session (8 commits `c79317d`→`aeab2f5`): skeleton / handshake / registry / dispatch / middleware (P2-8 bundled) / conformance subset (22/24 fixtures, 96% coverage) / docs. cbrain swap = `path = "../atd-mvp/python"` + `from atd_server import AtdServer` + delete `cbrain/sim/cbrain_sim/atd_shim/` (~2h if §9.3 guidance followed). |
+| **P0-2** | `atd-mcp-bridge` 预编译二进制 | ⏳ **queued — not yet started** | `SP-release-binaries-v1` | next action: file `docs/superpowers/specs/<date>-sp-release-binaries-v1-design.md`. Scope: GitHub Actions matrix (linux x86_64/aarch64 + macOS arm64) + tag-triggered GH release; pypi wrapper via maturin optional. Effort ~2-3 days CI work. Target: 1 month. **Not blocked by anything**; can be picked up by anyone with GitHub Actions familiarity. |
+| **P1-3** | Cancel / abort | ⏳ **queued · merged with P1-4** | **`SP-cancel-streaming-v1`** | next action: file the umbrella design spec; uses per-`request_id` router on connection. **SP-server-py-v1 left the Phase-2 seam** (see `python/src/atd_server/server.py:163-194` — `_serve_one_connection` is strictly serial; v2 just replaces the inner `await self._dispatch(msg, ctx)` with `asyncio.create_task(...)` + request_id router without changing the registry/handler API). Supersedes legacy `2026-04-24-dispatch-session-cancel-not-implemented.md`. Target 6 weeks. |
+| **P1-4** | Chunked / streaming 响应 | ⏳ **queued · merged with P1-3** | `SP-cancel-streaming-v1` | 见上 |
+| **P1-5** | Binary payload | 🟡 **deferred — design SP only** | `SP-binary-frames-v1` (design only) | 协议 breaking change. cbrain W1-W10 base64 jpeg ≤100KB unchanged — no immediate pressure. Recommendation: don't open the SP until either (a) cbrain hits real-robot stage and measures the base64 overhead as a real bottleneck, or (b) healthkit / celia presents an independent need. **Risk if opened prematurely**: design churn against a single use case. |
+| **P1-6** | Adopter error 命名空间 | ⏳ **queued — small doc SP** | `SP-error-namespace-v1` (~2 天) | next action: PR `docs/protocol/error-codes.md` with allocation table (cbrain 2000-2099 / healthkit 3000-3099 / celia 4000-4099) + add a `ToolErrorDef` validator pass in `crates/atd-protocol/src/sanitize.rs`. `atd_server.errors` already uses int codes consistent with this scheme (Phase E commit `dd9116d` allocated 1004=`ERR_DEADLINE_EXCEEDED` and 1005=`ERR_INVALID_ARGS` in the protocol range; the adopter range starts at 2000 cleanly). Target 1 month. |
+| **P2-7** | Python conformance runner | 🟢 **NOW UNBLOCKED — was waiting on P0-1** | `SP-conformance-py-v1` | next action: file the spec. Scope shrunk: `python/tests/test_server_conformance.py` (this SP) already does the hard work of fixture-parsing + partial-match + reference-server setup; the future SP just extracts that into an `atd-conformance-py` CLI binary that points at arbitrary external servers. Effort revised **down** from ~1 week to ~3 days given the Phase-G work. Target: P0-1 + 1 month (i.e. by 2026-06-19). |
+| **P2-8** | Middleware hooks | ✅ **shipped 2026-05-19** (bundled in P0-1) | `SP-server-py-v1` Phase F (`91bf1b5`) | `@server.middleware(stage="pre_call" \| "post_call" \| "on_error")` 三阶段 + call_next 链；8 tests including the LIFO order proof. **Rust runtime parity** is its own sibling SP (not opened yet, low priority — cbrain only needs the Python side). |
+| **P2-9** | Session model 文档 | ⏳ **queued — small doc SP** | `SP-session-model-doc` (~3 天) | next action: edit `docs/protocol/wire-format.md` to add "Session models" section; document `per_connection` (current Rust + Python behavior) vs `shared_world` (cbrain-sim's mode); add optional `session_model: "per_connection" \| "shared_world"` field to `HelloAck` (backward-compat: absent = `per_connection`). `atd_server.AtdServer` would advertise `"shared_world"` when registered tools share mutable state (cbrain's case) — for v1 this is just documented convention, no code change. Target 1 month. |
+| **P2-10** | 工具版本化 | 🟡 **deferred — wait for second adopter** | n/a yet | Open SP when a second adopter (besides cbrain's M6+) hits the same need. Single-adopter SPs ossify around one use case; waiting for two avoids that. |
+| **P2-11** | Capability 命名规范 | ⏳ **queued — doc SP + community review** | `SP-capability-naming-v1` (~1 周 + 2 wk review) | next action: draft `docs/protocol/capability-naming.md` with the recommended `domain:action` matrix. Coordinate with healthkit_cli (uses `records:read`-style), celia (similar), and cbrain (proposed `perception.read`-style with `.`). Phase G already proved the wire is convention-neutral (`required_capabilities` is `list[str]` compared directly); this SP is about **community alignment**, not protocol change. Target 1.5 months. |
 
 ### 9.2 P0-1 立即动作
 
@@ -348,23 +363,56 @@ ACK 已收到。本节是 ATD 团队对 §3 全部 11 项的 per-item 裁决与 
 
 ### 9.3 cbrain 临时 shim 的策略建议
 
+> ⚠ **post-ship update (2026-05-19)**: P0-1 shipped same session — cbrain doesn't actually need to vendor a shim. If they already wrote some W1 code against a shim, treat the items below as **switch-over checklist** (each item is also enforced by `atd_server` itself, so divergence will fail tests). If they haven't started, just consume `atd_server` directly.
+
 cbrain §4 计划 vendor ~300 LOC shim 跑 W1。ATD 团队建议：
 
-1. **byte-compat 严格按 `docs/protocol/wire-format.md` v0.1.0** —— shim 任何"私有便利字段"都会阻塞切换。
-2. **handler 签名提前贴齐**：用 `async def handler(args: dict, ctx) -> ToolSuccess | ToolFailure`，`ctx` 至少含 `request_id` / `dry_run` / `granted_capabilities`，与 `SP-server-py-v1` §5.4 一致。这样 W1-W7 期间 cbrain handler 实现是面向 upstream API 写的，切换时 0 改动。
-3. **middleware 用 stage-based wrapper**（`pre_call` / `post_call` / `on_error`），见 `SP-server-py-v1` §5.6。
-4. **不要 vendor 任何 cancel / streaming 简化版** —— 这两个语义留给 `SP-cancel-streaming-v1` 一次性出，cbrain 在 W7 之前用 5s budget 兜过去就行。
+1. **byte-compat 严格按 `docs/protocol/wire-format.md` v0.1.0** —— shim 任何"私有便利字段"都会阻塞切换。✅ `atd_server` 使用 `atd_client.wire.{read_frame, write_frame}` 直接保证字节兼容。
+2. **handler 签名**：`async def handler(args: dict, ctx: CallContext) -> ToolSuccess | ToolFailure`. `CallContext` 字段为 `request_id` / `tool_id` / `granted_capabilities` / `connection`. ⚠ **correction**: 早先版本说 `ctx` 应有 `dry_run` —— 实际上 SP-server-py-v1 §G5 + Phase E 实现让 dispatcher **在调用 handler 之前** 短路 dry_run，所以 handler 永远看不到 `ctx.dry_run=True`。`CallContext` 不带 `dry_run` 字段。adopter 若想 handler 控制 dry-run 行为，是 future SP 的事。
+3. **middleware 用 stage-based wrapper**（`pre_call` / `post_call` / `on_error`），见 `docs/integrations/python-server.md` 的 cbrain-style Merkle audit 范例 + `SP-server-py-v1` §5.6.
+4. **不要 vendor 任何 cancel / streaming 简化版** —— 这两个语义留给 `SP-cancel-streaming-v1` 一次性出，cbrain 在 W7 之前用 5s budget 兜过去就行。`SP-server-py-v1` Phase B 在 `_serve_one_connection` 留了 Phase-2 seam，v2 切换不破坏 handler 签名。
+5. **capability 字符串约定**：tool 的 `required_capabilities: list[str]` 与 `Hello.granted_capabilities` 直接比对（不再走 `domain:action` 自动展开）。cbrain 选 `.`(point) 还是 `:`(colon) 分隔符是 adopter 自由，但 ServerPolicy 必须 grant 完全匹配的字符串。详见 `docs/integrations/python-server.md` §"Capability gate"。
 
 ### 9.4 Issue 状态
 
-本 issue 整体 status：
+本 issue 整体 status timeline：
 
 - 2026-05-19 ACK：`ready-for-atd` → `triaged-2026-05-19, P0-1 in flight`
-- 2026-05-19 ship：**P0-1 + P2-8 (bundled) shipped same session**；status → `triaged-2026-05-19, P0-1 + P2-8 done; P0-2 / P1-3+4 / P1-6 / P2-7 / P2-9 / P2-11 queued`
+- 2026-05-19 ship：**P0-1 + P2-8 (bundled) shipped same session**
+- 2026-05-19 wrap-up (this commit)：full status table at §9.6 + spec corrections recorded at §9.5
+- current：`triaged-2026-05-19, P0-1 + P2-8 done; 6 SPs queued; 2 deferred`
 - close criteria：P0-2 + P1-3/4 + P1-6 都 ship 之后整体 close；其余子项独立追踪不再绑定本 umbrella
 
-**cbrain 下一步**：worktree branch `worktree-cbrain-triage-and-sp-server-py-v1`，8 个 commit (c79317d → Phase H umbrella tag)。merge 到 master 后用 `path = "../atd-mvp/python"` 把 `atd_server` 拉进 cbrain `pyproject.toml`，删除 `sim/cbrain_sim/atd_shim/`，handler 签名按 §9.3 写过的话切换应该是 ~2h 工作。
+**cbrain 下一步**：merge worktree branch `worktree-cbrain-triage-and-sp-server-py-v1` (8 commits `c79317d` → `aeab2f5`) 到 master，然后在 cbrain 端 `path = "../atd-mvp/python"` 拉 `atd_server` + 删 shim。切换工作量 ~2h（详见 `docs/integrations/python-server.md` cbrain-style hello-world 范例）。
 
 **ATD team contact:** atd-mvp maintainers
 **Triage by:** ATD team, 2026-05-19
 **P0-1 ship:** ATD team, 2026-05-19 (same session as triage; SP-server-py-v1 Phase A-H)
+
+### 9.5 Spec corrections + drift fixes applied during P0-1 impl
+
+These were caught while landing SP-server-py-v1. Each was fixed in the originating commit and recorded in the SP plan. Future SPs (especially Rust-side work) should propagate the relevant ones.
+
+| # | Issue | Severity | Found in | Fixed in | Should propagate to Rust? |
+|---|---|---|---|---|---|
+| 1 | `_drain_and_close` log counter underflow (`done_callback.discard` runs synchronously during `asyncio.wait`, so `len(self._connection_tasks) - len(pending)` could go negative) | functional bug (log-only, no behavior break) | impl review | `afa7982` (Phase D) | Rust impl is different shape; not applicable. |
+| 2 | `atd_client.types.ToolVisibility` missing `HIDDEN` variant — Rust emits `"hidden"` (per `crates/atd-protocol/src/enums.rs:86-95`) and Python Pydantic would reject | adopter-blocking (any Rust → Python flow involving hidden tools) | Phase D conformance fixture inspection | `afa7982` | No — Rust already correct; this was Python-only drift. |
+| 3 | `atd_client.types.ToolDefinition` missing `required_capabilities: list[str]` (Rust has it at `crates/atd-protocol/src/tool.rs:31`) — without it the Python dispatcher had to invent a `domain:action` convention that didn't match Rust ref-server's flat opaque-string convention | adopter-blocking + conformance failure | Phase G fixture inspection | `20b798c` (Phase G) | No — Rust already correct; Python-only drift. |
+| 4 | Spec §5.7 error code allocation conflicted with Rust: `1002 invalid_arguments` collides with `ERR_RATE_LIMITED`; `1003 deadline_exceeded` collides with `ERR_BROKER_FAILED` | spec doc bug (would have caused silent miscategorization in shipped Python code) | Phase E impl | `dd9116d` (Phase E) — reallocated to `1004 ERR_DEADLINE_EXCEEDED` and `1005 ERR_INVALID_ARGS` | **Yes**: SP-error-namespace-v1 should propose these constants for the Rust `messages.rs` allocation too, so cross-impl error code semantics align. |
+| 5 | Spec §Phase C plan said pre-Hello frames should return `1005 not_handshaken` — but Rust `atd-ref-server` does no such enforcement (no state machine). Would have been Python-only divergence. | spec plan bug | Phase C impl | `74a42b2` (Phase C) — relaxed to "Hello optional, may arrive any time, replaces prior conn ctx" | No — matches Rust today; just need to keep both in sync if a future SP adds session enforcement. |
+| 6 | Spec §4 cbrain example showed `if ctx.dry_run: ...` inside handler — but §G5 says dispatcher short-circuits dry_run before handler runs; field was dead | spec doc bug + ambiguous handler contract | Phase E impl | `dd9116d` (Phase E) — `CallContext` does NOT carry `dry_run`; spec comment added. cbrain shim guidance updated at §9.3 above. | No — Python-specific design choice. |
+
+### 9.6 Post-ship roadmap snapshot (for handoff)
+
+| SP | Priority | Effort | Blocked? | Driver | Whoever picks it up |
+|---|---|---|---|---|---|
+| `SP-release-binaries-v1` (P0-2) | medium | 2-3 days CI | no | cbrain W6 onboarding ergonomics | Anyone w/ GH Actions familiarity |
+| `SP-error-namespace-v1` (P1-6) | medium | ~2 days docs | no | cross-adopter alignment | Doc writer; coordinate w/ cbrain + healthkit + celia |
+| `SP-session-model-doc` (P2-9) | medium | ~3 days docs | no | cbrain-sim's shared-world model needs naming | Doc writer |
+| `SP-conformance-py-v1` (P2-7) | low-medium | ~3 days (revised down) | no (P0-1 unblocked it) | Future Python adopters | Python dev; can reuse Phase G code |
+| `SP-cancel-streaming-v1` (P1-3+4) | medium-high | ~6 weeks | no (Phase 2 seam ready) | cbrain W7 priority preemption | Protocol contributor + dual-impl (Rust+Python) |
+| `SP-capability-naming-v1` (P2-11) | low | ~1 wk + 2 wk review | no | community alignment | Doc writer + adopter consensus |
+| `SP-binary-frames-v1` (P1-5, design only) | low | ~3 days design | no | Wait for demonstrated need | Defer until cbrain real-robot stage |
+| Versioning SP (P2-10) | low | n/a | yes — waiting for 2nd adopter | None active | Defer |
+
+**Closure tracking**: this issue closes when P0-2 + P1-3/4 + P1-6 all ship. The other SPs proceed on their own timelines without blocking the umbrella close.
