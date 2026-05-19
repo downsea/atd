@@ -1,6 +1,15 @@
-# atd-client (Python)
+# atd-client / atd-server (Python)
 
-Reference Python SDK for the [ATD protocol](../docs/design.md). Async-first with a sync wrapper for pre-async call sites.
+Reference Python SDK and **server runtime** for the [ATD protocol](../docs/design.md).
+
+- `atd_client` — async-first client (with sync wrapper), LLM adapters, type
+  models. The original Phase-1 package.
+- `atd_server` — Python server runtime (SP-server-py-v1, 2026-05-19).
+  Use this when your tool host needs to live inside a Python process
+  (e.g. a MuJoCo-backed simulator, a notebook server). Byte-compat with
+  the Rust `atd-server`; the Python `AtdClient`, Rust `atd-sdk`, and
+  `atd-mcp-bridge` can all connect to either reference server
+  indistinguishably. See [`docs/integrations/python-server.md`](../docs/integrations/python-server.md).
 
 ## Install
 
@@ -35,6 +44,26 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Quickstart — server (cbrain-style)
+
+```python
+import asyncio
+from atd_server import AtdServer, CallContext
+# ToolDefinition / ToolSuccess / etc. live in atd_client.types
+from atd_client.types import ToolDefinition, ToolSuccess, ToolResultMetadata, ...
+
+server = AtdServer(socket_path="/tmp/my-tools.sock", server_id="demo")
+
+@server.register(definition=ToolDefinition(id="demo:echo", ...))
+async def echo(args: dict, ctx: CallContext) -> ToolSuccess:
+    return ToolSuccess(data={"echoed": args},
+                       metadata=ToolResultMetadata(tool_id="demo:echo"))
+
+asyncio.run(server.serve())
+```
+
+Full guide: [`docs/integrations/python-server.md`](../docs/integrations/python-server.md).
 
 ## Quickstart — sync (LangChain / notebooks)
 

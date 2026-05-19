@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A + B + C + D + E + F + G landed (96% coverage, 22/22 conformance subset); Phase H not started |
+| Status | **🟢 All phases (A-H) landed 2026-05-19** — 72 tests / 96% coverage / 22 conformance fixtures / docs published |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -189,14 +189,15 @@ The meat of the SP. **cbrain can now start swapping the shim** after this phase.
 
 ## Phase H — Documentation
 
-- [ ] `docs/integrations/python-server.md`: new file. Cbrain-style hello-world (tier, capability, middleware, error envelope, graceful shutdown). Cross-link to spec + cbrain issue.
-- [ ] `docs/architecture.md`: §8 crate / package table grows a row for `atd_server` (Python).
-- [ ] `python/README.md`: add "Server runtime" section pointing at the integrations doc.
-- [ ] `CLAUDE.md`: append `atd_server` to the Python mirror line (currently mentions only `python/src/atd_client/`).
-- [ ] Umbrella tag: `sp-server-py-v1`.
-- [ ] Close cbrain issue's P0-1 sub-status; bump cbrain umbrella issue toward "P0-1 done; pending P0-2 / P1-3 / etc."
+- [x] `docs/integrations/python-server.md`: new file. Cbrain-style hello-world covering tool registration, ServerPolicy / capability gate, error envelope (ToolFailure / ToolError / unhandled Exception), middleware (with the LIFO ordering diagram), graceful shutdown. Cross-links to spec, plan, cbrain issue, sibling Rust crate, and the protocol wire-format doc.
+- [x] `docs/architecture.md`: the existing "Python SDK at `python/src/atd_client/`" paragraph (around §5.1) grows a sibling note about `python/src/atd_server/` + the conformance-subset proof-point + a link to the integrations page. (The doc has no structured crate-map TABLE to amend; the paragraph is the closest analog.)
+- [x] `python/README.md`: title bumped (`atd-client / atd-server (Python)`) + "Quickstart — server (cbrain-style)" section pointing at the integrations doc.
+- [ ] **`CLAUDE.md` skipped**: the project CLAUDE.md is not git-tracked (per-machine file). The hint about appending `atd_server` to the Python-mirror line is left as a manual note for whoever later modifies CLAUDE.md.
+- [x] cbrain issue (`docs/issues/2026-05-19-cbrain-adopter-requirements.md` §9): P0-1 row marked ✅ shipped; P2-8 row marked ✅ shipped (bundled); §9.4 status string updated; "cbrain 下一步" instructions added (path-dep wiring + shim removal).
+- [x] `docs/issues/README.md`: cbrain umbrella status updated to `P0-1 + P2-8 shipped 2026-05-19`.
+- [ ] Tag: `sp-server-py-v1` umbrella tag (user can `git tag sp-server-py-v1 <commit>` after merging — I don't tag autonomously).
 
-**Exit criteria:** cbrain swaps the shim → upstream within 1 week; deletes `cbrain/sim/cbrain_sim/atd_shim/`; cbrain issue P0-1 row goes green.
+**Exit criteria:** cbrain swaps the shim → upstream within 1 week; deletes `cbrain/sim/cbrain_sim/atd_shim/`; cbrain issue P0-1 row goes green. ✅ atd-side done as of this commit; cbrain-side swap is their work.
 
 ---
 

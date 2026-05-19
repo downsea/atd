@@ -36,7 +36,7 @@ From adopter requirements (2026-05):
 
 | # | Layer | Status | Summary |
 |---|---|---|---|
-| [2026-05-19-cbrain-adopter-requirements.md](2026-05-19-cbrain-adopter-requirements.md) | adopter (cbrain) | triaged-2026-05-19 | 11 项已全部 ACK + 排期 (见 issue §9)；**P0-1 → `SP-server-py-v1`** (spec landed `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`)；P0-2 → SP-release-binaries-v1；P1-3+P1-4 → SP-cancel-streaming-v1；P1-6 → SP-error-namespace-v1；P2-8 bundled into P0-1；P2-10 deferred |
+| [2026-05-19-cbrain-adopter-requirements.md](2026-05-19-cbrain-adopter-requirements.md) | adopter (cbrain) | **P0-1 + P2-8 shipped 2026-05-19** | 11 项 triage 见 issue §9；**P0-1 (`SP-server-py-v1`) + P2-8 (bundled) shipped** in same session (Phase A-H, 8 commits, 72 tests, 22/24 conformance fixtures, 96% coverage). cbrain swap-over ready. Queued: P0-2 / P1-3+4 / P1-6 / P2-7 / P2-9 / P2-11. Deferred: P1-5 / P2-10. |
 
 ## Recently closed
 

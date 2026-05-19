@@ -327,14 +327,14 @@ ACK 已收到。本节是 ATD 团队对 §3 全部 11 项的 per-item 裁决与 
 
 | # | cbrain ask | 裁决 | SP slot | 备注 |
 |---|---|---|---|---|
-| **P0-1** | Python server runtime | **accept · 即刻动** | **`SP-server-py-v1`** (design 本日) | spec: `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`；alpha 目标 ~2 周；bundling P2-8 middleware（同一 runtime 一起出，避免再开一个 SP） |
+| **P0-1** | Python server runtime | ✅ **shipped 2026-05-19** | **`SP-server-py-v1`** Phase A-H | spec + plan + all 8 phases landed in one session: skeleton / handshake / registry / dispatch / middleware (P2-8 bundled) / conformance subset (22/24 fixtures, 96% coverage) / docs. cbrain can now swap their `cbrain/sim/cbrain_sim/atd_shim/` for `from atd_server import AtdServer`. |
 | **P0-2** | `atd-mcp-bridge` 预编译二进制 | **accept · 下一个 SP** | `SP-release-binaries-v1` | GitHub Actions matrix 构建 (linux x86_64/aarch64 + macOS arm64) + tag-triggered GH release；pypi wrapper 视情况追加；目标 1 月内 |
 | **P1-3** | Cancel / abort | **accept · 与 P1-4 合并** | **`SP-cancel-streaming-v1`** | 二者都需要 per-`request_id` router on connection（v1 server runtime 留好 seam，v2 替换），合并设计省一次协议讨论；supersedes 既有 `2026-04-24-dispatch-session-cancel-not-implemented.md`；目标 6 周 |
 | **P1-4** | Chunked / streaming 响应 | **accept · 与 P1-3 合并** | `SP-cancel-streaming-v1` | 见上 |
 | **P1-5** | Binary payload | **defer · Phase 2 设计** | `SP-binary-frames-v1` (design only) | 协议 breaking change；cbrain W1-W10 base64 jpeg ≤100KB 完全够用；先出设计 spec 锁定方案 A vs B，impl 等真机阶段（cbrain M6+ 或 healthkit 后续需要时） |
 | **P1-6** | Adopter error 命名空间 | **accept · 文档 SP** | `SP-error-namespace-v1` (~2 天) | 分配：cbrain 2000-2099 / healthkit 3000-3099 / celia 4000-4099；`ToolErrorDef` 校验加在 `atd-protocol::sanitize`；目标 1 月内 |
 | **P2-7** | Python conformance runner | **accept · 依赖 P0-1** | `SP-conformance-py-v1` | P0-1 ship 后再开；既有 36 个 fixture 都是声明式数据，Python runner 是薄壳；目标 P0-1 +1 月 |
-| **P2-8** | Middleware hooks | **accept · 并入 P0-1** | `SP-server-py-v1` | Python server runtime 从 day-1 暴露 `pre_call` / `post_call` / `on_error` hook；Rust runtime parity 走 sibling `SP-runtime-middleware-v1`（cbrain 不需要 Rust 那边的） |
+| **P2-8** | Middleware hooks | ✅ **shipped 2026-05-19** (bundled in P0-1) | `SP-server-py-v1` Phase F | `@server.middleware(stage="pre_call" \| "post_call" \| "on_error")` 三阶段 + call_next 链；8 tests including the LIFO order proof |
 | **P2-9** | Session model 文档 | **accept · 文档 SP** | `SP-session-model-doc` (~3 天) | `HelloAck` 增加 `session_model: per_connection \| shared_world` 字段（向后兼容：缺省 = per_connection = 当前行为）；`docs/protocol/wire-format.md` 增加 "Session models" 章节；目标 1 月内 |
 | **P2-10** | 工具版本化 | **defer** | n/a yet | 真实需求但 cbrain 自己估 M6+ 才需要，且 healthkit/celia 暂未提；等到第二个 adopter 提同样诉求再开 SP |
 | **P2-11** | Capability 命名规范 | **accept · 文档 SP** | `SP-capability-naming-v1` (~1 周) | `docs/protocol/capability-naming.md` 新增；先列推荐 domain × action 矩阵（fs / shell / web / perception / manipulation / world / task / phr），社区评议 2 周后转 normative；目标 1.5 月内 |
@@ -357,7 +357,14 @@ cbrain §4 计划 vendor ~300 LOC shim 跑 W1。ATD 团队建议：
 
 ### 9.4 Issue 状态
 
-本 issue 整体 status 从 `ready-for-atd` 变更为 **`triaged-2026-05-19, P0-1 in flight`**。各子项的进展会在对应 SP commit 里反映；本 issue 在 P0-1 + P0-2 + P1-3/4 + P1-6 都 ship 之后关闭（其余条目独立追踪，不再绑定本 umbrella）。
+本 issue 整体 status：
+
+- 2026-05-19 ACK：`ready-for-atd` → `triaged-2026-05-19, P0-1 in flight`
+- 2026-05-19 ship：**P0-1 + P2-8 (bundled) shipped same session**；status → `triaged-2026-05-19, P0-1 + P2-8 done; P0-2 / P1-3+4 / P1-6 / P2-7 / P2-9 / P2-11 queued`
+- close criteria：P0-2 + P1-3/4 + P1-6 都 ship 之后整体 close；其余子项独立追踪不再绑定本 umbrella
+
+**cbrain 下一步**：worktree branch `worktree-cbrain-triage-and-sp-server-py-v1`，8 个 commit (c79317d → Phase H umbrella tag)。merge 到 master 后用 `path = "../atd-mvp/python"` 把 `atd_server` 拉进 cbrain `pyproject.toml`，删除 `sim/cbrain_sim/atd_shim/`，handler 签名按 §9.3 写过的话切换应该是 ~2h 工作。
 
 **ATD team contact:** atd-mvp maintainers
 **Triage by:** ATD team, 2026-05-19
+**P0-1 ship:** ATD team, 2026-05-19 (same session as triage; SP-server-py-v1 Phase A-H)

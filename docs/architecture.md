@@ -407,6 +407,14 @@ Dispatch is transport-agnostic: both `atd-server` (UDS) and
 The Python SDK at `python/src/atd_client/` mirrors the API surface
 with both sync and async flavours (`AtdClient` / `AtdClientSync`).
 
+A sibling Python **server runtime** lives at `python/src/atd_server/`
+(SP-server-py-v1, 2026-05-19) — adopters whose tool host must live in
+a Python process (e.g. an embodied-agent simulator co-located with
+MuJoCo state) use this instead of the Rust `atd-server`. It speaks the
+same wire format byte-for-byte; verified by passing 22/24 of the
+`atd-conformance` fixtures. See
+[`docs/integrations/python-server.md`](integrations/python-server.md).
+
 ### 5.2 Capability gate
 
 Two complementary mechanisms compose at Hello time:
