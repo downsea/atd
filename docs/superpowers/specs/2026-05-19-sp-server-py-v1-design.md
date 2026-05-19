@@ -387,10 +387,22 @@ except Exception as e:
 | `return ToolFailure(error_code=N, error_message=msg, ...)` | `Response::ToolResult { request_id, failure: <envelope> }` |
 | `raise ToolError(code=N, message=msg, partial_data=...)` | `Response::ToolResult { request_id, failure: <envelope from exc> }` |
 | `raise <any other Exception>` | `Response::ToolResult { request_id, failure: { code: 1099, message: "internal_error: <ExcClass>" } }` |
-| `asyncio.TimeoutError` (from tier deadline wrap) | `Response::ToolResult { request_id, failure: { code: 1003, message: "tool exceeded <tier> deadline (<s>s)" } }` |
-| Capability denied (pre-dispatch) | `Response::Error { code: 1001, message: "capability denied: <missing>" }` |
+| `asyncio.TimeoutError` (from tier deadline wrap) | `Response::ToolResult { request_id, failure: { code: 1004, message: "tool exceeded deadline (<s>s)" } }` |
+| Capability denied (pre-dispatch) | `Response::Error { code: 1001, message: "capability denied: <missing>", details: { required, granted, missing } }` |
 | Tool not found (pre-dispatch) | `Response::Error { code: 1000, message: "tool not found: <id>" }` |
-| Args invalid (schema check) | `Response::Error { code: 1002, message: "invalid arguments: <jsonschema-msg>" }` |
+| Args invalid (schema check) | `Response::Error { code: 1005, message: "invalid arguments: <jsonschema-msg>" }` |
+
+**Error-code allocation (reconciled with `crates/atd-protocol/src/messages.rs` during Phase E impl).** The original spec wrote `1002 invalid_arguments` and `1003 deadline_exceeded`; those collided with Rust's existing `ERR_RATE_LIMITED=1002` and `ERR_BROKER_FAILED=1003`. The actual allocation lives in `atd_server.errors`:
+
+| code | name | source |
+|---|---|---|
+| 1000 | `ERR_TOOL_NOT_FOUND` | Python convention (Rust has no constant; matches `"not found"` Python-client substring) |
+| 1001 | `ERR_CAPABILITY_DENIED` | Rust |
+| 1002 | `ERR_RATE_LIMITED` | Rust (not yet emitted by atd_server) |
+| 1003 | `ERR_BROKER_FAILED` | Rust (not yet emitted by atd_server) |
+| 1004 | `ERR_DEADLINE_EXCEEDED` | new (Python-server-py v1; SP-error-namespace-v1 can propose to Rust) |
+| 1005 | `ERR_INVALID_ARGS` | new |
+| 1099 | `ERR_INTERNAL` | Python convention (Rust has no constant) |
 
 `ToolError`:
 

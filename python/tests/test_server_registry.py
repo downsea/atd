@@ -179,7 +179,11 @@ async def test_tool_schema_missing_id_returns_error(tmp_path: Path) -> None:
         await stop_and_wait(server, task)
 
 
-async def test_run_tool_is_phase_e_stub(tmp_path: Path) -> None:
+async def test_run_tool_for_unknown_tool_returns_1000_after_phase_e(
+    tmp_path: Path,
+) -> None:
+    """Phase E wired run_tool through `dispatch_run_tool`. The old Phase E stub
+    (1099 placeholder) is gone; the unknown-tool path now returns 1000 instead."""
     sock = str(tmp_path / "atd.sock")
     server = AtdServer(socket_path=sock)
     task = await spawn(server)
@@ -189,8 +193,8 @@ async def test_run_tool_is_phase_e_stub(tmp_path: Path) -> None:
             {"type": "run_tool", "tool_id": "demo:any", "args": {}, "dry_run": False},
         )
         assert reply["type"] == "error"
-        assert reply["code"] == 1099
-        assert "Phase E" in reply["message"]
+        assert reply["code"] == 1000
+        assert "not found" in reply["message"]
     finally:
         await stop_and_wait(server, task)
 

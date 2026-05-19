@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A + B + C + D landed; Phase E not started |
+| Status | Phase A + B + C + D + E landed (**cbrain swap-over point reached**); Phase F not started |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -106,31 +106,42 @@ Implement `Hello` → `HelloAck` with a configurable policy. Stash UCAN tokens o
 
 ## Phase E — Dispatch (tier deadline + dry_run + capability gate + error envelope)
 
-The meat of the SP. cbrain can already start swapping the shim after this phase.
+The meat of the SP. **cbrain can now start swapping the shim** after this phase.
 
-- [ ] `dispatch.py`:
-  - `dispatch_run_tool(request, registry, conn_ctx, granted_caps, tier_deadlines, middleware_chain) -> Response dict`.
-  - Capability gate: `definition.capabilities ⊆ granted_caps` else `1001`.
-  - `dry_run=True` short-circuit: return `ToolSuccess(data={"args_preview": validated_args})`.
-  - JSONSchema validation of args (if `jsonschema` is installed) → `1002` on violation.
-  - `_tier_to_deadline(tier)` lookup with per-server override.
-  - `asyncio.wait_for(handler(args, ctx), timeout=deadline_s)`; `TimeoutError` → `1003`.
-  - `ToolError` → envelope with `exc.code` / `exc.message` / `exc.partial_data`.
-  - Unhandled `Exception` → `1099 internal_error: <ExcClass>`; log full traceback at ERROR.
-- [ ] `errors.py`: `ToolError` exception; `ERR_*` code constants mirrored from `atd_client.errors`; `_build_error_response(request_id, code, message)` helper.
-- [ ] `server.py`: wire dispatch into per-connection state machine.
-- [ ] Add optional dep on `jsonschema` in `python/pyproject.toml` extras; without it, schema validation is skipped + warn-once.
-- [ ] `python/tests/test_server_dispatch.py`:
-  - Register echo tool; client `call` returns success.
-  - Register a tool needing `fs.write`; client granted only `fs.read` → `1001`.
-  - `dry_run=True` returns `args_preview` without invoking handler (use a handler that raises if called).
-  - Tool that sleeps 2s with `tier=HOT (1s)` → `1003 deadline_exceeded`.
-  - Handler raises `ToolError(2001, "cbrain failure")` → envelope carries code=2001.
-  - Handler raises `ValueError("boom")` → envelope carries `1099`, message includes "ValueError"; traceback logged but not on wire.
-  - Args fail JSON schema → `1002`.
-- [ ] Tag: `sp-server-py-v1-phase-e`.
+- [x] `dispatch.py`:
+  - `dispatch_run_tool(request, *, registry, conn_ctx, default_deadline_s)` → wire response dict.
+  - Capability gate: required = `{f"{domain}:{action}" for action in capability.actions}`; missing = required - granted; deny ⇒ `1001` with details `{required, granted, missing}`.
+  - `dry_run=True` short-circuit: returns `ToolSuccess(data={"args_preview": args})` before any handler/schema invocation.
+  - JSONSchema validation of args (when `jsonschema` is installed via the `validation` extras) → `1005` on violation.
+  - Deadline source: `definition.resources.timeout_ms` (with WARM=30s fallback when 0). v0.1.0 ToolDefinition has no `tier` field; the spec's HOT/WARM/COLD table is wired as fallback only.
+  - `asyncio.wait_for(handler(args, ctx), timeout=deadline_s)`; `TimeoutError` → `1004`.
+  - `ToolError(code, message, partial_data, retryable)` → typed envelope.
+  - Unhandled `Exception` → `1099` envelope with `ExcClass` only (no traceback on wire); full traceback logged at ERROR.
+  - `CancelledError` re-raised (don't swallow tokio-style cooperative cancellation).
+  - Plain handler returns (dict / list / scalar) wrapped as `ToolSuccess`; `ToolSuccess` / `ToolFailure` returns unwrapped to the wire shape.
+- [x] `errors.py`: `ToolError` exception + `ERR_*` constants + `build_error_response` / `build_tool_result_success` / `build_tool_result_failure` helpers.
+- [x] `context.py`: `CallContext` frozen dataclass (`request_id`, `tool_id`, `granted_capabilities`, `connection`). `dry_run` intentionally absent — handlers never observe it (auto-short-circuit by dispatcher).
+- [x] `server.py`: wired `dispatch_run_tool` into `_dispatch`.
+- [x] `pyproject.toml`: `[project.optional-dependencies] validation = ["jsonschema>=4"]`. Without it, schema validation is skipped + debug log on import.
+- [x] **Spec error-code drift fixed:** original §5.7 said `1002 invalid_arguments` and `1003 deadline_exceeded`. Both collided with Rust's `ERR_RATE_LIMITED=1002` / `ERR_BROKER_FAILED=1003`. Real allocation: `1004 DEADLINE_EXCEEDED`, `1005 INVALID_ARGS`. Spec §5.7 updated in this commit.
+- [x] **Spec dry-run contract clarified:** the §4 cbrain example showed `if ctx.dry_run: return ToolSuccess(data={"args_preview": args})`. Per §G5 ("dry_run short-circuits without invoking handler"), `ctx.dry_run` would never be `True` inside a handler — so we removed `dry_run` from `CallContext` entirely. Adopter-controlled dry-run is out-of-scope for v1.
+- [x] `python/tests/test_server_dispatch.py` (12 tests):
+  - Happy path: handler return → success envelope; CallContext exposes `request_id`.
+  - Handler returning `ToolSuccess` unwraps to `result.data`.
+  - Handler returning `ToolFailure(code="2001", ...)` numerically coerces to `2001` on wire (cbrain 2000+ namespace ergonomic).
+  - Capability denied with explicit details payload.
+  - Capability denied even when no Hello sent at all (empty grant set).
+  - Dry-run short-circuit: handler MUST NOT be invoked (asserted via a side-channel list).
+  - 100ms timeout + handler sleep(0.5) → `1004 deadline exceeded`.
+  - `ToolError(code=2042, message=..., partial_data=...)` round-trips with all fields.
+  - `raise ValueError("boom")` → `1099`, message includes `ValueError`, "boom" text NOT on wire.
+  - Unknown tool → `1000 not found`.
+  - Missing `tool_id` → `1005`.
+  - JSONSchema validation: `{"n": "not-an-int"}` against integer schema → `1005`.
+- [x] Carry-over test cleanup: Phase D's `test_run_tool_is_phase_e_stub` (which expected the placeholder 1099) renamed and re-asserted as `test_run_tool_for_unknown_tool_returns_1000_after_phase_e`.
+- [ ] Tag: `sp-server-py-v1-phase-e` (after commit lands).
 
-**Exit criteria:** cbrain can register `perception.snapshot` / `manipulation.pick` / etc., call them from Hermes via `atd-mcp-bridge`, and see correct dispatch + deadlines + error envelopes. **This is the cbrain swap-over point.**
+**Exit criteria:** cbrain can register `perception.snapshot` / `manipulation.pick` / etc., call them from Hermes via `atd-mcp-bridge`, and see correct dispatch + deadlines + error envelopes. ✅ met as of commit `<TBD>`. **This is the cbrain swap-over point.**
 
 ---
 

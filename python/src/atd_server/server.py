@@ -1,19 +1,14 @@
-"""AtdServer — phase-D registry + tool_list / tool_schema dispatch.
+"""AtdServer — phase-E run_tool dispatch (cbrain swap-over point).
 
-What this phase delivers on top of Phase C:
-- `@server.register(definition=...)` decorator wires a handler into the
-  registry. Phase E will actually invoke the handler from `run_tool`.
-- `tool_list` returns visible summaries; `tool_schema` returns the full
-  definition or `1000 not_found`.
-- Hidden tools (`visibility == ToolVisibility.HIDDEN`) are excluded from
-  `tool_list` but reachable by id via `tool_schema` / `run_tool`.
-- `_drain_and_close` log math: snapshot `total` BEFORE `asyncio.wait`
-  removes done tasks from the set (via `done_callback`). Previous
-  formulation `len(self._connection_tasks) - len(pending)` could go
-  negative when all tasks discarded themselves before the log line.
+What this phase delivers on top of Phase D:
+- `run_tool` request now dispatches to the registered handler via
+  `atd_server.dispatch.dispatch_run_tool`, with capability gate,
+  optional JSONSchema arg validation, dry-run short-circuit, tier-derived
+  deadline (from `definition.resources.timeout_ms`), and typed error
+  envelope (ToolError, generic Exception → 1099, TimeoutError → 1004).
+- Adopters now see CallContext on the second handler arg.
 
-`middleware` is still a stub (Phase F). `run_tool` returns a Phase-E
-placeholder error until Phase E lands.
+`middleware` is still a stub (Phase F).
 """
 
 from __future__ import annotations
@@ -29,6 +24,7 @@ from atd_server._runtime import install_signal_handlers
 from atd_server.adapters import Transport
 from atd_server.adapters.unix import UnixSocketTransport
 from atd_server.context import ConnectionContext
+from atd_server.dispatch import dispatch_run_tool
 from atd_server.handshake import negotiate_hello
 from atd_server.policy import ServerPolicy, default_policy
 from atd_server.registry import HandlerFn, ToolRegistry
@@ -245,9 +241,10 @@ class AtdServer:
                 ), ctx
             return {"type": "tool_schema", "schema": defn.model_dump(mode="json")}, ctx
         if msg_type == "run_tool":
-            return _error("run_tool lands in SP-server-py-v1 Phase E"), ctx
-        # Phase D/E/F replace these placeholders with real dispatch.
-        return _error(f"{msg_type!r} not implemented in SP-server-py-v1 phase D"), ctx
+            response = await dispatch_run_tool(msg, registry=self._registry, conn_ctx=ctx)
+            return response, ctx
+        # Phase F (middleware) and future SPs replace remaining placeholders.
+        return _error(f"{msg_type!r} not implemented in SP-server-py-v1 phase E"), ctx
 
 
 def _error(

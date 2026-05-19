@@ -24,6 +24,13 @@ dependencies = [
 
 [project.optional-dependencies]
 langchain = ["langchain-core>=0.3"]
+# `validation` extras enable JSONSchema validation of run_tool `args` against
+# definition.input_schema in atd_server.dispatch. Without it, schema is
+# silently skipped (a single debug log on import). Hard dep planned once
+# Python adopters consistently want validation; cbrain doesn't today.
+validation = [
+    "jsonschema>=4",
+]
 
 [project.urls]
 Homepage = "https://github.com/downsea/atd-mvp"
