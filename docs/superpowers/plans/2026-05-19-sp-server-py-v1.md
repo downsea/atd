@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A + B + C landed; Phase D not started |
+| Status | Phase A + B + C + D landed; Phase E not started |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -80,17 +80,27 @@ Implement `Hello` → `HelloAck` with a configurable policy. Stash UCAN tokens o
 
 ## Phase D — Registry + tool_list + tool_schema
 
-- [ ] `registry.py`: `ToolRegistry` (register / summaries / describe / get); duplicate-id error; sync-handler rejection.
-- [ ] `server.py`: `@server.register(definition=...)` decorator wires through to registry.
-- [ ] Dispatch routing: `tool_list` → `registry.summaries(include_hidden=False)` → wrap as `Response::ToolList`. `tool_schema` → `registry.describe(tool_id)` → wrap as `Response::ToolSchema` or `1000 tool_not_found`.
-- [ ] `python/tests/test_server_registry.py`:
-  - Register 3 tools (one HIDDEN); `tool_list` returns 2 summaries.
-  - `tool_schema` on registered id returns definition; on unknown id returns `1000`.
-  - Duplicate registration raises `ValueError`.
-  - Sync handler registration raises `TypeError`.
-- [ ] Tag: `sp-server-py-v1-phase-d`.
+- [x] `registry.py`: `ToolRegistry` (register / summaries / describe / get / len); duplicate-id, sync-handler, empty-id errors; `_summary_from_definition` projects ToolDefinition → ToolSummary.
+- [x] `server.py`: `@server.register(definition=...)` decorator wires through to registry.
+- [x] Dispatch routing: `tool_list` → `registry.summaries(include_hidden=False)` → `{"type":"tool_list","tools":[...]}`. `tool_schema` → `registry.describe(tool_id)` → `{"type":"tool_schema","schema":...}` or `1000 not found: <id>` (the Python client's `describe()` substring-matches "not found").
+- [x] **Drift fix:** `atd_client.types.ToolVisibility` was missing the `HIDDEN` variant that Rust serializes as `"hidden"` (per `crates/atd-protocol/src/enums.rs:86-95`). Without HIDDEN, the Pydantic enum's `_missing_` handler would reject any tool the Rust ref-server emitted with hidden visibility. One-line fix landed in this phase commit.
+- [x] **Bug fix:** `_drain_and_close` log-counter was computing `len(self._connection_tasks) - len(pending)` AFTER `asyncio.wait` discarded done tasks via `done_callback` → could go negative. Snapshot `total = len(in_flight)` before the wait.
+- [x] `python/tests/test_server_registry.py` (11 tests):
+  - decorator transparency / duplicate id / sync handler / empty id rejection
+  - `tool_list` returns registered summaries that re-parse as `ToolSummary`
+  - HIDDEN tools excluded from `tool_list` but reachable via `tool_schema` by id
+  - `tool_schema` unknown returns `1000 not found: ...`
+  - missing `tool_id` returns `1099` envelope
+  - `run_tool` still returns the Phase E stub error
+  - `middleware` still raises NotImplementedError
+- [x] `python/tests/test_server_lifecycle.py` (3 tests):
+  - drain-with-idle-connection logs `drained 0 connections, 1 forced` (regression guard)
+  - drain-with-no-connections logs the clean path
+  - clean disconnect before stop counts cleanly (not forced)
+- [x] `python/tests/_helpers.py` factored out — shared `spawn` / `stop_and_wait` / `round_trip` / `make_definition`.
+- [ ] Tag: `sp-server-py-v1-phase-d` (after commit lands).
 
-**Exit criteria:** Python `AtdClient.discover()` + `describe()` work end-to-end against `AtdServer` with registered tools.
+**Exit criteria:** Python `AtdClient.discover()` + `describe()` work end-to-end against `AtdServer` with registered tools. ✅ met as of commit `<TBD>`.
 
 ---
 

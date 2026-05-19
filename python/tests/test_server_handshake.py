@@ -163,15 +163,16 @@ async def test_ping_works_before_hello(tmp_path: Path) -> None:
         await asyncio.wait_for(task, timeout=2.0)
 
 
-async def test_unknown_message_type_returns_phase_c_stub_error(tmp_path: Path) -> None:
+async def test_unknown_message_type_returns_stub_error(tmp_path: Path) -> None:
+    """Phase D handles ping/hello/tool_list/tool_schema/run_tool. Anything else is 1099."""
     sock = str(tmp_path / "atd.sock")
     server = AtdServer(socket_path=sock)
     task = await _spawn(server)
     try:
-        reply = await _round_trip(sock, {"type": "tool_list"})
+        reply = await _round_trip(sock, {"type": "future_message_type"})
         assert reply["type"] == "error"
         assert reply["code"] == 1099
-        assert "tool_list" in reply["message"]
+        assert "future_message_type" in reply["message"]
     finally:
         await server.stop()
         await asyncio.wait_for(task, timeout=2.0)

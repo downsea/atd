@@ -66,10 +66,8 @@ async def test_unlink_existing_clears_stale_socket(tmp_path: Path) -> None:
         await asyncio.wait_for(task, timeout=2.0)
 
 
-async def test_register_and_middleware_are_phase_d_f_stubs(tmp_path: Path) -> None:
+async def test_middleware_is_phase_f_stub(tmp_path: Path) -> None:
     server = AtdServer(socket_path=str(tmp_path / "atd.sock"))
-    with pytest.raises(NotImplementedError, match="Phase D"):
-        server.register()
     with pytest.raises(NotImplementedError, match="Phase F"):
         server.middleware()
 

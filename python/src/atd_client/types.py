@@ -19,6 +19,7 @@ class ToolVisibility(str, Enum):
     WRITE = "write"
     DANGEROUS = "dangerous"
     SYSTEM = "system"
+    HIDDEN = "hidden"  # SP-tool-visibility-hidden; excluded from tool_list, reachable by id
 
     @classmethod
     def _missing_(cls, value: object) -> ToolVisibility | None:
