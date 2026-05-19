@@ -199,7 +199,10 @@ async def test_run_tool_for_unknown_tool_returns_1000_after_phase_e(
         await stop_and_wait(server, task)
 
 
-async def test_middleware_stub_still_raises(tmp_path: Path) -> None:
+async def test_middleware_decorator_validates_stage(tmp_path: Path) -> None:
+    """Phase F wired the middleware decorator; full semantics in test_server_middleware.py."""
     server = AtdServer(socket_path=str(tmp_path / "atd.sock"))
-    with pytest.raises(NotImplementedError, match="Phase F"):
-        server.middleware()
+    decorator = server.middleware(stage="pre_call")
+    assert callable(decorator)
+    with pytest.raises(ValueError, match="unknown middleware stage"):
+        server.middleware(stage="bogus")  # type: ignore[arg-type]

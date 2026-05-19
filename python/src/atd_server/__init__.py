@@ -17,11 +17,12 @@ from atd_server.errors import (
     ERR_TOOL_NOT_FOUND,
     ToolError,
 )
+from atd_server.middleware import MiddlewareChain, MiddlewareStage
 from atd_server.policy import GrantedCapabilities, ServerPolicy, default_policy
 from atd_server.registry import ToolRegistry
 from atd_server.server import AtdServer
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 __all__ = [
     "AtdServer",
@@ -33,6 +34,8 @@ __all__ = [
     "ERR_INVALID_ARGS",
     "ERR_TOOL_NOT_FOUND",
     "GrantedCapabilities",
+    "MiddlewareChain",
+    "MiddlewareStage",
     "ServerPolicy",
     "ToolError",
     "ToolRegistry",

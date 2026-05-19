@@ -44,6 +44,7 @@ from atd_server.errors import (
     build_tool_result_failure,
     build_tool_result_success,
 )
+from atd_server.middleware import MiddlewareChain, build_wrap_chain
 from atd_server.registry import ToolRegistry
 
 _log = logging.getLogger("atd_server")
@@ -64,9 +65,16 @@ async def dispatch_run_tool(
     *,
     registry: ToolRegistry,
     conn_ctx: ConnectionContext,
+    middleware: MiddlewareChain | None = None,
     default_deadline_s: float = _DEFAULT_DEADLINE_S,
 ) -> dict[str, Any]:
-    """Dispatch a `Request::RunTool` frame. Returns the wire response dict."""
+    """Dispatch a `Request::RunTool` frame. Returns the wire response dict.
+
+    `middleware` (Phase F): if provided, wraps the handler invocation with
+    pre/post chains and routes raised exceptions through on_error
+    middlewares (each can suppress by returning a non-None value, or pass
+    through by returning None).
+    """
     tool_id = request.get("tool_id")
     if not isinstance(tool_id, str) or not tool_id:
         return build_error_response(
@@ -126,36 +134,77 @@ async def dispatch_run_tool(
         connection=conn_ctx,
     )
 
+    async def innermost() -> Any:
+        return await handler(args, ctx)
+
+    chain = middleware or MiddlewareChain()
+    invoke = build_wrap_chain(
+        pre_call=chain.pre_call,
+        post_call=chain.post_call,
+        request=request,
+        ctx=ctx,
+        innermost=innermost,
+    )
+
     try:
-        result = await asyncio.wait_for(handler(args, ctx), timeout=deadline_s)
-    except asyncio.TimeoutError:
+        result = await asyncio.wait_for(invoke(), timeout=deadline_s)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        suppressed = await _run_on_error_chain(chain.on_error, request, ctx, exc)
+        if suppressed is not None:
+            return _normalize_handler_return(tool_id, suppressed)
+        return _default_envelope_for_exception(tool_id, exc, deadline_s)
+
+    return _normalize_handler_return(tool_id, result)
+
+
+async def _run_on_error_chain(
+    chain: tuple[Any, ...],
+    request: dict[str, Any],
+    ctx: CallContext,
+    exc: BaseException,
+) -> Any:
+    """Iterate `on_error` middlewares; first non-None return suppresses the default."""
+    for mw in chain:
+        try:
+            suppressed = await mw(request, ctx, exc)
+        except Exception:
+            _log.exception("on_error middleware raised; ignoring and continuing")
+            continue
+        if suppressed is not None:
+            return suppressed
+    return None
+
+
+def _default_envelope_for_exception(
+    tool_id: str,
+    exc: BaseException,
+    deadline_s: float,
+) -> dict[str, Any]:
+    if isinstance(exc, asyncio.TimeoutError):
         return build_tool_result_failure(
             tool_id=tool_id,
             code=ERR_DEADLINE_EXCEEDED,
             message=f"tool exceeded deadline ({deadline_s:.1f}s)",
             dry_run=False,
         )
-    except ToolError as e:
+    if isinstance(exc, ToolError):
         return build_tool_result_failure(
             tool_id=tool_id,
-            code=e.code,
-            message=e.message,
-            retryable=e.retryable,
-            partial_data=e.partial_data,
+            code=exc.code,
+            message=exc.message,
+            retryable=exc.retryable,
+            partial_data=exc.partial_data,
             dry_run=False,
         )
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        _log.exception("internal error in tool %s", tool_id)
-        return build_tool_result_failure(
-            tool_id=tool_id,
-            code=ERR_INTERNAL,
-            message=f"internal_error: {type(e).__name__}",
-            dry_run=False,
-        )
-
-    return _normalize_handler_return(tool_id, result)
+    _log.exception("internal error in tool %s", tool_id, exc_info=exc)
+    return build_tool_result_failure(
+        tool_id=tool_id,
+        code=ERR_INTERNAL,
+        message=f"internal_error: {type(exc).__name__}",
+        dry_run=False,
+    )
 
 
 def _normalize_handler_return(tool_id: str, result: Any) -> dict[str, Any]:

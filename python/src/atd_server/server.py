@@ -26,6 +26,12 @@ from atd_server.adapters.unix import UnixSocketTransport
 from atd_server.context import ConnectionContext
 from atd_server.dispatch import dispatch_run_tool
 from atd_server.handshake import negotiate_hello
+from atd_server.middleware import (
+    ErrorMiddlewareFn,
+    MiddlewareChain,
+    MiddlewareStage,
+    WrappingMiddlewareFn,
+)
 from atd_server.policy import ServerPolicy, default_policy
 from atd_server.registry import HandlerFn, ToolRegistry
 
@@ -79,6 +85,9 @@ class AtdServer:
         self._policy: ServerPolicy = policy if policy is not None else default_policy
 
         self._registry = ToolRegistry()
+        self._pre_call_mws: list[WrappingMiddlewareFn] = []
+        self._post_call_mws: list[WrappingMiddlewareFn] = []
+        self._on_error_mws: list[ErrorMiddlewareFn] = []
         self._stop_event = asyncio.Event()
         self._serving_event = asyncio.Event()
         self._connection_tasks: set[asyncio.Task[None]] = set()
@@ -104,8 +113,34 @@ class AtdServer:
 
         return decorator
 
-    def middleware(self, *args: Any, **kwargs: Any) -> Any:
-        raise NotImplementedError("middleware lands in SP-server-py-v1 Phase F")
+    def middleware(self, *, stage: MiddlewareStage) -> Any:
+        """Decorator: register a middleware for `pre_call`, `post_call`, or `on_error`.
+
+        Signatures:
+            pre_call  / post_call: async (request, ctx, call_next) -> Any
+            on_error             : async (request, ctx, exc) -> Any | None
+
+        For pre/post, `await call_next()` invokes the next layer (or the
+        handler at the innermost). Returning without awaiting `call_next`
+        short-circuits the handler. For on_error, returning non-None
+        suppresses the default envelope; returning None falls through.
+        """
+        if stage not in ("pre_call", "post_call", "on_error"):
+            raise ValueError(
+                f"unknown middleware stage {stage!r} "
+                "(expected pre_call / post_call / on_error)"
+            )
+
+        def decorator(fn: Any) -> Any:
+            if stage == "pre_call":
+                self._pre_call_mws.append(fn)
+            elif stage == "post_call":
+                self._post_call_mws.append(fn)
+            else:
+                self._on_error_mws.append(fn)
+            return fn
+
+        return decorator
 
     # ------------------------------------------------------------------ Lifecycle
 
@@ -241,7 +276,14 @@ class AtdServer:
                 ), ctx
             return {"type": "tool_schema", "schema": defn.model_dump(mode="json")}, ctx
         if msg_type == "run_tool":
-            response = await dispatch_run_tool(msg, registry=self._registry, conn_ctx=ctx)
+            chain = MiddlewareChain(
+                pre_call=tuple(self._pre_call_mws),
+                post_call=tuple(self._post_call_mws),
+                on_error=tuple(self._on_error_mws),
+            )
+            response = await dispatch_run_tool(
+                msg, registry=self._registry, conn_ctx=ctx, middleware=chain
+            )
             return response, ctx
         # Phase F (middleware) and future SPs replace remaining placeholders.
         return _error(f"{msg_type!r} not implemented in SP-server-py-v1 phase E"), ctx

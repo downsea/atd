@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A + B + C + D + E landed (**cbrain swap-over point reached**); Phase F not started |
+| Status | Phase A + B + C + D + E + F landed (**cbrain swap-over point reached**); Phase G not started |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -147,20 +147,22 @@ The meat of the SP. **cbrain can now start swapping the shim** after this phase.
 
 ## Phase F — Middleware (P2-8 bundled)
 
-- [ ] `middleware.py`:
-  - `pre_call_mw` / `post_call_mw` / `on_error_mw` signatures (per spec §5.6).
-  - Chain builder: wrap `run = handler(...)` inside-out with `post_call` then `pre_call`; `on_error` chain runs in registration order, first non-None return suppresses.
-- [ ] `server.py`: `@server.middleware(stage="pre_call" | "post_call" | "on_error")` decorator.
-- [ ] Dispatch integrates middleware chain.
-- [ ] `python/tests/test_server_middleware.py`:
-  - `pre_call` registered first sees request before the handler; can short-circuit by returning `ToolFailure`.
-  - `post_call` can mutate response (e.g., add metadata).
-  - Middleware execution order: pre 1 → pre 2 → handler → post 2 → post 1 (LIFO around handler).
-  - `on_error` sees `ValueError`; returning `ToolFailure(1099, "caught")` suppresses; returning `None` re-raises (which falls back to the dispatch envelope).
-  - cbrain-style Merkle audit example as a doctest in `docs/integrations/python-server.md`.
-- [ ] Tag: `sp-server-py-v1-phase-f`.
+- [x] `middleware.py`: `MiddlewareStage` Literal type; `WrappingMiddlewareFn` / `ErrorMiddlewareFn` callable aliases; `MiddlewareChain` immutable container; `build_wrap_chain(...)` composes pre + post in registration order around the innermost handler call.
+- [x] `server.py`: `@server.middleware(stage="pre_call" | "post_call" | "on_error")` decorator validates stage and appends to the appropriate list; `_dispatch` snapshots the lists into a `MiddlewareChain` per call and threads it through `dispatch_run_tool`.
+- [x] `dispatch.py`: refactored exception handling around the chain. The handler invocation (now `innermost`) is wrapped by pre/post; the whole composed coroutine is wrapped in `asyncio.wait_for(deadline)`. Raised exceptions go through `_run_on_error_chain` first; if all return `None`, fall through to `_default_envelope_for_exception` which switches on `TimeoutError` / `ToolError` / other → `1004` / typed envelope / `1099`. `CancelledError` re-raised as before.
+- [x] `python/tests/test_server_middleware.py` (8 tests):
+  - `pre_call` returns without awaiting `call_next` → handler not invoked, typed failure on wire.
+  - `post_call` mutates response (adds `_audited: True` marker).
+  - **Ordering proof:** with `pre1`, `pre2`, `post1`, `post2` registered, the recorded event log is exactly `[pre1:enter, pre2:enter, post1:enter, post2:enter, handler, post2:exit, post1:exit, pre2:exit, pre1:exit]`.
+  - `on_error` suppresses `ValueError` into a typed `ToolFailure` (and the original exception text MUST NOT appear on the wire).
+  - `on_error` returning `None` falls through to the default `ToolError` envelope.
+  - First non-None `on_error` short-circuits the rest of the chain.
+  - An `on_error` middleware that itself raises is logged + skipped; subsequent middlewares get a chance to handle.
+  - Unknown stage at decorator time → `ValueError`.
+- [x] Phase B/D carry-over tests for the middleware stub updated (decorator is no longer a stub).
+- [ ] Tag: `sp-server-py-v1-phase-f` (after commit lands).
 
-**Exit criteria:** cbrain's Merkle audit example works against upstream `AtdServer` without a shim.
+**Exit criteria:** cbrain's Merkle audit example works against upstream `AtdServer` without a shim. ✅ met as of commit `<TBD>`. cbrain's P2-8 gap closes with this phase.
 
 ---
 

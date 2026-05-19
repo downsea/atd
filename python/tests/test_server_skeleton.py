@@ -66,10 +66,13 @@ async def test_unlink_existing_clears_stale_socket(tmp_path: Path) -> None:
         await asyncio.wait_for(task, timeout=2.0)
 
 
-async def test_middleware_is_phase_f_stub(tmp_path: Path) -> None:
+async def test_middleware_decorator_accepts_known_stages(tmp_path: Path) -> None:
+    """Phase F wired middleware. Detailed semantics live in test_server_middleware.py;
+    this skeleton-level check just guards "the decorator factory works for valid stages"."""
     server = AtdServer(socket_path=str(tmp_path / "atd.sock"))
-    with pytest.raises(NotImplementedError, match="Phase F"):
-        server.middleware()
+    for stage in ("pre_call", "post_call", "on_error"):
+        decorator = server.middleware(stage=stage)
+        assert callable(decorator)
 
 
 async def test_partial_frame_closes_cleanly(tmp_path: Path) -> None:
