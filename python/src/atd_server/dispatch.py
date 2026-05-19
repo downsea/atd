@@ -97,7 +97,7 @@ async def dispatch_run_tool(
     definition = registered.definition
     handler = registered.handler
 
-    required = _required_capability_strings(definition.capability.domain, definition.capability.actions)
+    required = frozenset(definition.required_capabilities)
     missing = sorted(c for c in required if c not in conn_ctx.granted_capabilities)
     if missing:
         return build_error_response(
@@ -224,17 +224,6 @@ def _normalize_handler_return(tool_id: str, result: Any) -> dict[str, Any]:
         )
     # Plain return value (dict / list / scalar) — wrap as success.
     return build_tool_result_success(tool_id=tool_id, data=result, dry_run=False)
-
-
-def _required_capability_strings(domain: str, actions: list[str]) -> frozenset[str]:
-    """Convention: tool requires `f"{domain}:{action}"` for each action.
-
-    Adopters with a different separator convention pass a custom
-    `ServerPolicy` that grants strings shaped to match their own tools.
-    """
-    if not domain or not actions:
-        return frozenset()
-    return frozenset(f"{domain}:{action}" for action in actions)
 
 
 def _resolve_deadline(timeout_ms: int, fallback_s: float) -> float:

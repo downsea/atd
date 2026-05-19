@@ -53,13 +53,16 @@ def make_definition(
     capability_domain: str = "demo",
     capability_actions: list[str] | None = None,
     capability_tags: list[str] | None = None,
+    required_capabilities: list[str] | None = None,
     timeout_ms: int = 5000,
     input_schema: dict[str, Any] | None = None,
 ) -> ToolDefinition:
     """Build a ToolDefinition with sensible test defaults.
 
-    Override individual fields as needed. The result is suitable for
-    `@server.register(definition=...)` and round-trips through `tool_schema`.
+    `capability_domain` / `capability_actions` populate the structured
+    `ToolCapability` (metadata for discovery / summaries). `required_capabilities`
+    is the FLAT opaque-string list the dispatcher uses for the gate
+    (matches `crates/atd-protocol/src/tool.rs:31`).
     """
     return ToolDefinition(
         id=tool_id,
@@ -79,4 +82,5 @@ def make_definition(
         resources=ToolResources(timeout_ms=timeout_ms, max_concurrent=1),
         trust=ToolTrust(publisher="atd-server-py.tests", trust_level=TrustLevel.L0_UNVERIFIED),
         visibility=visibility,
+        required_capabilities=required_capabilities or [],
     )

@@ -152,6 +152,10 @@ class ToolDefinition(BaseModel):
     trust: ToolTrust
     visibility: ToolVisibility = ToolVisibility.READ
     errors: list[ToolErrorDef] = Field(default_factory=list)
+    # Opaque capability strings the dispatcher requires; gate passes iff
+    # all are in the connection's granted_capabilities set. Matches
+    # `crates/atd-protocol/src/tool.rs:31`. Empty list = no gate.
+    required_capabilities: list[str] = Field(default_factory=list)
 
 
 # ---------- ToolResult (tagged union on "status") ----------

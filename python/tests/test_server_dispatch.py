@@ -69,7 +69,9 @@ async def test_run_tool_success_returns_handler_data(tmp_path: Path) -> None:
     sock = str(tmp_path / "atd.sock")
     server = AtdServer(socket_path=sock)
 
-    @server.register(definition=make_definition("demo:echo", capability_actions=["read"]))
+    @server.register(
+        definition=make_definition("demo:echo", required_capabilities=["read"])
+    )
     async def echo(args: dict, ctx: CallContext) -> dict:
         return {"echoed": args, "request_id_shape": ctx.request_id[:4]}
 
@@ -77,7 +79,7 @@ async def test_run_tool_success_returns_handler_data(tmp_path: Path) -> None:
     try:
         reply = await _handshake_and_call(
             sock,
-            capabilities=["demo:read"],
+            capabilities=["read"],
             tool_id="demo:echo",
             args={"x": 1},
         )
@@ -105,7 +107,7 @@ async def test_handler_returning_tool_success_unwraps_to_data(tmp_path: Path) ->
     task = await spawn(server)
     try:
         reply = await _handshake_and_call(
-            sock, capabilities=["demo:read"], tool_id="demo:s"
+            sock, capabilities=["read"], tool_id="demo:s"
         )
         assert reply["success"] is True
         assert reply["result"] == {"ok": True}
@@ -126,7 +128,7 @@ async def test_handler_returning_tool_failure_carries_code_and_message(
     task = await spawn(server)
     try:
         reply = await _handshake_and_call(
-            sock, capabilities=["demo:read"], tool_id="demo:f"
+            sock, capabilities=["read"], tool_id="demo:f"
         )
         assert reply["type"] == "tool_result"
         assert reply["success"] is False
@@ -149,8 +151,7 @@ async def test_capability_denied_returns_1001_with_details(tmp_path: Path) -> No
     @server.register(
         definition=make_definition(
             "demo:dangerous",
-            capability_domain="demo",
-            capability_actions=["write"],
+            required_capabilities=["write"],
         )
     )
     async def h(args: dict, ctx: CallContext) -> dict:
@@ -160,13 +161,13 @@ async def test_capability_denied_returns_1001_with_details(tmp_path: Path) -> No
     try:
         reply = await _handshake_and_call(
             sock,
-            capabilities=["demo:read"],  # write is missing
+            capabilities=["read"],  # write is missing
             tool_id="demo:dangerous",
         )
         assert reply["type"] == "error"
         assert reply["code"] == 1001
-        assert reply["details"]["missing"] == ["demo:write"]
-        assert reply["details"]["granted"] == ["demo:read"]
+        assert reply["details"]["missing"] == ["write"]
+        assert reply["details"]["granted"] == ["read"]
     finally:
         await stop_and_wait(server, task)
 
@@ -176,7 +177,7 @@ async def test_capability_denied_when_no_hello_at_all(tmp_path: Path) -> None:
     sock = str(tmp_path / "atd.sock")
     server = AtdServer(socket_path=sock)
 
-    @server.register(definition=make_definition("demo:read_only", capability_actions=["read"]))
+    @server.register(definition=make_definition("demo:read_only", required_capabilities=["read"]))
     async def h(args: dict, ctx: CallContext) -> dict:
         return {}
 
