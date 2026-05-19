@@ -2,19 +2,25 @@
 
 See `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`.
 
-Phase B (skeleton): only `AtdServer` is wired up. `register` and `middleware`
-raise NotImplementedError until Phase C / D / E / F land them.
+Phase B (skeleton) + Phase C (handshake) are landed. `register` / `middleware`
+still raise NotImplementedError until Phase D / F land them.
 """
 
 from atd_server.adapters import Transport
 from atd_server.adapters.unix import UnixSocketTransport
+from atd_server.context import ConnectionContext
+from atd_server.policy import GrantedCapabilities, ServerPolicy, default_policy
 from atd_server.server import AtdServer
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 __all__ = [
     "AtdServer",
+    "ConnectionContext",
+    "GrantedCapabilities",
+    "ServerPolicy",
     "Transport",
     "UnixSocketTransport",
     "__version__",
+    "default_policy",
 ]

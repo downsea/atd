@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A + B landed; Phase C not started |
+| Status | Phase A + B + C landed; Phase D not started |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -55,18 +55,26 @@ Land the package shell. No protocol logic; goal is an end-to-end "accept a conne
 
 Implement `Hello` → `HelloAck` with a configurable policy. Stash UCAN tokens on connection context (no verification yet).
 
-- [ ] `context.py`: implement `ConnectionContext` + `CallContext` frozen dataclasses.
-- [ ] `policy.py`: `ServerPolicy` Protocol (`async def __call__(hello, ucan_tokens) -> GrantedCapabilities`); `default_policy()` returning "grant all requested"; `GrantedCapabilities` dataclass.
-- [ ] `handshake.py`: `negotiate_hello(raw_msg, policy, server_id) -> tuple[HelloAck dict, ConnectionContext]`.
-- [ ] `server.py`: replace echo with state machine — pre-Hello → post-Hello. Before Hello: only accept `hello` / `ping`; reject others with `1005 not_handshaken`. After Hello: dispatch via stub that still returns `1099 not_implemented`.
-- [ ] `python/tests/test_server_handshake.py`:
-  - Client sends `hello` with `client_id="test"` + `requested_capabilities=["fs.read"]`; expect `hello_ack` with `server_id` + `granted_capabilities=["fs.read"]`.
-  - Client sends `tool_list` *before* Hello → expect `Response::Error { code: 1005 }`.
-  - Custom `ServerPolicy` denies one capability → assert granted set excludes it.
-  - UCAN tokens passed in Hello → assert `conn_ctx.ucan_tokens == ("token1", "token2")`.
-- [ ] Tag: `sp-server-py-v1-phase-c`.
+**Spec correction landed in this phase:** the `Rust ref-server` does *not* enforce a "Hello first" state machine — `Request::Hello` is fully optional and may arrive at any point on a connection. The original Phase C plan said pre-Hello frames should error with `1005 not_handshaken`; that would have been a Python-only divergence and would have broken byte-compat. Phase C therefore treats Hello as optional: pre-Hello (and never-Hello) connections see `granted_capabilities=frozenset()`, and tool calls that require caps fail at dispatch time with `1001` in Phase E. No new error code; no state machine.
 
-**Exit criteria:** Python `AtdClient` can complete handshake against `AtdServer` and read `granted_capabilities` back.
+- [x] `context.py`: `ConnectionContext` frozen dataclass (`remote_addr` / `client_id` / `granted_capabilities` / `ucan_tokens` / `handshaken`) + `.with_hello(...)` returning a new context (immutable update). `CallContext` deferred to Phase E (handler-facing).
+- [x] `policy.py`: `ServerPolicy` callable alias (`async (hello, ucan_tokens) -> GrantedCapabilities`); `default_policy()` grants all `requested_capabilities` verbatim, ignores UCAN; `GrantedCapabilities` frozen dataclass.
+- [x] `handshake.py`: `negotiate_hello(raw, *, current_ctx, policy, server_version, supported_tiers)` → `(HelloAck dict, new ConnectionContext)`.
+- [x] `server.py`: replace `_echo_one_frame` with `_serve_one_connection` (read → dispatch → write loop, strictly serial). `_dispatch`: `ping`→pong, `hello`→hello_ack via `negotiate_hello`, anything else → `Response::Error { code: 1099, message: "<type> not implemented in SP-server-py-v1 phase C" }`. Constructor grows `policy` / `server_version` / `supported_tiers` kwargs.
+- [x] `__init__.py`: re-export `ConnectionContext`, `GrantedCapabilities`, `ServerPolicy`, `default_policy`.
+- [x] `python/tests/test_server_handshake.py` (8 tests):
+  - `test_ping_returns_pong` — vanilla round-trip.
+  - `test_hello_default_policy_grants_all_requested` — `client_id` + `requested_capabilities=["fs.read", "fs.write"]` → granted equals requested; `server_version` + `supported_tiers` echo back.
+  - `test_hello_custom_policy_can_deny_a_capability` — user-supplied policy filters out `*.write` capabilities.
+  - `test_hello_passes_ucan_tokens_to_policy` — policy observes the `ucan_tokens` tuple.
+  - `test_hello_can_be_resent_and_replaces_prior_grants` — second Hello on the same connection wins; matches Rust byte-compat.
+  - `test_ping_works_before_hello` — Hello is optional; ping/hello/ping all interleave fine.
+  - `test_unknown_message_type_returns_phase_c_stub_error` — Phase D/E surface returns 1099 with the type in the message.
+  - `test_non_object_frame_returns_error` — JSON arrays / primitives are rejected with 1099 (defensive against malformed clients).
+- [x] Phase B test cleanup: `test_round_trips_one_frame` and its `write_frame` import were specific to Phase B's throwaway echo handler — removed (Phase C `test_ping_returns_pong` is the replacement).
+- [ ] Tag: `sp-server-py-v1-phase-c` (after commit lands).
+
+**Exit criteria:** Python `AtdClient` can complete the handshake against `AtdServer` and read `granted_capabilities` back. ✅ met as of commit `<TBD>`.
 
 ---
 

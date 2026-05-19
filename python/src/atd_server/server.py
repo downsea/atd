@@ -1,15 +1,16 @@
-"""AtdServer — phase-B skeleton.
+"""AtdServer — phase-C handshake + capability negotiation.
 
-What this phase delivers:
-- Construct with a UDS path or an explicit Transport.
-- `serve()` binds, awaits a stop signal, drains in-flight connections.
-- `stop()` triggers graceful shutdown (with a drain timeout).
-- Per-connection handler echoes one frame back and closes (placeholder —
-  Phase C replaces with the Hello / state-machine logic).
-- `register` / `middleware` raise NotImplementedError; Phase D / F wire them.
+What this phase delivers on top of Phase B:
+- `policy` + `server_version` + `supported_tiers` constructor params.
+- Per-connection dispatch loop replaces the one-frame echo placeholder.
+- `ping` → `pong`, `hello` → `hello_ack` via `negotiate_hello`.
+- Hello is optional and may arrive at any point on a connection; on receipt
+  the per-connection `ConnectionContext` is replaced (Rust ref-server
+  byte-compat).
+- Any other message type returns `Response::Error { code: 1099, message:
+  "<msg-type> not implemented yet" }` — Phase D / E / F will fill these in.
 
-Wire format reuses `atd_client.wire.{read_frame, write_frame}` to guarantee
-byte-compat with the Rust ref-server and the cbrain shim from day one.
+`register` / `middleware` are still stubs (Phase D / F).
 """
 
 from __future__ import annotations
@@ -23,8 +24,14 @@ from atd_client.wire import read_frame, write_frame
 from atd_server._runtime import install_signal_handlers
 from atd_server.adapters import Transport
 from atd_server.adapters.unix import UnixSocketTransport
+from atd_server.context import ConnectionContext
+from atd_server.handshake import negotiate_hello
+from atd_server.policy import ServerPolicy, default_policy
 
 _log = logging.getLogger("atd_server")
+
+_DEFAULT_SUPPORTED_TIERS: tuple[str, ...] = ("hot", "warm", "cold")
+_ERR_NOT_IMPLEMENTED = 1099
 
 
 class AtdServer:
@@ -52,6 +59,9 @@ class AtdServer:
         socket_path: str | None = None,
         transport: Transport | None = None,
         server_id: str = "atd-server-py",
+        server_version: str = "atd-server-py/0.0.1",
+        supported_tiers: tuple[str, ...] = _DEFAULT_SUPPORTED_TIERS,
+        policy: ServerPolicy | None = None,
     ) -> None:
         if (socket_path is None) == (transport is None):
             raise ValueError("exactly one of `socket_path` or `transport` must be set")
@@ -59,6 +69,9 @@ class AtdServer:
             transport if transport is not None else UnixSocketTransport(socket_path or "")
         )
         self.server_id = server_id
+        self.server_version = server_version
+        self.supported_tiers = supported_tiers
+        self._policy: ServerPolicy = policy if policy is not None else default_policy
 
         self._stop_event = asyncio.Event()
         self._serving_event = asyncio.Event()
@@ -101,7 +114,6 @@ class AtdServer:
         self._drain_timeout_s = drain_timeout_s
 
     def _signal_stop(self) -> None:
-        # Called from signal handler; sync entry into async stop.
         _log.info("atd-server received stop signal")
         self._stop_event.set()
 
@@ -123,7 +135,7 @@ class AtdServer:
             len(pending),
         )
 
-    # ------------------------------------------------------------------ Per-connection handler (Phase B placeholder)
+    # ------------------------------------------------------------------ Per-connection dispatch
 
     async def _handle_connection(
         self,
@@ -136,9 +148,11 @@ class AtdServer:
             self._connection_tasks.add(task)
             task.add_done_callback(self._connection_tasks.discard)
         try:
-            await self._echo_one_frame(reader, writer)
+            await self._serve_one_connection(reader, writer, remote)
         except asyncio.IncompleteReadError:
             return
+        except asyncio.CancelledError:
+            raise
         except Exception:
             _log.exception("unexpected error in connection handler (remote=%s)", remote)
         finally:
@@ -146,14 +160,43 @@ class AtdServer:
             with contextlib.suppress(Exception):
                 await writer.wait_closed()
 
-    async def _echo_one_frame(
+    async def _serve_one_connection(
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
+        remote: str,
     ) -> None:
-        """Phase B placeholder: read one frame, write it back, return.
+        """Read → dispatch → write loop. Strictly serial within one connection."""
+        ctx = ConnectionContext(remote_addr=remote)
+        while not self._stop_event.is_set():
+            msg = await read_frame(reader)
+            if not isinstance(msg, dict):
+                response = _error("invalid frame: expected JSON object")
+                await write_frame(writer, response)
+                continue
+            response, ctx = await self._dispatch(msg, ctx)
+            await write_frame(writer, response)
 
-        Phase C replaces this with the Hello state machine.
-        """
-        msg = await read_frame(reader)
-        await write_frame(writer, msg)
+    async def _dispatch(
+        self,
+        msg: dict[str, Any],
+        ctx: ConnectionContext,
+    ) -> tuple[dict[str, Any], ConnectionContext]:
+        msg_type = msg.get("type")
+        if msg_type == "ping":
+            return {"type": "pong"}, ctx
+        if msg_type == "hello":
+            ack, ctx = await negotiate_hello(
+                msg,
+                current_ctx=ctx,
+                policy=self._policy,
+                server_version=self.server_version,
+                supported_tiers=self.supported_tiers,
+            )
+            return ack, ctx
+        # Phase D / E / F replace these placeholders with real dispatch.
+        return _error(f"{msg_type!r} not implemented in SP-server-py-v1 phase C"), ctx
+
+
+def _error(message: str, *, code: int = _ERR_NOT_IMPLEMENTED) -> dict[str, Any]:
+    return {"type": "error", "code": code, "message": message}

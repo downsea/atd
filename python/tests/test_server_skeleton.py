@@ -1,7 +1,9 @@
 """Phase B skeleton tests for AtdServer.
 
-Covers: bind / accept / echo one frame / graceful stop / drain timing.
-Protocol semantics are out of scope here — Phase C+ adds Hello / dispatch.
+Covers: bind / accept / graceful stop / drain timing / lifecycle invariants.
+Protocol-level round-trip semantics (ping/pong, Hello negotiation) live in
+`test_server_handshake.py`. Phase B's throwaway frame-echo handler was
+replaced by Phase C's dispatch loop; the round-trip test moved with it.
 """
 
 from __future__ import annotations
@@ -12,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from atd_client.wire import read_frame, write_frame
 from atd_server import AtdServer, UnixSocketTransport
 
 
@@ -20,22 +21,6 @@ async def _spawn(server: AtdServer) -> asyncio.Task[None]:
     task = asyncio.create_task(server.serve())
     await server.wait_until_serving()
     return task
-
-
-async def test_round_trips_one_frame(tmp_path: Path) -> None:
-    sock = str(tmp_path / "atd.sock")
-    server = AtdServer(socket_path=sock, server_id="test")
-    task = await _spawn(server)
-    try:
-        reader, writer = await asyncio.open_unix_connection(sock)
-        await write_frame(writer, {"type": "ping"})
-        reply = await asyncio.wait_for(read_frame(reader), timeout=2.0)
-        assert reply == {"type": "ping"}
-        writer.close()
-        await writer.wait_closed()
-    finally:
-        await server.stop()
-        await asyncio.wait_for(task, timeout=2.0)
 
 
 async def test_stop_drains_quickly_with_no_clients(tmp_path: Path) -> None:
