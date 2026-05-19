@@ -2,7 +2,7 @@
 
 | Spec | `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` |
 | Filed | 2026-05-19 |
-| Status | Phase A landed; Phase B not started |
+| Status | Phase A + B landed; Phase C not started |
 | Target alpha | ~2 weeks from Phase B kickoff (cbrain W1 alignment) |
 | Owner | TBD (whoever picks up Phase B first) |
 
@@ -24,23 +24,30 @@
 
 Land the package shell. No protocol logic; goal is an end-to-end "accept a connection, echo one frame, close" path so subsequent phases can fill in real behavior.
 
-- [ ] Create `python/src/atd_server/` directory + `__init__.py` (empty re-exports for now).
-- [ ] Add `[tool.uv.workspace]` / `pyproject.toml` entry for the new package; ensure `pip install -e python/` picks it up.
-- [ ] `adapters/unix.py`: implement `UnixSocketTransport` (`bind`, `accept`, `close`); unlink stale socket file by default.
-- [ ] `adapters/__init__.py`: define `Transport` Protocol.
-- [ ] `_runtime.py`: `signal_handlers_install(loop, on_stop)` (Unix only; no-op on Windows).
-- [ ] `server.py` minimal `AtdServer`:
-  - Constructor accepts `socket_path: str` or `transport: Transport`.
-  - `register` and `middleware` are stubs raising `NotImplementedError`.
-  - `serve()` runs accept loop; per-connection task reads one frame, echoes it back, closes. (Throwaway — Phase C replaces.)
-  - `stop()` works (sets stop event, closes transport).
-- [ ] `python/tests/test_server_skeleton.py`:
-  - Spawn `AtdServer`, connect via `socket.socket(AF_UNIX)`, send 4-byte length + JSON `{"type":"ping"}`, read back the echoed frame, assert equality.
-  - Assert `server.stop()` drains in <1s.
-- [ ] Run `pytest python/tests/test_server_skeleton.py -v`; green.
-- [ ] Tag: `sp-server-py-v1-phase-b`.
+- [x] Create `python/src/atd_server/` directory + `__init__.py` (re-exports `AtdServer`, `Transport`, `UnixSocketTransport`).
+- [x] Add `python/pyproject.toml` entry: `packages = ["src/atd_client", "src/atd_server"]` + mypy `packages = ["atd_client", "atd_server"]`.
+- [x] `adapters/unix.py`: `UnixSocketTransport` wraps `asyncio.start_unix_server`; unlinks stale socket on bind + on close.
+- [x] `adapters/__init__.py`: `Transport` Protocol (`start(on_connection)` + `close()`) + `ConnectionHandler` type alias.
+- [x] `_runtime.py`: `install_signal_handlers(loop, on_stop)` (no-op on non-main-thread / Windows).
+- [x] `server.py` minimal `AtdServer`:
+  - Constructor: exactly one of `socket_path` or `transport` (asserted).
+  - `register` / `middleware` stubs raising `NotImplementedError` with the Phase tag.
+  - `serve()` binds → installs signal handlers → sets `_serving_event` → awaits `_stop_event`.
+  - `wait_until_serving()` for tests (no `sleep` brittleness).
+  - `stop()` + `_drain_and_close()` with configurable drain timeout.
+  - Per-connection handler reads one frame via `atd_client.wire.read_frame`, echoes via `write_frame`, closes. (Throwaway — Phase C replaces.)
+- [x] `python/tests/test_server_skeleton.py` (7 tests):
+  - `test_round_trips_one_frame` — `{"type":"ping"}` byte-compat round-trip.
+  - `test_stop_drains_quickly_with_no_clients` — drain <1s assertion.
+  - `test_serve_twice_raises` — second `serve()` errors.
+  - `test_constructor_requires_exactly_one_of_path_or_transport` — XOR validation.
+  - `test_unlink_existing_clears_stale_socket` — pre-existing socket file cleared.
+  - `test_register_and_middleware_are_phase_d_f_stubs` — stubs raise with phase tag.
+  - `test_partial_frame_closes_cleanly` — half-header disconnect doesn't crash.
+- [x] Run `pytest python/tests/test_server_skeleton.py -v`; green (7/7, 0.5s).
+- [ ] Tag: `sp-server-py-v1-phase-b` (after commit lands).
 
-**Exit criteria:** `nc -U /tmp/test.sock` round-trips one frame; cbrain can already point an `AtdClient` at it and see the frame echo (but no protocol semantics yet).
+**Exit criteria:** `nc -U /tmp/test.sock` round-trips one frame; cbrain can already point an `AtdClient` at it and see the frame echo (but no protocol semantics yet). ✅ met as of commit `<TBD>`.
 
 ---
 
@@ -172,7 +179,7 @@ The meat of the SP. cbrain can already start swapping the shim after this phase.
 ## Risks / known unknowns
 
 - **`jsonschema` dep weight.** ~150KB wheel; pulls `attrs`, `jsonschema-specifications`, `rpds-py`. If a Python-conscious adopter complains, demote to extras-only and skip-with-warning if missing.
-- **`asyncio.wait_for` cancellation semantics.** Python 3.11 changed `wait_for` to wrap inner cancel into `CancelledError` *after* the inner task observes it. We target Python ≥3.11 (matches `python/pyproject.toml` today); document the gotcha for adopters porting from 3.10.
+- **`asyncio.wait_for` cancellation semantics.** Python 3.11 changed `wait_for` to wrap inner cancel into `CancelledError` *after* the inner task observes it. `python/pyproject.toml` floors at `>=3.10`, so v1 must work under both 3.10 (legacy `wait_for`) and 3.11+ (new semantics). Phase E's dispatch wrapper translates both behaviors into the same `1003 deadline_exceeded` envelope.
 - **Windows.** No Unix sockets. v1 explicitly Linux/macOS only. cbrain runs on Linux; healthkit on macOS+Linux; not a real blocker.
 - **`signal.add_signal_handler` not available inside non-main threads.** If an adopter calls `server.serve()` from a worker thread, signal handlers silently fail to install. Document; consider raising at `serve()` entry if `threading.current_thread() is not threading.main_thread()`.
 - **Test flakiness from real UDS bind under parallel pytest.** Use `tempfile.TemporaryDirectory()` per test so socket paths don't collide. Mirror the Rust ref-server's `bind 127.0.0.1:0` pattern with UDS `tempdir/test.sock`.
