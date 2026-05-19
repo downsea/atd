@@ -32,6 +32,12 @@ From the three-layer audit (2026-04-24, schema / dispatch / security):
 | [2026-04-24-security-audit-logging-missing.md](2026-04-24-security-audit-logging-missing.md) | security | tracked (audit mpsc shipped via sp-concurrency-baseline — needs restatus) | No structured audit trail of tool calls |
 | [2026-04-24-security-dry-run-inconsistent.md](2026-04-24-security-dry-run-inconsistent.md) | security | tracked | `CallOptions.dry_run` honored by some tools, silently ignored by others |
 
+From adopter requirements (2026-05):
+
+| # | Layer | Status | Summary |
+|---|---|---|---|
+| [2026-05-19-cbrain-adopter-requirements.md](2026-05-19-cbrain-adopter-requirements.md) | adopter (cbrain) | triaged-2026-05-19 | 11 项已全部 ACK + 排期 (见 issue §9)；**P0-1 → `SP-server-py-v1`** (spec landed `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`)；P0-2 → SP-release-binaries-v1；P1-3+P1-4 → SP-cancel-streaming-v1；P1-6 → SP-error-namespace-v1；P2-8 bundled into P0-1；P2-10 deferred |
+
 ## Recently closed
 
 | # | Layer | Closed | Summary |
