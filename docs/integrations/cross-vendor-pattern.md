@@ -2,9 +2,9 @@
 
 **Companion to:** [`docs/integrations/healthkit.md`](healthkit.md) (single-vendor adopter case study).
 
-**Validated by:** `scripts/cross-vendor-demo.sh` (boots `healthkit_cli` v1.3.1+ on `/tmp/hk.sock` and `atd-mock-weather-server` v0.3.0 on `/tmp/atd-weather.sock`; `atd list` against each shows two distinct vendor namespaces).
+**Validated by:** `scripts/cross-vendor-demo.sh` (boots `healthkit_cli` v1.3.1+ on `/tmp/hk.sock` and `atd-mock-weather-server` v1.0.0 on `/tmp/atd-weather.sock`; `atd list` against each shows two distinct vendor namespaces).
 
-**Status as of 2026-04-27:** mock weather server lands in this SP (SP-cross-vendor-mock-demo). Real second-vendor adopter (option (b)/(c) in [atd-mvp#5](https://github.com/downsea/atd-mvp/issues/5)) deferred. LLM-driven Hermes / Claude transcript capture is a human follow-up — see §6.
+**Status as of 2026-04-27:** mock weather server lands in this SP (SP-cross-vendor-mock-demo). Real second-vendor adopter (option (b)/(c) in [atd#5](https://github.com/downsea/atd/issues/5)) deferred. LLM-driven Hermes / Claude transcript capture is a human follow-up — see §6.
 
 ---
 
@@ -25,7 +25,7 @@ Two independent ATD servers, each on its own Unix socket:
 | Server | Crate | Socket | Tool namespace | Tool count |
 |---|---|---|---|---|
 | Huawei HMS HealthKit | [`healthkit_cli`](https://github.com/downsea/healthkit_cli) v1.3.1+ | `/tmp/hk.sock` | `huawei:hms.healthkit.*` | 27 (25 helpers + 2 skills meta) |
-| Mock weather (canned demo) | `atd-mock-weather-server` v0.3.0 (in this repo) | `/tmp/atd-weather.sock` | `mock:weather.*` | 3 |
+| Mock weather (canned demo) | `atd-mock-weather-server` v1.0.0 (in this repo) | `/tmp/atd-weather.sock` | `mock:weather.*` | 3 |
 
 Each server is a separate process, separate audit log, separate capability gate, separate trust attestation. Neither knows the other exists.
 
@@ -35,15 +35,15 @@ Each server is a separate process, separate audit log, separate capability gate,
 
 ```bash
 # Build all three binaries
-cd ~/proj/atd-mvp && cargo build --release \
+cd ~/code/atd && cargo build --release \
   -p atd-mock-weather-server -p atd-cli -p atd-mcp-bridge
-cd ~/proj/healthkit_cli && cargo build --release
+cd ~/code/healthkit_cli && cargo build --release
 
 # OAuth (only needed for real healthkit calls — skills.list / list work without)
-~/proj/healthkit_cli/target/release/healthkit auth login
+~/code/healthkit_cli/target/release/healthkit auth login
 
 # Boot both servers + print bridge registration commands
-~/proj/atd-mvp/scripts/cross-vendor-demo.sh up
+~/code/atd/scripts/cross-vendor-demo.sh up
 ```
 
 Expected `up` output (truncated):
@@ -68,7 +68,7 @@ Expected `up` output (truncated):
   hermes mcp add healthkit --command …/atd-mcp-bridge --env ATD_SOCK=/tmp/hk.sock ATD_REQUEST_CAPS=…
 ```
 
-Tear down: `~/proj/atd-mvp/scripts/cross-vendor-demo.sh down`.
+Tear down: `~/code/atd/scripts/cross-vendor-demo.sh down`.
 
 ---
 
@@ -132,8 +132,8 @@ ATD makes cross-vendor composition a *config* concern (which sockets to bridge),
 
 ## 8. Limits + caveats
 
-- **Mock weather is canned.** Every call returns the same data for Shanghai. Not suitable for production agent recommendations. Replace with a real weather adopter (e.g., wrapping OpenWeatherMap) before shipping a public demo. See [atd-mvp#5](https://github.com/downsea/atd-mvp/issues/5) options (b) and (c).
-- **No multi-tenant isolation.** Both bridges connect to their respective sockets with the same `caller_id` (or none at all). Multi-tenant token routing across bridges is the sister differentiator at [atd-mvp#4](https://github.com/downsea/atd-mvp/issues/4); deferred.
+- **Mock weather is canned.** Every call returns the same data for Shanghai. Not suitable for production agent recommendations. Replace with a real weather adopter (e.g., wrapping OpenWeatherMap) before shipping a public demo. See [atd#5](https://github.com/downsea/atd/issues/5) options (b) and (c).
+- **No multi-tenant isolation.** Both bridges connect to their respective sockets with the same `caller_id` (or none at all). Multi-tenant token routing across bridges is the sister differentiator at [atd#4](https://github.com/downsea/atd/issues/4); deferred.
 - **Schema collision is technically possible.** Two servers could publish the same tool id (e.g., both name a tool `vendor:foo.bar`). The agent platform will see one or the other depending on bridge ordering. Naming convention (`<publisher>:<service>.<tool>`) makes collisions unlikely in practice.
 - **No automatic startup ordering.** The script boots mock-weather first, then healthkit. If healthkit fails to bind, mock-weather still runs and the agent will see only weather tools. Robust deployment uses a process manager (systemd, supervisor) per server.
 
@@ -141,9 +141,9 @@ ATD makes cross-vendor composition a *config* concern (which sockets to bridge),
 
 ## 9. Future expansions
 
-- **Real weather adopter** — wrap OpenWeatherMap or AccuWeather; mirror the healthkit pattern (helper-tools + SKILL.md + skills meta-tools convention). [atd-mvp#5](https://github.com/downsea/atd-mvp/issues/5) option (b).
-- **Calendar adopter** — Google Calendar or CalDAV; clearly complementary to healthkit + weather for a full day-planning use case. [atd-mvp#5](https://github.com/downsea/atd-mvp/issues/5) option (c).
-- **Multi-tenant routing across both vendors** — agent A and agent B see the same union catalog but their calls route to different OAuth tokens per vendor. [atd-mvp#4](https://github.com/downsea/atd-mvp/issues/4).
+- **Real weather adopter** — wrap OpenWeatherMap or AccuWeather; mirror the healthkit pattern (helper-tools + SKILL.md + skills meta-tools convention). [atd#5](https://github.com/downsea/atd/issues/5) option (b).
+- **Calendar adopter** — Google Calendar or CalDAV; clearly complementary to healthkit + weather for a full day-planning use case. [atd#5](https://github.com/downsea/atd/issues/5) option (c).
+- **Multi-tenant routing across both vendors** — agent A and agent B see the same union catalog but their calls route to different OAuth tokens per vendor. [atd#4](https://github.com/downsea/atd/issues/4).
 - **Compositional skill** — a SKILL.md that explicitly references tools from both vendors (e.g., a "morning-briefing" skill that pulls health + weather + calendar). Once `atd skills sync` lands skills from both servers, a skill body can call across them naturally.
 
 ---

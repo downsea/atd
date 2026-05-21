@@ -142,7 +142,7 @@ Once the v1.2.0 surface matched the CLI on agent ergonomics, the operability fea
 - **One server, many agents.** The same `healthkit serve` process binds `/tmp/hk.sock`. Hermes connects via `atd-mcp-bridge`. Claude Code connects via `atd-mcp-bridge` registered through `claude mcp add`. The `atd` developer CLI inspects the same socket. All three see the same 26 tools, all three calls land in the same audit log. The CLI can't share state across agents; only ATD can.
 - **Audit log unification.** Every call lands in [`/tmp/hk-audit.jsonl`](https://github.com/downsea/healthkit_cli/blob/main/docs/case-study-v1.2.0/audit.jsonl) with `caller_id`, `tool_id`, duration, outcome — regardless of which agent sent it. The audit format matches the [conformance suite's wire spec](../protocol/wire-format.md#audit-events).
 - **Capability gate enforced server-side.** `healthkit serve --grant-capability healthkit:read --grant-capability healthkit:write` declares the allow-list. Clients negotiate down at the `Hello` handshake; `atd-mcp-bridge` carries this via `ATD_REQUEST_CAPS`. A misconfigured client cannot escalate.
-- **Token reuse + auto-refresh in one place.** The HMS OAuth2 token lives at `~/.config/healthkit/token.json`. The server reads it on each call (env override → saved file → refresh on expiry). Multi-tenancy is deferred (see [atd-mvp#4](https://github.com/downsea/atd-mvp/issues/4)) but the single-tenant case ships today.
+- **Token reuse + auto-refresh in one place.** The HMS OAuth2 token lives at `~/.config/healthkit/token.json`. The server reads it on each call (env override → saved file → refresh on expiry). Multi-tenancy is deferred (see [atd#4](https://github.com/downsea/atd/issues/4)) but the single-tenant case ships today.
 
 These features are exactly what's hardest to bolt onto a per-agent integration after the fact, and exactly what the listener-extract SP made cheap to bring up: `healthkit serve` is ~150 lines of glue around `atd-runtime::Registry` + `atd-server::Server::run`.
 
@@ -166,8 +166,8 @@ The full setup is one script in the adopter repo. From a fresh clone:
 
 ```bash
 # 1. Build the bits
-cd ~/proj/atd-mvp && cargo build --release -p atd-mcp-bridge
-cd ~/proj/healthkit_cli && cargo build --release
+cd ~/code/atd && cargo build --release -p atd-mcp-bridge
+cd ~/code/healthkit_cli && cargo build --release
 
 # 2. One-time HMS OAuth (interactive)
 ./target/release/healthkit auth login
@@ -185,12 +185,12 @@ claude
 **Verify with the dev CLI:**
 
 ```bash
-~/proj/atd-mvp/target/release/atd --sock /tmp/hk.sock list
+~/code/atd/target/release/atd --sock /tmp/hk.sock list
 # 26 tools, all huawei:hms.healthkit.*
 
-~/proj/atd-mvp/target/release/atd --sock /tmp/hk.sock describe huawei:hms.healthkit.heartrate
+~/code/atd/target/release/atd --sock /tmp/hk.sock describe huawei:hms.healthkit.heartrate
 
-~/proj/atd-mvp/target/release/atd --sock /tmp/hk.sock call \
+~/code/atd/target/release/atd --sock /tmp/hk.sock call \
   huawei:hms.healthkit.heartrate '{"days": 7}' --dry-run
 ```
 
@@ -222,7 +222,7 @@ tail -f /tmp/hk-audit.jsonl | jq
 
 **Open follow-ups (issues):**
 
-- [atd-mvp#2](https://github.com/downsea/atd-mvp/issues/2) — skills layer convention + `atd-skills-sync`
-- [atd-mvp#3](https://github.com/downsea/atd-mvp/issues/3) — `ToolVisibility::Hidden` (replaces `--expose-raw-tools` flag)
-- [atd-mvp#4](https://github.com/downsea/atd-mvp/issues/4) — multi-tenant token broker
+- [atd#2](https://github.com/downsea/atd/issues/2) — skills layer convention + `atd-skills-sync`
+- [atd#3](https://github.com/downsea/atd/issues/3) — `ToolVisibility::Hidden` (replaces `--expose-raw-tools` flag)
+- [atd#4](https://github.com/downsea/atd/issues/4) — multi-tenant token broker
 - [healthkit_cli#2](https://github.com/downsea/healthkit_cli/issues/2) — expose 26 SKILL.md via `skills.list/get`

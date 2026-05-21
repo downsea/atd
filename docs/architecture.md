@@ -3,13 +3,13 @@
 **Scope:** Normative architecture for the **reference implementation** —
 the `atd-*` crate family in this repository. Describes the system as it
 stands today, not how it got here. (Historical / by-release notes live
-in [`CHANGELOG.md`](../CHANGELOG.md); per-SP design rationale lives in
-`docs/superpowers/specs/`.)
+in [`CHANGELOG.md`](../CHANGELOG.md); per-SP design rationale is archived
+under [`docs/archive/superpowers/specs/`](archive/superpowers/specs/).)
 
-**Authority:** Where this document disagrees with `docs/design.md`,
-this document is authoritative. Where it disagrees with the v3
-whitepaper on aspirational scope, the whitepaper remains authoritative
-for the protocol's long-term direction.
+**Authority:** This document is the single source of truth for ATD's
+architecture. For the byte-level wire contract see
+[`docs/protocol/`](protocol/); for evolution scope and deferred work see
+[`docs/roadmap.md`](roadmap.md).
 
 **License:** Apache-2.0.
 
@@ -67,9 +67,8 @@ Three audiences read this document:
   [`docs/protocol/wire-format.md`](protocol/wire-format.md).
 - Not the release history — see [`CHANGELOG.md`](../CHANGELOG.md) and
   the tag list for what landed when.
-- Not a rewrite of the whitepaper —
-  [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md)
-  remains authoritative for long-term aspirational scope.
+- Not the evolution roadmap — see [`docs/roadmap.md`](roadmap.md) for
+  deferred features and long-term direction.
 
 ---
 
@@ -154,19 +153,18 @@ server; drift bugs would surface there.
 
 ### 2.5 Stability commitment
 
-The schema follows the same 0.x semver line as the workspace crates:
-**additive changes are minor bumps; field removal or shape change is
-a major bump**. Adopters tracking master can rely on schema additions
-being safe (existing code keeps deserialising). The 0.x → 1.0 cutover
-will freeze the schema for a v1 stability window; the cutover date is
-gated by adopter signal, not a calendar.
+As of **1.0 the schema is frozen for the 1.x line**: additive changes
+(new optional fields, new enum variants) are minor bumps; removing a
+field or changing a shape is a major (2.0) bump. Code generated from
+`atd-protocol-schema.json` at 1.0 keeps deserialising every 1.x message.
+The full stability contract is in
+[`docs/release-plan-v1.0.md`](release-plan-v1.0.md).
 
 ---
 
 ## 3. The layer model
 
-Three core mechanisms plus two extension mechanisms, drawn from the
-v3 whitepaper's stack diagram:
+Three core mechanisms plus two extension mechanisms:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -208,7 +206,7 @@ v3 whitepaper's stack diagram:
                              │
                              ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  Tool universe (§6.2 NativeBinding + extension points)         │
+│  Tool universe (§5.4 bindings + extension points)              │
 │  ref:echo, ref:fs.*, ref:shell.*, ref:web.fetch, ...           │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -320,24 +318,28 @@ context efficiency.
 
 ### 4.3 Error taxonomy
 
-`AtdError` is a closed union of error variants, each with a numeric
-wire code:
+ATD has two distinct error layers — keep them apart:
 
-| Code | Variant | Meaning |
+- **`AtdError`** — the client-side Rust error enum in `atd-protocol`
+  (`ToolNotFound`, `InvalidArguments`, `CapabilityDenied`,
+  `BindingUnavailable`, execution failure, `PaginationLimitExceeded`,
+  `MergeFailed`, …). This is what `atd-sdk` returns to agent code; the
+  enum itself carries no numeric code.
+- **Numeric wire codes** — `ERR_*` `u16` constants in
+  `atd_protocol::messages`, carried in the `Response::Error.code` field
+  on the wire:
+
+| Code | Constant | Meaning |
 |---|---|---|
-| 1000 | `InvalidArgs` | Schema mismatch on `args` |
-| 1001 | `CapabilityDenied` | Caller lacks a required capability |
-| 1002 | `RateLimited` | Per-tool semaphore or rate-limiter refused |
-| 1003 | `BrokerFailed` | `TokenBroker` returned an error during resolve |
-| 1010-1013 | UCAN errors | `INVALID` / `EXPIRED` / `TOO_DEEP` / `AUDIENCE_MISMATCH` |
-| 1020 | `CursorExpired` | Continuation cursor past TTL |
-| 1021 | `CursorInvalid` | Cursor HMAC verification failed |
-| 2xxx | Tool errors | Tool-specific via `ToolErrorDef` |
-| 5xxx | Server errors | Internal / unreachable |
+| 1001 | `ERR_CAPABILITY_DENIED` | Caller lacks a required capability |
+| 1002 | `ERR_RATE_LIMITED` | Per-tool semaphore refused (retryable) |
+| 1003 | `ERR_BROKER_FAILED` | `TokenBroker` errored during resolve |
+| 1010–1013 | `ERR_UCAN_*` | UCAN invalid / expired / delegation-too-deep / audience-mismatch |
+| 1020 | `ERR_CURSOR_EXPIRED` | Continuation cursor past TTL |
+| 1021 | `ERR_CURSOR_INVALID` | Cursor signature verification failed |
 
-`AtdError::is_retryable() -> bool` and `AtdError::suggest_fix() -> &str`
-let agents and SDKs decide retry posture without re-reading the
-taxonomy. The reference table is `docs/protocol/error-codes.md`.
+The full taxonomy — every `AtdError` variant, every wire code, and the
+retry guidance — is [`docs/protocol/error-codes.md`](protocol/error-codes.md).
 
 ### 4.4 Cursor pagination
 
@@ -581,7 +583,7 @@ the actual enforcement).
 |---|---|---|
 | Safety | `Read` / `Write` / `Financial` / `Privacy` / `Physical` / `Destructive` | `ToolSafety::level` |
 | Visibility | `Read` / `Write` / `Dangerous` / `System` / `Hidden` | `ToolVisibility` |
-| Trust | `L1` / `L2Tested` / `L3Audited` | `ToolTrust::trust_level` |
+| Trust | `L0Unverified` / `L1SchemaValid` / `L2Tested` / `L3Verified` / `L4Certified` | `ToolTrust::trust_level` |
 
 LLM adapters surface `SafetyLevel` and `Visibility` to agent-framework
 tool pickers where supported. `Visibility::Hidden` excludes a tool
@@ -590,7 +592,7 @@ from `ToolList` discovery but keeps it reachable via `ToolSchema` and
 test tools).
 
 `ToolTrust::signature` is currently declarative; signature verification
-is a Phase-2 non-goal (see §10.4).
+is a non-goal (see §10.3).
 
 ### 6.2 Capability allow-listing
 
@@ -626,18 +628,18 @@ Every dispatched call emits a structured `CallEvent` to the configured
 
 ```rust
 pub struct CallEvent {
-    pub schema_version: u32,        // currently 1
+    pub ts: String,                  // RFC3339 timestamp
     pub call_id: String,
-    pub caller_id: Option<String>,
     pub tool_id: String,
-    pub args_hash: String,           // SHA-256 of canonicalised args
-    pub tier: Option<ToolTier>,
-    pub binding: Option<&'static str>,
-    pub outcome: Outcome,            // Success / Error variant
+    pub caller_id: Option<String>,
+    pub granted_capabilities: Vec<String>,
     pub duration_ms: u64,
-    pub secrets_resolved: bool,      // never the values
-    pub cursor_page: Option<u32>,    // 0 for initial RunTool
-    // ...
+    pub outcome: Outcome,            // Success / ExecutionFailed / InvalidArgs / ...
+    pub tier: String,
+    pub dry_run: bool,
+    pub schema_version: u32,         // currently 2
+    pub secrets_resolved: bool,      // never the key names or values
+    pub cursor_page: Option<u32>,    // 1-based page index; None when not paginated
 }
 ```
 
@@ -751,7 +753,7 @@ run top-down — so adopters compose deterministically.
 
 The Skills layer (SKILL.md files + `atd-tools:` dependency
 declarations + progressive-disclosure skill bodies) sits *above* ATD
-in the v3 stack diagram. From a protocol standpoint, Skills is an
+in the layer model. From a protocol standpoint, Skills is an
 **upstream consumer** of ATD, not part of ATD itself.
 
 ### 8.1 Division of concern
@@ -877,10 +879,10 @@ Where third-party code attaches without forking the reference server:
 ### 9.4 Workspace versioning
 
 All publishable crates share `workspace.package.version` (currently
-`0.3.0`). Adopters pinning one crate get a consistent set across the
-whole stack — the 0.x line is intentionally lockstep. The 0.x → 1.0
-cutover will introduce per-crate independent versioning; gated by
-adopter signal.
+`1.0.0`). Adopters pinning one crate get a consistent set across the
+whole stack — the workspace ships as one coordinated version. The
+post-1.0 versioning policy (workspace-lockstep through the 1.x line) is
+defined in [`docs/release-plan-v1.0.md`](release-plan-v1.0.md).
 
 `atd-mock-weather-server` is the only `publish = false` crate — it's a
 demo-only bin.
@@ -949,21 +951,19 @@ semaphores.
 
 ## See also
 
+- [`docs/index.md`](index.md) — the full documentation map.
 - [`CHANGELOG.md`](../CHANGELOG.md) — what landed in each release.
-- [`docs/release-plan-v0.3.0.md`](release-plan-v0.3.0.md) — current
-  release plan + per-crate publication matrix + pre-release
-  checklist.
+- [`docs/release-plan-v1.0.md`](release-plan-v1.0.md) — the 1.0 release
+  contract, per-crate publication matrix, and pre-release checklist.
 - [`docs/protocol/wire-format.md`](protocol/wire-format.md) — byte-level
   wire reference; supplements §4.
 - [`docs/protocol/error-codes.md`](protocol/error-codes.md) — full
   `AtdError` taxonomy table.
 - [`/atd-protocol-schema.json`](../atd-protocol-schema.json) — the
   unified machine-readable schema (§2).
-- [`docs/superpowers/specs/`](superpowers/specs/) — per-SP design
-  rationale.
+- [`docs/extending/`](extending/) — how to extend each layer.
+- [`docs/roadmap.md`](roadmap.md) — evolution scope and deferred work.
 - [`docs/issues/`](issues/) — tracked gaps and adopter validation
   records.
-- [`docs/whitepaper/atd-v3-multi-device.md`](whitepaper/atd-v3-multi-device.md)
-  — long-term aspirational scope.
-- [`docs/whitepaper/atd-v3-skills-architecture-brief.md`](whitepaper/atd-v3-skills-architecture-brief.md)
-  — stack diagram source.
+- [`docs/archive/superpowers/`](archive/superpowers/) — per-SP design
+  rationale (frozen history).

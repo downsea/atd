@@ -58,22 +58,22 @@ If no provider is configured, see the "Provider selection" section below.
 ```bash
 # Option A: tmux (recommended — survives terminal close)
 tmux new-session -d -s atd \
-  "/home/nan/proj/atd-mvp/target/release/atd-ref-server --sock /tmp/my-atd.sock"
+  "/home/nan/code/atd/target/release/atd-ref-server --sock /tmp/my-atd.sock"
 
 # Option B: nohup background
-nohup /home/nan/proj/atd-mvp/target/release/atd-ref-server \
+nohup /home/nan/code/atd/target/release/atd-ref-server \
   --sock /tmp/my-atd.sock &>/tmp/atd-ref-server.log &
 echo $!  > /tmp/atd-ref-server.pid
 
 # Option C: foreground (leave this terminal open)
-/home/nan/proj/atd-mvp/target/release/atd-ref-server --sock /tmp/my-atd.sock
+/home/nan/code/atd/target/release/atd-ref-server --sock /tmp/my-atd.sock
 ```
 
 **Step 2 — Register the bridge with Hermes:**
 
 ```bash
 hermes mcp add atd \
-  --command /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge \
+  --command /home/nan/code/atd/target/release/atd-mcp-bridge \
   --env ATD_SOCK=/tmp/my-atd.sock
 ```
 
@@ -83,7 +83,7 @@ Alternative using `--args` if your Hermes version supports it:
 
 ```bash
 hermes mcp add atd \
-  --command /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge \
+  --command /home/nan/code/atd/target/release/atd-mcp-bridge \
   --args "--sock" --args "/tmp/my-atd.sock"
 ```
 
@@ -101,7 +101,7 @@ hermes mcp test atd
 
 ```
 Testing 'atd'...
-Transport: stdio → /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge
+Transport: stdio → /home/nan/code/atd/target/release/atd-mcp-bridge
 Auth: none
 ✓ Connected (470ms)
 ✓ Tools discovered: 9
@@ -179,19 +179,19 @@ Model:     deepseek-chat
 ### Transcript 2 — `ref_fs_glob` via LLM (verbatim from SP-7 §3.3)
 
 **Prompt:**
-> "Use the ATD file glob tool (ref_fs_glob) to find all TOML files under /home/nan/proj/atd-mvp. Report how many files were found and the first three paths."
+> "Use the ATD file glob tool (ref_fs_glob) to find all TOML files under /home/nan/code/atd. Report how many files were found and the first three paths."
 
 **Hermes output:**
 
 ```
 ╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
-    I'll use the ATD file glob tool to find all TOML files in the atd-mvp
+    I'll use the ATD file glob tool to find all TOML files in the atd
     project directory.
 ╰─────────────────────────────────────────────────────────────────────────╯
   📞 Tool 1: mcp_atd_ref_fs_glob(['pattern', 'root'])
      Args: {
        "pattern": "**/*.toml",
-       "root": "/home/nan/proj/atd-mvp"
+       "root": "/home/nan/code/atd"
      }
 
 ╭─ ⚕ Hermes ──────────────────────────────────────────────────────────────╮
@@ -201,8 +201,8 @@ Model:     deepseek-chat
      \"crates/atd-mcp-bridge/Cargo.toml\",\"crates/atd-ref-server/Cargo.toml\",
      \"crates/atd-types/Cargo.toml\",\"examples/Cargo.toml\",
      \"python/pyproject.toml\",\"rust-toolchain.toml\"],
-     \"root\":\"/home/nan/proj/atd-mvp\",\"truncated\":false}"}
-    Found 9 TOML files under /home/nan/proj/atd-mvp:
+     \"root\":\"/home/nan/code/atd\",\"truncated\":false}"}
+    Found 9 TOML files under /home/nan/code/atd:
 
     1. Cargo.toml
     2. crates/atd-cli/Cargo.toml
@@ -250,7 +250,7 @@ hermes model set gpt-4o-mini
 
 ```bash
 hermes chat --provider openai --model gpt-4o-mini \
-  "Use ref_fs_glob to find all .rs files under /home/nan/proj/atd-mvp"
+  "Use ref_fs_glob to find all .rs files under /home/nan/code/atd"
 ```
 
 **Override via config file (`~/.hermes/config.yaml`):**
@@ -318,7 +318,7 @@ If the socket file is missing, the server exited. Restart it and retry.
 The bridge process itself failed to start. Check the bridge binary path:
 
 ```bash
-/home/nan/proj/atd-mvp/target/release/atd-mcp-bridge --help
+/home/nan/code/atd/target/release/atd-mcp-bridge --help
 # Should print usage without error
 ```
 
@@ -335,7 +335,7 @@ You registered the bridge without `--env ATD_SOCK=...` and the socket path is no
 ```bash
 hermes mcp remove atd
 hermes mcp add atd \
-  --command /home/nan/proj/atd-mvp/target/release/atd-mcp-bridge \
+  --command /home/nan/code/atd/target/release/atd-mcp-bridge \
   --env ATD_SOCK=/tmp/my-atd.sock
 ```
 
@@ -383,7 +383,7 @@ ATD tools appear alongside any tools Hermes provides natively (web search, memor
 
 ```bash
 hermes chat --no-builtin-tools \
-  "Use ATD to find all Python files under /home/nan/proj/atd-mvp"
+  "Use ATD to find all Python files under /home/nan/code/atd"
 ```
 
 **Running multiple bridge processes for the same server:**
@@ -455,4 +455,4 @@ For native ATD SDK callers (not via MCP), use `AtdClient::call_all` for auto-loo
 - [`docs/integrations/langchain.md`](langchain.md) — Python SDK + LangChain agent (no MCP layer)
 - [`docs/quickstart/rust.md`](../quickstart/rust.md) — Rust SDK for direct ATD access
 - [`crates/atd-mcp-bridge/README.md`](../../crates/atd-mcp-bridge/README.md) — bridge binary reference
-- [`docs/validation/2026-04-24-sp7-mcp-bridge.md`](../validation/2026-04-24-sp7-mcp-bridge.md) — full SP-7 validation transcript
+- [`docs/archive/validation/2026-04-24-sp7-mcp-bridge.md`](../archive/validation/2026-04-24-sp7-mcp-bridge.md) — full SP-7 validation transcript

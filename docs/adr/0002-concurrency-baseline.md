@@ -2,8 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-05-12
-- **Deciders:** `atd-mvp` maintainers
-- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11 · [`docs/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`](../superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) · sibling [`SP-pagination-v1`](../superpowers/specs/2026-05-12-sp-pagination-v1-design.md)
+- **Deciders:** `atd` maintainers
+- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11 · [`docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) · sibling [`SP-pagination-v1`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md)
 
 ## 1. Context
 
@@ -47,7 +47,7 @@ vs the pre-SP incident: 71s wall, 60% session-init failure at *10×* lower concu
 
 **Adopter impact:**
 
-- `celia_phr` — rebuild `path = atd-mvp` deps; their `scripts/agent-eval-hermes-family.ts` 10-concurrent benchmark goes from 60% session-init failure to 0%. Their CI gate can tighten from "<10% failure" to "0% failure." Their `atd-server-http` binary already uses `multi_thread`; the §5.4 audit mpsc inherits via the runtime upgrade.
+- `celia_phr` — rebuild `path = atd` deps; their `scripts/agent-eval-hermes-family.ts` 10-concurrent benchmark goes from 60% session-init failure to 0%. Their CI gate can tighten from "<10% failure" to "0% failure." Their `atd-server-http` binary already uses `multi_thread`; the §5.4 audit mpsc inherits via the runtime upgrade.
 - `healthkit_cli` — passive consumer; recompiles and inherits the new defaults. Their hermes-driven test suite is currently single-client so the storm fix is transparent.
 
 **Public API additions** (all back-compat):
@@ -76,8 +76,8 @@ vs the pre-SP incident: 71s wall, 60% session-init failure at *10×* lower concu
 
 ## 5. References
 
-- Spec: `docs/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
-- Plan: `docs/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
+- Spec: `docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
 - Conformance test: `crates/atd-conformance/tests/concurrent_handshake_storm.rs`
 - Architecture deployment-shapes section: `docs/architecture.md` §11
-- Sibling SP for the result-pagination axis of the same perf-v1 iteration: `docs/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
+- Sibling SP for the result-pagination axis of the same perf-v1 iteration: `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`

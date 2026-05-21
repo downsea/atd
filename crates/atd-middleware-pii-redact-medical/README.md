@@ -1,25 +1,26 @@
 # atd-middleware-pii-redact-medical
 
-Healthcare PHI redaction middleware for `atd-runtime`. Strips the 18
-HIPAA Safe Harbor identifier categories from tool-result JSON before it
-crosses to the LLM / client.
+Healthcare PHI redaction middleware for
+[`atd-runtime`](https://crates.io/crates/atd-runtime). Strips the 18 HIPAA Safe
+Harbor identifier categories from tool-result JSON before it crosses to the
+LLM / client.
 
-Sibling of [`atd-middleware-fhir`](../atd-middleware-fhir); both implement the existing
+Sibling of [`atd-middleware-fhir`](../atd-middleware-fhir); both implement the
 `atd_runtime::Middleware` trait and compose via
-`atd-server::Server::set_middleware`.
+`atd_server::Server::set_middleware`.
 
 ## What it does
 
-Walks the outgoing tool result (FHIR-aware by default, generic-JSON
-optional) and applies a per-field [`RedactionStrategy`]:
+Walks the outgoing tool result (FHIR-aware by default, generic-JSON optional)
+and applies a per-field `RedactionStrategy`:
 
 - 13 default JSON Pointer paths covering the canonical FHIR R4 PHI loci
-  (Patient.name, .identifier, .birthDate, .telecom, .address.line,
-  .photo, etc.)
-- 5 catch-all regex rules for PHI that drifts into free text
-  (SSN / US license plate / IP / URL / email)
+  (`Patient.name`, `.identifier`, `.birthDate`, `.telecom`, `.address.line`,
+  `.photo`, etc.)
+- 5 catch-all regex rules for PHI that drifts into free text (SSN / US license
+  plate / IP / URL / email)
 
-Strategies (per spec §4.6):
+Strategies:
 
 - `Strip` — replace with JSON null
 - `Token("CATEGORY")` — replace with `"[REDACTED:CATEGORY]"`
@@ -27,13 +28,13 @@ Strategies (per spec §4.6):
 - `ZipPrefix3` — truncate `"94303"` → `"943"`
 - `HashSha256Truncated` — cross-call correlation without identity leak
 - `FirstCharPrefix` — diagnostic preview
-- `LogOnly` — annotate without mutating (migration step 2)
+- `LogOnly` — annotate without mutating
 
-Generic-JSON mode (`fhir_aware: false`) skips the FHIR-shape paths and
-runs the regex layer only — useful for non-medical tools that may
-still leak PHI in free-text fields.
+Generic-JSON mode (`fhir_aware: false`) skips the FHIR-shape paths and runs the
+regex layer only — useful for non-medical tools that may still leak PHI in
+free-text fields.
 
-## Usage (composed with FHIR validator)
+## Usage (composed with the FHIR validator)
 
 ```rust
 use atd_middleware_fhir::FhirMiddleware;
@@ -51,10 +52,12 @@ server.run().await?;
 
 ## Out of scope
 
-See [SP-medical-middleware spec §3](../../docs/superpowers/specs/2026-05-11-sp-medical-middleware-design.md#3-non-goals) — NLP PHI detection, DICOM stripping, region-specific code systems,
-compliance certifications, schema-deep FHIR validation, `data_sensitivity:
-"phi"` per-tool opt-in, audit-side hook, PII-as-symmetric-encryption.
+NLP PHI detection, DICOM stripping, region-specific code systems, compliance
+certifications, and schema-deep FHIR validation. See
+[`docs/architecture.md`](../../docs/architecture.md) §7 (Middleware) for the
+middleware model.
 
 ## License
 
 Apache-2.0.
+</content>

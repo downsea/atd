@@ -195,7 +195,7 @@ Atlassian, Figma, etc.). A single `atd-dispatch` skill published once
 would reach all of them without per-platform engineering.
 
 **Status:** **NOT SHIPPED.** The `atd-dispatch` SKILL.md is designed
-in `docs/design.md` §5.1 but hasn't been written or published.
+in [`../archive/design.md`](../archive/design.md) §5.1 but hasn't been written or published.
 [`openclaw.md`](openclaw.md) describes the current workaround (MCP
 bridge, Path 2) and the future plan.
 
@@ -282,11 +282,12 @@ Both Path 1 and Path 2 support this.
 
 ### "I'm building a commercial product and need tool-level access control"
 
-ATD's capability system is Phase 2 (per `docs/design.md` §3.6). v0.1.0
-has no authentication or token-scoped access — all tools on a socket
-are exposed equally.
+ATD ships a capability gate plus UCAN-lite bearer tokens (see
+[`../architecture.md`](../architecture.md) §5.2 / §6.2). Tools declare
+`required_capabilities`; the server intersects them against an
+operator allow-list and any UCAN tokens the client presents.
 
-Interim: run separate ATD servers with different tool sets on
+You can also run separate ATD servers with different tool sets on
 different sockets (dev-socket, prod-socket, readonly-socket). Each
 consumer connects only to the sockets it's authorized to see.
 
@@ -340,9 +341,9 @@ Honest gaps, for expectations management:
 
 - **Tool-registry operator (running `atd-ref-server` or writing your
   own):** read [`../protocol/wire-format.md`](../protocol/wire-format.md)
-  and [`../protocol/error-codes.md`](../protocol/error-codes.md).
-  Conformance suite to validate your server against the protocol is
-  planned (SP-8, not yet shipped).
+  and [`../protocol/error-codes.md`](../protocol/error-codes.md). The
+  `atd-conformance` crate ships reusable conformance scenarios to
+  validate your server against the protocol.
 
 - **Agent UI user (Claude Desktop / Cursor / Hermes):** read
   [`hermes.md`](hermes.md) or [`claude-code.md`](claude-code.md). The
@@ -370,9 +371,9 @@ Honest gaps, for expectations management:
 - Protocol reference:
   [`../protocol/wire-format.md`](../protocol/wire-format.md),
   [`../protocol/error-codes.md`](../protocol/error-codes.md)
-- Design rationale: [`../design.md`](../design.md)
-- End-to-end validation:
-  [`../validation/2026-04-23-sp6-capstone.md`](../validation/2026-04-23-sp6-capstone.md)
+- Architecture: [`../architecture.md`](../architecture.md)
+- End-to-end validation (archived):
+  [`../archive/validation/2026-04-23-sp6-capstone.md`](../archive/validation/2026-04-23-sp6-capstone.md)
   (standalone),
-  [`../validation/2026-04-24-sp7-mcp-bridge.md`](../validation/2026-04-24-sp7-mcp-bridge.md)
+  [`../archive/validation/2026-04-24-sp7-mcp-bridge.md`](../archive/validation/2026-04-24-sp7-mcp-bridge.md)
   (MCP + live LLM)

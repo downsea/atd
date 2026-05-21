@@ -97,4 +97,4 @@ explicit NotImplemented is better than a surprising side effect.
 - `crates/atd-client/src/options.rs` (CallOptions)
 - `crates/atd-types/src/tool.rs` (ToolSafety.dry_run)
 - `crates/atd-types/src/error.rs` (`AtdError::NotImplemented`)
-- `docs/design.md` §3.6 ("dry_run: Exposed, stubbed")
+- `docs/archive/design.md` §3.6 ("dry_run: Exposed, stubbed")

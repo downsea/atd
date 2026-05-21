@@ -545,7 +545,7 @@ When building (or auditing) an ATD tool server, verify each:
 - [ ] `asyncio.CancelledError` is always re-raised (or explicitly propagated).
 
 ### Wire
-- [ ] No platform-specific shims wrap the wire frames; bytes are byte-compat with `crates/atd-protocol` v0.1.0.
+- [ ] No platform-specific shims wrap the wire frames; bytes are byte-compat with the `crates/atd-protocol` 1.0 wire format.
 - [ ] If you author a server in a new language, exercise the `atd-conformance` fixture corpus before claiming compatibility (Python's `test_server_conformance.py` is the reference shape).
 
 ---

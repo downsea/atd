@@ -2,8 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-05-12
-- **Deciders:** `atd-mvp` maintainers
-- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11.5 · [`docs/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`](../superpowers/specs/2026-05-12-sp-pagination-v1-design.md) · sibling [SP-concurrency-baseline](../superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [ADR-0002](./0002-concurrency-baseline.md)
+- **Deciders:** `atd` maintainers
+- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11.5 · [`docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md) · sibling [SP-concurrency-baseline](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [ADR-0002](./0002-concurrency-baseline.md)
 
 ## 1. Context
 
@@ -73,8 +73,8 @@ The protocol is missing a continuation primitive.
 
 ## 5. References
 
-- Spec: `docs/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
-- Plan: `docs/superpowers/plans/2026-05-12-sp-pagination-v1.md`
+- Spec: `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-05-12-sp-pagination-v1.md`
 - Wire format: `docs/protocol/wire-format.md` §4.4.1
 - Error codes: `docs/protocol/error-codes.md` §2.3g + §2.3h
 - Conformance test: `crates/atd-conformance/tests/paginated_dispatch.rs`

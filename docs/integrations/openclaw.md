@@ -1,16 +1,16 @@
 # OpenClaw Integration — ATD Client SDK
 
-**Status as of v0.1.0:** No native ATD integration path exists for OpenClaw. This document explains the current workaround, the planned `atd-dispatch` skill, and how to contribute.
+**Status as of v1.0.0:** No native ATD integration path exists for OpenClaw. This document explains the current workaround, the planned `atd-dispatch` skill, and how to contribute.
 
 ---
 
 ## Status
 
-atd-mvp v0.1.0 does not ship a native OpenClaw integration. Specifically:
+atd v1.0.0 does not ship a native OpenClaw integration. Specifically:
 
 - No `atd-dispatch` skill is published to ClawHub.
 - OpenClaw cannot discover or call ATD tools via a first-class mechanism.
-- The planned `skills/atd-dispatch/SKILL.md` file exists as a design artifact in `docs/design.md` §5.1 but has not been implemented or published.
+- The planned `skills/atd-dispatch/SKILL.md` file exists as a design artifact in [`../archive/design.md`](../archive/design.md) §5.1 but has not been implemented or published.
 
 This is an honest stub. If you need OpenClaw + ATD today, use the MCP bridge workaround below.
 
@@ -29,7 +29,7 @@ cargo build --release -p atd-ref-server -p atd-mcp-bridge
 **Step 2 — Start the ATD server:**
 
 ```bash
-/abs/path/to/atd-mvp/target/release/atd-ref-server --sock /tmp/my-atd.sock
+/abs/path/to/atd/target/release/atd-ref-server --sock /tmp/my-atd.sock
 ```
 
 **Step 3 — Configure OpenClaw's MCP settings:**
@@ -40,7 +40,7 @@ The JSON structure is the standard MCP client config:
 {
   "mcpServers": {
     "atd": {
-      "command": "/abs/path/to/atd-mvp/target/release/atd-mcp-bridge",
+      "command": "/abs/path/to/atd/target/release/atd-mcp-bridge",
       "env": {
         "ATD_SOCK": "/tmp/my-atd.sock"
       }
@@ -59,7 +59,7 @@ Consult the OpenClaw documentation for the exact config file path on your platfo
 
 The long-term integration path is a SKILL.md-compatible skill published to ClawHub. Once published, OpenClaw users could install it with a single command and get access to all ATD tools without any manual configuration.
 
-The design for this skill is specified in `docs/design.md` §5.1. The planned `SKILL.md` content is:
+The design for this skill is specified in [`../archive/design.md`](../archive/design.md) §5.1. The planned `SKILL.md` content is:
 
 ```yaml
 ---
@@ -83,11 +83,11 @@ When the user needs a tool that isn't in the native toolset, check ATD:
 Every call returns JSON with `{ok, data, error, metadata}`. Pass `data` forward.
 ```
 
-This skill wraps the `atd` CLI binary. The user or administrator installs `atd` (from `cargo install atd-cli`), configures the socket path, and the skill handles the rest. The LLM receives the dispatch instructions in its context and can discover and invoke ATD tools using `atd list`, `atd schema`, and `atd call`.
+This skill wraps the `atd` CLI binary. The user or administrator installs `atd` (build `atd-cli` from source — see "What you can do today" below), configures the socket path, and the skill handles the rest. The LLM receives the dispatch instructions in its context and can discover and invoke ATD tools using `atd list`, `atd schema`, and `atd call`.
 
 **What you can do today (without ClawHub publication):**
 
-1. Clone the repo: `git clone https://github.com/atd-protocol/atd-mvp`
+1. Clone the repo: `git clone https://github.com/downsea/atd`
 2. Build the `atd` CLI: `cargo build --release -p atd-cli`
 3. Start the server: `./target/release/atd-ref-server --sock /tmp/my-atd.sock`
 4. Create the SKILL.md file locally at `skills/atd-dispatch/SKILL.md` using the content above
@@ -117,7 +117,7 @@ OpenClaw's MCP support may differ from Claude Desktop and Cursor in config file 
 
 If OpenClaw does not support MCP natively, a PR to the OpenClaw project that adds `atd-mcp-bridge` as a first-class integration path would benefit the whole community. The bridge binary is a standalone Rust executable with no runtime dependencies beyond the OS.
 
-To get started, open an issue at [github.com/atd-protocol/atd-mvp](https://github.com/atd-protocol/atd-mvp) describing what you're working on. The maintainers can point you at the relevant design decisions and review your approach before you write code.
+To get started, open an issue at [github.com/downsea/atd](https://github.com/downsea/atd) describing what you're working on. The maintainers can point you at the relevant design decisions and review your approach before you write code.
 
 ---
 
@@ -126,4 +126,4 @@ To get started, open an issue at [github.com/atd-protocol/atd-mvp](https://githu
 - [`docs/integrations/claude-code.md`](claude-code.md) — MCP bridge config for clients that already support MCP
 - [`docs/integrations/hermes.md`](hermes.md) — Hermes Agent integration (same bridge, different client)
 - [`docs/protocol/wire-format.md`](../protocol/wire-format.md) — ATD wire protocol (for building a direct integration without the MCP bridge)
-- [`docs/design.md`](../design.md) §5.1 — full design for the `atd-dispatch` skill
+- [`docs/archive/design.md`](../archive/design.md) §5.1 — full design for the `atd-dispatch` skill

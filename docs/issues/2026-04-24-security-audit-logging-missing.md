@@ -1,9 +1,25 @@
 # No structured audit log of tool calls
 
 **Layer:** security / observability
-**Status:** tracked
+**Status:** closed-verified
 **Effort:** ~0.5 day
 **Filed:** 2026-04-24
+**Closed:** 2026-05-12
+
+## Resolution
+
+**Shipped.** Structured per-call audit landed across two SPs: the
+`CallEvent` / `AuditSink` model plus the `JsonLinesAuditSink` JSONL writer
+(SP-token-broker-phase1 / SP-operability-v1), then rewritten to a
+non-blocking bounded `tokio::sync::mpsc` channel + dedicated drain task
+in SP-concurrency-baseline (tag `sp-concurrency-baseline`, 2026-05-12).
+Every dispatched call emits a `CallEvent` with timestamp, `call_id`,
+`tool_id`, `args_hash`, `tier`, `binding`, `outcome`, `duration_ms`,
+`secrets_resolved`, and `cursor_page`; the `drops` counter is exposed via
+`Server::metrics_snapshot()`. See the `[0.3.0]` entry in
+[`CHANGELOG.md`](../../CHANGELOG.md) ("Bounded mpsc audit sink") and
+[`docs/architecture.md`](../architecture.md) §6.4. The body below is the
+original gap report, kept as a record.
 
 ## Summary
 

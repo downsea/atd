@@ -1,7 +1,7 @@
 # ATD Error Codes Reference
 
-**Protocol version:** 0.1.0
-**Source:** `crates/atd-protocol/src/error.rs` + `crates/atd-tools-*/src/` at tag `sp-refactor-v1`
+**Protocol version:** 1.0
+**Source:** `crates/atd-protocol/src/error.rs` + `crates/atd-protocol/src/messages.rs` + `crates/atd-tools-*/src/`
 
 This document is the authoritative reference for all error conditions in the ATD
 protocol. It covers both the client-side `AtdError` enum and the server-side
@@ -82,7 +82,11 @@ AtdClient::call()
 Source: `crates/atd-protocol/src/error.rs`
 
 The enum is `#[non_exhaustive]` — third-party code must handle unknown variants with
-a wildcard arm. All 9 variants known at v0.1.0 are listed below.
+a wildcard arm. All 11 variants are listed below (§2.1–§2.9 plus the two
+pagination-merge variants in §2.10). The numbered subsections §2.3a–§2.3h between
+them document the numeric **wire** error codes (`ERR_*` constants in
+`crates/atd-protocol/src/messages.rs`) carried in `Response::Error.code`; those are
+not `AtdError` enum variants.
 
 ### 2.1 `ToolNotFound`
 
@@ -437,6 +441,39 @@ match client.ping().await {
 }
 ```
 
+### 2.10 Pagination variants
+
+Two further variants are produced by the SDK's `AtdClient::call_all` cursor-walking
+helper (SP-pagination-v1). They never travel over the wire — like every other
+`AtdError`, they are synthesized client-side.
+
+#### `PaginationLimitExceeded`
+
+```rust
+PaginationLimitExceeded {
+    pages_fetched: u32,
+    bytes_fetched: usize,
+}
+```
+
+| attribute | value |
+|---|---|
+| **Trigger** | `AtdClient::call_all` hit either `CallAllOptions::max_pages` or `max_total_bytes` before exhausting the cursor chain |
+| **is_retryable()** | `false` |
+| **suggest_fix()** | `None` — the caller decides whether the partial result is acceptable or whether to raise the limits |
+
+#### `MergeFailed`
+
+```rust
+MergeFailed { reason: String }
+```
+
+| attribute | value |
+|---|---|
+| **Trigger** | `AtdClient::call_all`'s `MergePolicy` could not combine pages — e.g. `ConcatArray` but a page was not a JSON array, or `ConcatField` but the named field was missing |
+| **is_retryable()** | `false` |
+| **suggest_fix()** | `None` — pick a `MergePolicy` matching the tool's page shape |
+
 ---
 
 ## 3. Server-Side Error Codes (`ToolResult::Error.code`)
@@ -615,6 +652,8 @@ function maybe_retry(err, attempt, max_attempts=3):
 | `AtdError::ToolExecutionFailed` | no | Log and alert; likely a server-side bug. |
 | `AtdError::NotImplemented` | no | Remove the unsupported call. |
 | `AtdError::ProtocolError` | no | Check client/server version compatibility. |
+| `AtdError::PaginationLimitExceeded` | no | Accept the partial result or raise `CallAllOptions` limits. |
+| `AtdError::MergeFailed` | no | Pick a `MergePolicy` matching the tool's page shape. |
 | `ToolResult::Error { code: "TIMEOUT" }` | yes | Backoff; server-side timeout is transient. |
 | `ToolResult::Error { code: "IO" }` | no | OS I/O errors are typically not transient. |
 | `ToolResult::Error { code: "DNS_FAILED" }` | maybe | Retry after delay; DNS may recover. |

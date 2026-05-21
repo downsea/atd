@@ -7,7 +7,7 @@
 
 ## Summary
 
-`docs/design.md` §3.1 lists `session()` and `cancel()` among Phase 0's
+`docs/archive/design.md` §3.1 lists `session()` and `cancel()` among Phase 0's
 client SDK API methods. Neither is implemented — no wire messages, no
 client SDK methods, no server-side state machine.
 
@@ -105,7 +105,7 @@ against. Revisit when someone needs it for real.
 
 ## Related
 
-- `docs/design.md` §3.1
+- `docs/archive/design.md` §3.1
 - `crates/atd-client/src/protocol.rs`
 - `crates/atd-client/src/client.rs`
 - `docs/protocol/wire-format.md` §4 (already notes these as "planned")

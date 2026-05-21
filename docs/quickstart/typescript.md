@@ -1,12 +1,12 @@
 # TypeScript Quickstart — ATD Client SDK
 
-> **NOT SHIPPED in v0.1.0.** The TypeScript SDK does not exist yet. This document describes the planned API, the current workaround for TypeScript consumers, and where to watch for updates. Do not write code against the API shown here — it will change before it ships.
+> **NOT SHIPPED in 1.0.** The TypeScript SDK does not exist yet. This document describes the planned API, the current workaround for TypeScript consumers, and where to watch for updates. Do not write code against the API shown here — it will change before it ships.
 
 ---
 
 ## Status
 
-The ATD TypeScript SDK is listed as a Phase 1 deliverable in the project roadmap (see `docs/design.md` §7.2). It is **not implemented in v0.1.0**.
+The ATD TypeScript SDK is a post-1.0 deliverable in the project roadmap (see [`../roadmap.md`](../roadmap.md)). It is **not implemented in the 1.0 release**.
 
 There is no `typescript/` directory in this repository. The `npm` package `@atd-protocol/client` does not yet exist.
 
@@ -16,10 +16,10 @@ If you are a TypeScript developer who needs to call ATD tools today, see the [In
 
 ## Planned API
 
-The following interface is reproduced verbatim from `docs/design.md` §3.3. It represents the intended public API shape — **not yet implemented, subject to change before release**.
+The following interface represents the intended public API shape — **not yet implemented, subject to change before release**.
 
 ```typescript
-// /home/nan/proj/atd-mvp/typescript/src/client.ts  (planned, does not exist yet)
+// typescript/src/client.ts  (planned, does not exist yet)
 export class AtdClient {
     static async connect(endpoint: string | Endpoint): Promise<AtdClient>;
     discover(query?: string, filter?: DiscoverFilter): Promise<ToolSummary[]>;
@@ -37,7 +37,7 @@ export class AtdClient {
 - Transport in Phase 1 will be Unix socket (same as Rust/Python). HTTP transport landed 2026-05-11 on the server side (`atd-server-http` crate, SP-streamable-http + SP-1.B); the TS SDK can target either Unix socket (matching Rust/Python ergonomics) or HTTP (matching browser/Node fetch ergonomics) once concrete TS adopter requirements surface.
 - The package will be published as `@atd-protocol/client` on npm.
 
-The full planned API including `DiscoverFilter`, `CallOptions`, `ToolSummary`, `ToolDefinition`, and the error types follows the same semantics as the Rust reference implementation. See `crates/atd-client/src/` for the authoritative behavior specification.
+The full planned API including `DiscoverFilter`, `CallOptions`, `ToolSummary`, `ToolDefinition`, and the error types follows the same semantics as the Rust reference implementation. See `crates/atd-sdk/src/` for the authoritative behavior specification.
 
 **Planned supporting types (preview — not yet implemented):**
 
@@ -136,7 +136,7 @@ Configure your TypeScript MCP client to launch the bridge as a stdio server:
 {
   "mcpServers": {
     "atd": {
-      "command": "/path/to/atd-mvp/target/release/atd-mcp-bridge",
+      "command": "/path/to/atd/target/release/atd-mcp-bridge",
       "env": {
         "ATD_SOCK": "<YOUR_SOCKET_PATH>"
       }
@@ -153,7 +153,7 @@ For detailed MCP client configuration examples (Claude Desktop, Claude Code, Cur
 
 ### Option 2: Implement the wire protocol directly
 
-The ATD wire protocol is documented in [`docs/protocol/wire-format.md`](../protocol/wire-format.md). It is a simple length-prefixed JSON protocol over a Unix socket. The Rust implementation in `crates/atd-client/src/wire.rs` and `crates/atd-client/src/protocol.rs` is the reference.
+The ATD wire protocol is documented in [`docs/protocol/wire-format.md`](../protocol/wire-format.md). It is a simple length-prefixed JSON protocol over a Unix socket. The Rust implementation in `crates/atd-protocol/src/` is the reference.
 
 The framing is:
 
@@ -168,16 +168,16 @@ A minimal TypeScript implementation of this framing over a Unix socket is straig
 
 ## When will the TypeScript SDK ship?
 
-There is no committed timeline. The TypeScript SDK is tracked as a Phase 1 deliverable, which follows Phase 0 (the current Rust + Python reference implementation). Phase 1 has no scheduled start date.
+There is no committed timeline. The TypeScript SDK is tracked as a post-1.0 deliverable; the 1.0 release ships the Rust + Python reference implementation.
 
-The sequencing rationale: the Rust SDK is the protocol reference. Python followed immediately because LangChain integration was a Phase 0 validation goal. TypeScript follows in Phase 1 because the ecosystem demand is real but no Phase 0 integration test required it. The `atd-mcp-bridge` covers the immediate TypeScript use case (via any MCP-capable client) without requiring a native SDK.
+The sequencing rationale: the Rust SDK is the protocol reference. Python followed immediately because LangChain integration was an early validation goal. TypeScript follows because the ecosystem demand is real but no shipped integration test required it yet. The `atd-mcp-bridge` covers the immediate TypeScript use case (via any MCP-capable client) without requiring a native SDK.
 
 To follow progress:
 
 - Watch the repository for a `typescript/` directory to appear.
 - Watch for the `@atd-protocol/client` package on npm.
-- The `docs/design.md` file will be updated when Phase 1 scope is committed.
-- No issue tracker exists yet — governance is defined in `docs/design.md` §9.
+- The [`../roadmap.md`](../roadmap.md) file tracks evolution scope and deferred features.
+- Tracked gaps live as issues under [`../issues/`](../issues/).
 
 ---
 

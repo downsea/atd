@@ -23,8 +23,8 @@ The integration path is: `Client UI → atd-mcp-bridge (stdio) → Unix socket �
 **ATD binaries built from source:**
 
 ```bash
-git clone https://github.com/atd-protocol/atd-mvp
-cd atd-mvp
+git clone https://github.com/downsea/atd
+cd atd
 cargo build --release -p atd-ref-server -p atd-mcp-bridge
 ```
 
@@ -61,7 +61,7 @@ All three clients use the same `mcpServers` JSON structure. Only the config file
 {
   "mcpServers": {
     "atd": {
-      "command": "/abs/path/to/atd-mvp/target/release/atd-mcp-bridge",
+      "command": "/abs/path/to/atd/target/release/atd-mcp-bridge",
       "env": {
         "ATD_SOCK": "/tmp/my-atd.sock"
       }
@@ -70,7 +70,7 @@ All three clients use the same `mcpServers` JSON structure. Only the config file
 }
 ```
 
-Replace `/abs/path/to/atd-mvp` with the absolute path to your clone. Replace `/tmp/my-atd.sock` with the socket path where your ATD server is listening.
+Replace `/abs/path/to/atd` with the absolute path to your clone. Replace `/tmp/my-atd.sock` with the socket path where your ATD server is listening.
 
 **Alternative: use `args` instead of `env`:**
 
@@ -78,7 +78,7 @@ Replace `/abs/path/to/atd-mvp` with the absolute path to your clone. Replace `/t
 {
   "mcpServers": {
     "atd": {
-      "command": "/abs/path/to/atd-mvp/target/release/atd-mcp-bridge",
+      "command": "/abs/path/to/atd/target/release/atd-mcp-bridge",
       "args": ["--sock", "/tmp/my-atd.sock"]
     }
   }
@@ -100,7 +100,7 @@ The client config spawns the bridge automatically, but the bridge requires a run
 ### Manual launch (for development and testing)
 
 ```bash
-/abs/path/to/atd-mvp/target/release/atd-ref-server --sock /tmp/my-atd.sock
+/abs/path/to/atd/target/release/atd-ref-server --sock /tmp/my-atd.sock
 ```
 
 Leave this terminal open. The server exits when you close it.
@@ -116,7 +116,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart=/abs/path/to/atd-mvp/target/release/atd-ref-server --sock /tmp/my-atd.sock
+ExecStart=/abs/path/to/atd/target/release/atd-ref-server --sock /tmp/my-atd.sock
 Restart=on-failure
 RestartSec=3s
 StandardOutput=journal
@@ -155,7 +155,7 @@ Create `~/Library/LaunchAgents/com.atd-protocol.ref-server.plist`:
   <string>com.atd-protocol.ref-server</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/abs/path/to/atd-mvp/target/release/atd-ref-server</string>
+    <string>/abs/path/to/atd/target/release/atd-ref-server</string>
     <string>--sock</string>
     <string>/tmp/my-atd.sock</string>
   </array>
@@ -199,11 +199,11 @@ The following is an illustrative text transcript of what you see in Claude Deskt
 
 **In Claude Desktop's chat UI, after ATD tools are registered:**
 
-> **User:** List all the Rust source files in /home/nan/proj/atd-mvp/crates/atd-sdk/src using the ATD file glob tool.
+> **User:** List all the Rust source files in /home/nan/code/atd/crates/atd-sdk/src using the ATD file glob tool.
 >
 > **Claude:** I'll use the ATD file glob tool to find the Rust source files.
 >
-> _(Claude invokes `ref_fs_glob` with `{"pattern": "**/*.rs", "root": "/home/nan/proj/atd-mvp/crates/atd-sdk/src"}`)_
+> _(Claude invokes `ref_fs_glob` with `{"pattern": "**/*.rs", "root": "/home/nan/code/atd/crates/atd-sdk/src"}`)_
 >
 > _(Tool returns a list of `.rs` files)_
 >

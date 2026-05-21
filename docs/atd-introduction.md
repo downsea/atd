@@ -71,7 +71,7 @@ Unix socket、length-prefixed JSON 帧、零 schema 协商 — 简洁到 pre-SP 
 | `capability.intent_examples` | 3 个自然语言短语，帮 LLM 匹配用户意图 |
 | `input_schema` / `output_schema` | JSON Schema |
 | `safety.level` / `safety.dry_run` | Read / Write / Financial / Privacy / Physical / Destructive；是否支持 dry-run |
-| `visibility` | Read / Write / Dangerous / System / **Hidden**（v0.3.0） |
+| `visibility` | Read / Write / Dangerous / System / **Hidden** |
 | `required_capabilities` | server-side 强制门禁 |
 | `tier` | Hot / Warm / Cold（决定 deadline + max_output 预算） |
 | `resources.max_concurrent` | per-tool semaphore 限并发 |
@@ -92,7 +92,7 @@ pub struct CallContext {
     capabilities: Arc<CapabilitySet>, // Hello 协商出的 granted 子集
     tier: ToolTier,
     caller_id: Option<String>,        // 来自 Hello.client_id
-    secrets: Option<Arc<SecretBundle>>,  // 来自 TokenBroker（v0.3.0）
+    secrets: Option<Arc<SecretBundle>>,  // 来自 TokenBroker
 }
 ```
 
@@ -133,7 +133,7 @@ jq -c '{caller_id, tool_id, duration_ms, outcome: .outcome.kind, secrets_resolve
 
 ### 4.4 Multi-tenant TokenBroker（SP-token-broker-phase1/2）
 
-`ServerConfig::token_broker: Option<Arc<dyn TokenBroker>>` 是 v0.3.0 引入的扩展点：
+`ServerConfig::token_broker: Option<Arc<dyn TokenBroker>>` 是 server runtime 的一个扩展点：
 
 ```rust
 pub trait TokenBroker: Send + Sync {
@@ -160,13 +160,13 @@ healthkit_cli v1.4.0 ships `FileBackedTokenBroker`：每个 caller 一个 `<dir>
 
 ### 4.5 Tool visibility（SP-tool-visibility-hidden）
 
-`ToolVisibility::Hidden` 是 v0.3.0 加的变体：tool 被 server `Request::ToolList` 过滤掉、不出现在 agent discover 结果里，但仍能 `ToolSchema` 和 `RunTool` by id 调到。用例：
+`ToolVisibility::Hidden` 是一个 visibility 变体：tool 被 server `Request::ToolList` 过滤掉、不出现在 agent discover 结果里，但仍能 `ToolSchema` 和 `RunTool` by id 调到。用例：
 
 - vendor 的 8 个 raw schema endpoint（容易让 LLM 困惑）— 标 Hidden；agent 只看 26 个 helper
 - 集成测试 / debug 工具
 - 操作员后门
 
-healthkit v1.2.0 之前用 `--expose-raw-tools` 这种「per-binary 开关」凑合；v0.3.0 起用 `Hidden` 是协议级方案。
+healthkit v1.2.0 之前用 `--expose-raw-tools` 这种「per-binary 开关」凑合；改用 `Hidden` 是协议级方案。
 
 ### 4.6 Skills meta-tool 公约（SP-skills-discovery-convention）
 
@@ -262,21 +262,24 @@ healthkit_cli 的 `healthkit serve` 是 ~150 行 glue（一半是命令行参数
 
 ---
 
-## 7. Workspace 实现（ATD reference impl v0.3.0）
+## 7. Workspace 实现（ATD reference impl 1.0）
 
-13 个 crate，378 测试 passing，Apache-2.0：
+16 个 crate，Apache-2.0。完整 crate map 见 [`architecture.md`](architecture.md) §8：
 
 | crate | 职责 |
 |---|---|
 | `atd-protocol` | wire 格式 + 类型 + sanitize |
 | `atd-sdk` | Rust 客户端 SDK |
-| `atd-runtime` | server runtime（registry、dispatch、audit、rate limit、TokenBroker） |
+| `atd-runtime` | server runtime（registry、dispatch、audit、rate limit、TokenBroker、UCAN 校验） |
 | `atd-server` | Unix socket listener + connection 任务 |
-| `atd-tools-{echo,fs,shell,web}` | 内置工具示例 |
+| `atd-server-http` | HTTP listener + MCP JSON-RPC translator + bearer auth |
+| `atd-middleware-fhir` | FHIR R4 egress validation middleware |
+| `atd-middleware-pii-redact-medical` | HIPAA PHI redaction middleware |
+| `atd-tools-{echo,fs,shell,web}` | 内置工具示例（4 个 crate） |
 | `atd-ref-server` | 参考 server binary（合所有内置工具） |
-| `atd-mcp-bridge` | MCP/stdio ↔ ATD wire bridge（v0.3.0+ 支持 `ATD_CLIENT_ID` 多租户） |
+| `atd-mcp-bridge` | MCP/stdio ↔ ATD wire bridge（支持 `ATD_CLIENT_ID` 多租户） |
 | `atd-cli` | `atd` 开发者 CLI（list / schema / call / doctor / **skills sync**） |
-| `atd-conformance` | 35 个跨实现 conformance fixture（wire / behavior / sanitize 三类） |
+| `atd-conformance` | 跨实现 conformance fixture（wire / behavior / sanitize 三类） |
 | `atd-mock-weather-server` | 跨 vendor 组合 demo bin |
 
 ---
@@ -306,8 +309,8 @@ healthkit_cli 的 `healthkit serve` 是 ~150 行 glue（一半是命令行参数
 ### 9.1 跑参考 server
 
 ```bash
-git clone https://github.com/downsea/atd-mvp.git
-cd atd-mvp
+git clone https://github.com/downsea/atd.git
+cd atd
 cargo build --release -p atd-ref-server -p atd-cli -p atd-mcp-bridge
 
 # 启动参考 server（包含 echo / fs / shell / web / uname 共 10 个内置工具）
@@ -369,7 +372,7 @@ async fn main() -> anyhow::Result<()> {
 - 实证 transcript：
   - [healthkit_cli/docs/case-study-v1.2.0/](https://github.com/downsea/healthkit_cli/tree/main/docs/case-study-v1.2.0)（4 个 prompt × log，95.2% 验证）
   - [healthkit_cli/docs/case-study-v1.4.0/](https://github.com/downsea/healthkit_cli/tree/main/docs/case-study-v1.4.0)（医生视角心率分析，ATD vs CLI 头对头）
-- SP（spec + plan）历史：[`docs/superpowers/`](superpowers/)
+- SP（spec + plan）历史归档：[`docs/archive/superpowers/`](archive/superpowers/)
 
 ---
 

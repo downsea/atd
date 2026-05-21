@@ -1,11 +1,11 @@
 # celia_phr — SP-concurrency-baseline adopter validation + concurrency benchmark
 
-**Layer:** adopter (cross-project: celia_phr ↔ atd-mvp)
+**Layer:** adopter (cross-project: celia_phr ↔ atd)
 **Status:** closed-verified (2026-05-12)
 **Effort:** ~0.5 day (rebuild + rerun benchmark + report numbers)
 **Filed:** 2026-05-12
 **Closed:** 2026-05-12
-**Related SP:** [`sp-concurrency-baseline`](../superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (tag `sp-concurrency-baseline`)
+**Related SP:** [`sp-concurrency-baseline`](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (tag `sp-concurrency-baseline`)
 **Related ADR:** [ADR-0002 — Concurrency is a protocol-level invariant](../adr/0002-concurrency-baseline.md)
 **Triggering incident:** 2026-05-12 celia 10-query × 10-concurrent benchmark (60% session-init failure → 0% expected post-SP)
 
@@ -13,7 +13,7 @@
 
 celia delivered the functional ask via the **`atd-mcp-opt iter-4`** track:
 
-- **SP-concurrency-baseline passively consumed.** celia rebuilt `path = ../atd-mvp` against the perf-v1 tip; `atd-sdk::client::connect_retries_on_transient_failure` is listed as a landed prerequisite of iter-4. The 120-query family-eval SHARP baseline ran with **0 rate-limit / 0 connection failures** (vs. iter-3's 6/10 failures). Evidence: `celia_phr/docs/atd-mcp-opt-iter4-baseline.md` (recorded 2026-05-12, celia commit `90d1156`).
+- **SP-concurrency-baseline passively consumed.** celia rebuilt `path = ../atd` against the perf-v1 tip; `atd-sdk::client::connect_retries_on_transient_failure` is listed as a landed prerequisite of iter-4. The 120-query family-eval SHARP baseline ran with **0 rate-limit / 0 connection failures** (vs. iter-3's 6/10 failures). Evidence: `celia_phr/docs/atd-mcp-opt-iter4-baseline.md` (recorded 2026-05-12, celia commit `90d1156`).
 - **Original incident (60% session-init failure at 10×10) no longer reproduces** — iter-4's full 120Q SHARP run is the integration-level proof; the underlying bug class is structurally gone.
 
 **Deviations from the original ask:**
@@ -25,9 +25,9 @@ celia delivered the functional ask via the **`atd-mcp-opt iter-4`** track:
 
 ## Summary
 
-`atd-mvp` shipped **SP-concurrency-baseline** on 2026-05-12 to structurally fix the concurrency failure celia surfaced. This issue asks the celia_phr team to:
+`atd` shipped **SP-concurrency-baseline** on 2026-05-12 to structurally fix the concurrency failure celia surfaced. This issue asks the celia_phr team to:
 
-1. **Rebuild** their `path = ../atd-mvp` workspace dependencies against tag `sp-concurrency-baseline` (or latest master).
+1. **Rebuild** their `path = ../atd` workspace dependencies against tag `sp-concurrency-baseline` (or latest master).
 2. **Rerun** `scripts/agent-eval-hermes-family.ts --queries 10 --concurrency 10` and confirm the 60% session-init failure mode no longer reproduces.
 3. **Push concurrency higher** — at minimum 25, ideally 50 — to verify the post-SP SLO (p99 < 200ms handshake, 0 errors, 0 audit drops) holds in the real celia stack (not just the ref-server-based conformance scenario).
 4. **Tighten their CI gate** from "<10% session-init failure" to "0% failure" once the rebuild validates.
@@ -61,8 +61,8 @@ vs the pre-SP incident: 71s wall + 60% session-init failure at *10× lower* conc
 
 ```bash
 cd /home/nan/code/pha/celia_phr
-# Ensure the path dep points at the post-SP atd-mvp tag.
-# (No Cargo.toml edit needed if path = "../atd-mvp"; just rebuild.)
+# Ensure the path dep points at the post-SP atd tag.
+# (No Cargo.toml edit needed if path = "../atd"; just rebuild.)
 cargo build --release
 cargo nextest run --workspace
 ```
@@ -151,10 +151,10 @@ If the rebuild reveals any of these, file a new ATD-side issue cross-linking thi
 
 ## References
 
-- ATD spec: `docs/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
-- ATD plan: `docs/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
+- ATD spec: `docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
+- ATD plan: `docs/archive/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
 - ATD conformance test (the test that "passes" the SLO bar celia should meet): `crates/atd-conformance/tests/concurrent_handshake_storm.rs`
 - ATD architecture §11 (deployment shapes, SLOs, postmortem): `docs/architecture.md` §11
 - ADR: `docs/adr/0002-concurrency-baseline.md`
-- Sibling SP-pagination-v1 (separate adopter issue when impl lands): `docs/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
+- Sibling SP-pagination-v1 (separate adopter issue when impl lands): `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
 - Triggering incident transcript: 2026-05-12 chat session at `/home/nan/code/pha/celia_phr/scripts/agent-eval-hermes-family.ts` (pre-SP run).

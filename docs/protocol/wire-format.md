@@ -1,13 +1,13 @@
 # ATD Wire Format Reference
 
-**Protocol version:** 0.1.0
-**Source:** `crates/atd-protocol/src/` + `crates/atd-sdk/src/wire.rs` at tag `sp10-adapters`
+**Protocol version:** 1.0
+**Source:** `crates/atd-protocol/src/` + `crates/atd-sdk/src/wire.rs`
 **Machine-readable counterpart:** [`/atd-protocol-schema.json`](../../atd-protocol-schema.json) — generated from the Rust types in `atd-protocol`; CI gates drift.
-**Transports:** Unix socket (implemented), stdio (planned), HTTP (Phase 2)
+**Transports:** Unix socket (`atd-server`), HTTP + MCP JSON-RPC (`atd-server-http`)
 
 This document is the authoritative reference for the ATD wire protocol. Implementers
 building a third-party ATD server or client should treat this document, together with
-`docs/protocol/error-codes.md`, as the spec for v0.1.0 compatibility.
+`docs/protocol/error-codes.md`, as the spec for v1.0 compatibility.
 
 ---
 
@@ -421,7 +421,7 @@ this subset to enforce each tool's `required_capabilities`.
 {
   "type": "hello_ack",
   "granted_capabilities": ["exec"],   // intersection of requested + allow-list
-  "server_version": "atd-ref-server 0.2.0",
+  "server_version": "atd-ref-server 1.0.0",
   "supported_tiers": ["hot", "warm", "cold"]
 }
 ```
@@ -904,13 +904,13 @@ This is distinct from a tool execution error — the tool was never invoked.
 
 ### 8.1 Protocol version
 
-v0.1.0 follows the **SemVer 0.x contract**: breaking changes are allowed between any
-two 0.x releases. There is no in-band version negotiation in v0.1.0. A third-party
-server claiming ATD 0.1.0 compatibility must implement all four request types
-(`ping`, `tool_list`, `tool_schema`, `run_tool`) and return correctly-shaped responses.
-
-At 1.0, the protocol stability promise kicks in: no required fields may be removed, no
-existing wire values may change meaning.
+As of **1.0 the wire protocol is stable for the 1.x line**: no required field may be
+removed, no existing wire value may change meaning. Additive changes (new optional
+fields, new enum variants, new request types) are minor bumps; a breaking change is a
+major (2.0) bump. There is no in-band version negotiation in 1.0. A third-party server
+claiming ATD 1.0 compatibility must implement the core request types (`ping`,
+`tool_list`, `tool_schema`, `run_tool`) and return correctly-shaped responses. The
+full stability contract is in [`../release-plan-v1.0.md`](../release-plan-v1.0.md).
 
 ### 8.2 What constitutes a breaking change
 
@@ -926,9 +926,10 @@ existing wire values may change meaning.
 
 ### 8.3 Version detection
 
-There is no `version` field in the `ping`/`pong` exchange in v0.1.0. Clients that
-need to detect server version should call `tool_list` and check for the presence of
-known tools or fields. A version negotiation handshake is planned for Phase 1.
+There is no `version` field in the `ping`/`pong` exchange. Clients that need to
+detect server version can call `hello` — `hello_ack` carries a `server_version`
+string (see §4.6) — or call `tool_list` and check for the presence of known tools
+or fields.
 
 ---
 
@@ -1112,7 +1113,7 @@ Until then, convention-only.
 ### 11.5 See also
 
 - `atd skills sync` subcommand (atd-cli) — pulls skills via this convention into per-platform directories (hermes / claude-code / stdout)
-- `docs/superpowers/specs/2026-04-27-sp-skills-discovery-convention-design.md` — full design rationale
+- `docs/archive/superpowers/specs/2026-04-27-sp-skills-discovery-convention-design.md` — full design rationale
 - First adopter: `healthkit_cli` v1.3.0 — exposes 26 SKILL.md via `huawei:hms.healthkit.skills.list/get`
 
 ---

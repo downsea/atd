@@ -1,6 +1,10 @@
 # atd-ref-server
 
-Neutral reference server for the [ATD protocol](../../docs/design.md). Stands up a Unix-socket daemon that speaks the standard ATD wire format and exposes a small but real tool catalog. Designed to be **forked**: third parties writing their own ATD server can read the code and use it as a working template.
+Neutral reference server for the
+[ATD (Agent Tool Dispatch) protocol](../../docs/architecture.md). Stands up a
+Unix-socket daemon that speaks the standard ATD wire format and exposes a small
+but real tool catalog. Designed to be **forked**: third parties writing their
+own ATD server can read the code and use it as a working template.
 
 Zero dependency on any specific client SDK or agent framework. In particular, zero dependency on `atd-sdk`, `atd-mcp-bridge`, `atd-cli`, or any `anos-*` crate. The server crate links only `atd-protocol` + `atd-runtime` + the `atd-tools-*` crates it chooses to ship.
 
@@ -63,11 +67,10 @@ atd --sock $HOME/.atd-ref/server.sock call ref:web.fetch \
 
 ## How to add a tool
 
-Post-`SP-refactor-v1`, built-in tools live in sibling crates under
-`crates/atd-tools-*/`. Each crate owns one domain (echo, fs, shell, web).
-The `atd-ref-server` crate links them and wires them into a
-`Registry` in `builtin.rs`. To add a tool, pick the right crate (or
-create a new sibling `atd-tools-<domain>` crate) and:
+Built-in tools live in sibling crates under `crates/atd-tools-*/`. Each crate
+owns one domain (echo, fs, shell, web). The `atd-ref-server` crate links them
+and wires them into a `Registry` in `builtin.rs`. To add a tool, pick the right
+crate (or create a new sibling `atd-tools-<domain>` crate) and:
 
 1. **Create the tool file** in the chosen tool-crate, e.g.
    `crates/atd-tools-fs/src/my_tool.rs`:
@@ -149,7 +152,7 @@ Three state lifetimes:
 | Layer | Lives | Example |
 |---|---|---|
 | Global | whole process | `Registry`, `ServerConfig` |
-| Per-connection | one client session | (SP-2 adds `ReadTracker` here) |
+| Per-connection | one client session | `ReadTracker` |
 | Per-call | one `run_tool` | `call_id`, `deadline`, args |
 
 ## Per-connection state
@@ -188,15 +191,24 @@ Lifetime: from connection `accept()` to `close`. Not persisted; not shared acros
 | Server-side bug | `Err(ToolCallError::InternalError(msg))` | `error` response |
 | Success | `Ok(data)` | `tool_result { success: true, result: data }` |
 
-## What's shipped and what's next
+## Built-in tool catalog
 
-- **SP-1 (shipped):** framework + `ref:echo.say`
-- **SP-2 (shipped):** `ref:fs.read`, `ref:fs.write`, `ref:fs.edit` + `ReadTracker` per-connection state
-- **SP-3 (shipped):** `ref:shell.exec` (Bash) + `ref:shell.pwsh` (PowerShell) + shared subprocess handler
-- **SP-4 (shipped):** `ref:fs.glob` + `ref:fs.grep` — ripgrep-powered search tools
-- **SP-5 (shipped):** `ref:web.fetch` — HTTP GET with SSRF guard + HTML→markdown
+The reference server registers nine tools out of the box, drawn from the
+`atd-tools-*` crates:
 
-See `../../docs/superpowers/specs/2026-04-22-atd-ref-server-sp1-foundation.md` and `sp2-*` for details on shipped sub-projects.
+| Domain | Tools |
+|---|---|
+| echo | `ref:echo.say` |
+| fs | `ref:fs.read`, `ref:fs.write`, `ref:fs.edit`, `ref:fs.glob`, `ref:fs.grep` |
+| shell | `ref:shell.exec`, `ref:shell.pwsh` |
+| web | `ref:web.fetch` |
+
+## See also
+
+- [`docs/architecture.md`](../../docs/architecture.md) — the normative
+  architecture, including the dispatch model and the crate map.
+- [`AGENTS.md`](../../AGENTS.md) §5 — the extension-point guide.
+- [`docs/integrations/`](../../docs/integrations/) — adopter-side tutorials.
 
 ## License
 

@@ -31,7 +31,7 @@ cargo build --release -p atd-ref-server
 
 ```bash
 # From source (not yet on PyPI)
-pip install -e '/path/to/atd-mvp/python[langchain]'
+pip install -e '/path/to/atd/python[langchain]'
 
 # Future: pip install 'atd-client[langchain]'
 ```
@@ -56,7 +56,7 @@ The following script connects to ATD, discovers all available tools, binds them 
 
 Usage:
     cargo build --release -p atd-ref-server
-    pip install -e '/path/to/atd-mvp/python[langchain]'
+    pip install -e '/path/to/atd/python[langchain]'
     pip install langchain-openai
     export OPENAI_API_KEY=<YOUR_API_KEY>
     export ATD_SOCK=/tmp/my-atd.sock   # optional; auto-spawns if unset
@@ -451,7 +451,7 @@ You imported `as_langchain_tools` in an environment without `langchain-core`. In
 ```bash
 pip install 'atd-client[langchain]'
 # or from source:
-pip install -e '/path/to/atd-mvp/python[langchain]'
+pip install -e '/path/to/atd/python[langchain]'
 ```
 
 **`RuntimeError: ATD tool 'ref:fs.read' has no client bound; pass client=<AtdClient> to as_langchain_tools()`**

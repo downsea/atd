@@ -1,14 +1,28 @@
 # Capability tokens (UCAN-like) — deferred to Phase 2
 
 **Layer:** security
-**Status:** deferred-phase-2
+**Status:** closed-verified
 **Effort:** ~5-10 days (real UCAN + revocation + integration)
 **Filed:** 2026-04-24
+**Closed:** 2026-05-11
+
+## Resolution
+
+**Shipped** as **SP-capability-v2** (tag `sp-capability-v2`, 2026-05-11) —
+UCAN-lite bearer capability tokens: JWT compact form, Ed25519 signatures,
+`did:key` audiences, attenuation chains, and a `UcanRevocationStore`
+revocation hook. Wire surface: `Hello.ucan_tokens` plus error codes
+1010–1013. Granted capabilities at dispatch = string allow-list ∪
+UCAN-derived caps (additive — pre-token adopters unaffected). See the
+`[0.3.0]` entry in [`CHANGELOG.md`](../../CHANGELOG.md) ("UCAN-lite
+capability tokens"), [`docs/architecture.md`](../architecture.md) §5.2 /
+§6.2, and [ADR-0001](../adr/0001-celia-atd-roadmap-alignment.md) §1.A.
+The body below is the original deferral rationale, kept as a record.
 
 ## Summary
 
 ATD's design frames capability tokens (UCAN-style) as the primary
-multi-tenant authorization mechanism. `docs/design.md` §3.6 explicitly
+multi-tenant authorization mechanism. `docs/archive/design.md` §3.6 explicitly
 defers enforcement to Phase 2: *"Optional in Phase 0/1, enforced in
 Phase 2. Don't block early adopters on security model; grow into it."*
 This issue tracks the aspirational shape for when Phase 2 work starts.
@@ -47,7 +61,7 @@ This issue tracks the aspirational shape for when Phase 2 work starts.
 
 ## Why deferred (not tracked)
 
-This is explicitly scoped out of the MVP per `docs/design.md` §10.4 and
+This is explicitly scoped out of the MVP per `docs/archive/design.md` §10.4 and
 §3.6. The right time to design it is when:
 
 - A concrete multi-tenant deployment exists
@@ -82,6 +96,6 @@ This is socket-level ACL, not tool-level. Coarse but clean for v0.1.x.
 
 ## Related docs
 
-- `docs/design.md` §3.6 (explicit deferral)
+- `docs/archive/design.md` §3.6 (explicit deferral)
 - `docs/protocol/error-codes.md` (`AtdError::CapabilityDenied` variant —
   currently unreachable but defined)

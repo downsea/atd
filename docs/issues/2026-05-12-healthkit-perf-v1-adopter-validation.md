@@ -1,11 +1,11 @@
 # healthkit_cli — perf-v1 adopter validation (concurrency + pagination)
 
-**Layer:** adopter (cross-project: healthkit_cli ↔ atd-mvp)
+**Layer:** adopter (cross-project: healthkit_cli ↔ atd)
 **Status:** closed-verified (2026-05-12)
 **Effort:** ~1 day total (15 min concurrency rebuild + ~6h pagination migration of 1-3 tools)
 **Filed:** 2026-05-12
 **Closed:** 2026-05-12
-**Related SPs:** [`sp-concurrency-baseline`](../superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [`sp-pagination-v1`](../superpowers/specs/2026-05-12-sp-pagination-v1-design.md) (perf-v1 axis 2)
+**Related SPs:** [`sp-concurrency-baseline`](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [`sp-pagination-v1`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md) (perf-v1 axis 2)
 **Related ADRs:** [ADR-0002 — concurrency baseline](../adr/0002-concurrency-baseline.md) · [ADR-0003 — pagination v1](../adr/0003-pagination-v1.md)
 **Sibling adopter issue:** [`2026-05-12-celia-concurrency-adopter-validation.md`](2026-05-12-celia-concurrency-adopter-validation.md)
 
@@ -14,7 +14,7 @@
 healthkit_cli delivered everything the issue asked for; full evidence is in their adopter doc:
 
 - **Doc:** `healthkit_cli/docs/sp-pagination-v1-adopter.md` (explicit back-link to this issue file).
-- **Concurrency (passive):** rebuilt against atd-mvp `050598b` (perf-v1 tip). `cargo test --workspace` 218 unit + 7 integration tests green. No source edits.
+- **Concurrency (passive):** rebuilt against atd `050598b` (perf-v1 tip). `cargo test --workspace` 218 unit + 7 integration tests green. No source edits.
 - **Pagination (active):** `activities` (`ActivityRecord`) helper opted into `Tool::supports_pagination` + `Tool::call_paginated` (commit `03799ce`); `HealthRecord` family followed in commit `e186c99`. Cursor `opaque_state` is a fixed 16-byte big-endian `(next_start_ms, target_end_ms)` — well under `MAX_OPAQUE_STATE_BYTES` (256).
 - **Tests:** 4 unit (codec round-trip / short-input rejection / encoding cap / per-class opt-in matrix) + 2 wire-level integration (3-page walk + 1-page terminal). All green.
 - **Pre-v1.4.0 work tag pending** on healthkit side; the work itself is merged on healthkit's `master`.
@@ -25,14 +25,14 @@ healthkit_cli delivered everything the issue asked for; full evidence is in thei
 
 ## Summary
 
-`atd-mvp` shipped the **perf-v1 iteration** on 2026-05-12, two SPs covering two axes:
+`atd` shipped the **perf-v1 iteration** on 2026-05-12, two SPs covering two axes:
 
 - **SP-concurrency-baseline** (tag `sp-concurrency-baseline`) — multi-thread tokio + wire deadlines + SDK retry + audit mpsc + metrics. Fixes a 60% session-init failure mode that surfaced in celia's 10-concurrent benchmark. healthkit_cli is a passive consumer here (no source edits required).
 - **SP-pagination-v1** (tag `sp-pagination-v1`) — protocol-level result pagination via HMAC-signed cursors. healthkit_cli is the **primary migration target** for this SP: `query_observations` and `query_workouts` over multi-month windows produce ~3MB+ JSON payloads that already exceed the 1MB advisory budget today.
 
 This issue asks the healthkit_cli team to:
 
-1. **Rebuild** their `path = ../atd-mvp/crates/...` workspace deps. Concurrency fixes land transparently; pagination types become available.
+1. **Rebuild** their `path = ../atd/crates/...` workspace deps. Concurrency fixes land transparently; pagination types become available.
 2. **Confirm no regression** on the existing single-client integration tests.
 3. **Migrate 1-3 high-volume tools** to opt into `Tool::call_paginated` (the load-bearing adopter work for SP-pagination-v1).
 4. **Document the migration** in `healthkit_cli/docs/` mirroring the `case-study-v1.4.0` pattern.
@@ -227,9 +227,9 @@ If the rebuild or migration reveals any of these, file a new ATD-side issue cros
 
 ## References
 
-- ATD spec (concurrency): `docs/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
-- ATD spec (pagination): `docs/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
-- ATD plan (pagination): `docs/superpowers/plans/2026-05-12-sp-pagination-v1.md` (§Phase D walkthrough is the closest fit for the adopter migration)
+- ATD spec (concurrency): `docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
+- ATD spec (pagination): `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
+- ATD plan (pagination): `docs/archive/superpowers/plans/2026-05-12-sp-pagination-v1.md` (§Phase D walkthrough is the closest fit for the adopter migration)
 - Reference paginating tool: `crates/atd-conformance/tests/paginated_dispatch.rs::RowGenerator` (100 lines, copy-paste-friendly)
 - Reference dispatch tests: `crates/atd-server/src/connection.rs::tests::run_tool_continue_*`
 - Architecture deployment shapes: `docs/architecture.md` §11 (concurrency) + §11.5 (pagination)

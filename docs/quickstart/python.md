@@ -1,6 +1,6 @@
 # Python Quickstart — ATD Client SDK
 
-**Environment:** Linux, Python 3.10+, `uv` or `pip`. Tested on the `sp10-adapters` tag (252 workspace tests green).
+**Environment:** Linux, Python 3.10+, `uv` or `pip`. Validated against the ATD 1.0 release.
 
 ---
 
@@ -27,7 +27,7 @@ For the raw wire protocol, see [`docs/protocol/wire-format.md`](../protocol/wire
 **Using `uv` (recommended):**
 
 ```bash
-# From the root of the atd-mvp repo:
+# From the root of the atd repo:
 uv pip install -e python/
 
 # With LangChain adapter support:
@@ -37,13 +37,13 @@ uv pip install -e 'python/[langchain]'
 **Using `pip`:**
 
 ```bash
-pip install -e /path/to/atd-mvp/python/
+pip install -e /path/to/atd/python/
 
 # With LangChain adapter:
-pip install -e '/path/to/atd-mvp/python/[langchain]'
+pip install -e '/path/to/atd/python/[langchain]'
 ```
 
-Replace `/path/to/atd-mvp` with the absolute path where you cloned the repository.
+Replace `/path/to/atd` with the absolute path where you cloned the repository.
 
 The package requires Python 3.10+ and `pydantic>=2`. The `langchain` extra additionally requires `langchain-core>=0.3`.
 
@@ -99,7 +99,7 @@ Passing `None` uses the default socket path configured by the ATD server daemon.
 
 ```bash
 cargo build --release -p atd-ref-server
-cd /path/to/atd-mvp
+cd /path/to/atd
 uv run python python/examples/hello_atd.py
 ```
 
@@ -108,13 +108,13 @@ Expected output:
 ```
 [atd] auto-spawning atd-ref-server → /tmp/.../demo.sock
 [atd] connected
-[atd] 3 tools registered
+[atd] 10 tools registered
 
 [1/3] ref:echo.say {"text":"hello from ATD"}
-      → {"echo": "hello from ATD"}
+      → {"echoed": {"text": "hello from ATD"}}
 
 [2/3] ref:fs.glob {"pattern":"**/*.toml","path":"."}
-      → 5 paths: Cargo.toml, crates/atd-client/Cargo.toml, ... (+2 more)
+      → 5 paths: Cargo.toml, crates/atd-sdk/Cargo.toml, ... (+2 more)
 
 [3/3] ref:shell.exec {"command":"uname -s"}
       → exit 0, stdout='Linux'

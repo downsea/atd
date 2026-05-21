@@ -1,35 +1,38 @@
 # atd-middleware-fhir
 
-Egress FHIR R4 validation middleware for `atd-runtime`.
+Egress FHIR R4 validation middleware for
+[`atd-runtime`](https://crates.io/crates/atd-runtime).
 
-Sibling of [`atd-middleware-pii-redact-medical`](../atd-middleware-pii-redact-medical); both implement
-the existing `atd_runtime::Middleware` trait and compose via
-`atd-server::Server::set_middleware`.
+Sibling of
+[`atd-middleware-pii-redact-medical`](../atd-middleware-pii-redact-medical);
+both implement the `atd_runtime::Middleware` trait and compose via
+`atd_server::Server::set_middleware`.
 
 ## What it does
 
 Validates **outgoing** tool results that claim to be FHIR R4
 (`result.resourceType` is set):
 
-1. `resourceType` is in the known set (default = celia's 12 supported
-   resource types).
-2. Required fields per resource type are present (table-driven from
-   celia's `crates/celia-core/src/fhir/validate.rs:117-166`).
-3. Every `coding[].system` URI is in the whitelist (default = celia's
-   70-URI baseline, drift-guarded by a unit test).
+1. `resourceType` is in the known set (default = 12 supported resource types,
+   kept set-equal to celia's catalogue).
+2. Required fields per resource type are present (table-driven —
+   `REQUIRED_FIELDS_TABLE` in `src/required_fields.rs`).
+3. Every `coding[].system` URI is in the whitelist (default
+   `ALLOWED_SYSTEMS_DEFAULT` — a 75-URI baseline, drift-guarded by a unit test
+   against the vendored `vendor/celia-whitelists.toml`).
 
 Non-FHIR results pass through untouched.
 
-On mismatch, applies a configured [`MismatchPolicy`]:
+On mismatch, applies a configured `MismatchPolicy`:
 
-- `AnnotateAndPass` (default) — append `_fhir_validation_errors: [...]`
-  to the result; dispatch continues.
+- `AnnotateAndPass` (default) — append `_fhir_validation_errors: [...]` to the
+  result; dispatch continues.
 - `ReplaceWithError` — replace the result with `{"error":
-  "fhir_validation_failed", "details": [...]}`. Tool's wire success
-  flag is preserved (dispatch logs `Outcome::Success`; the *middleware*
-  objected, not the tool).
-- `StripOffending` — null out the offending coding entries, keep
-  everything else.
+  "fhir_validation_failed", "details": [...]}`. The tool's wire success flag is
+  preserved (dispatch logs `Outcome::Success`; the *middleware* objected, not
+  the tool).
+- `StripOffending` — null out the offending coding entries, keep everything
+  else.
 
 ## Usage
 
@@ -47,9 +50,12 @@ For the combined FHIR + PHI-redaction chain, see
 
 ## Out of scope
 
-See [SP-medical-middleware spec §3](../../docs/superpowers/specs/2026-05-11-sp-medical-middleware-design.md#3-non-goals) — full FHIR R4 schema validation, NLP PHI detection,
-DICOM stripping, region-specific code systems, compliance certifications.
+Full FHIR R4 schema validation, NLP PHI detection, DICOM stripping,
+region-specific code systems, and compliance certifications. See
+[`docs/architecture.md`](../../docs/architecture.md) §7 (Middleware) for the
+middleware model and the whitelist invariant.
 
 ## License
 
 Apache-2.0.
+</content>

@@ -13,7 +13,7 @@
 
 cbrain 是一个具身机器人「大脑」（S2 自主决策层）项目，已经在 `docs/research/13-依赖与组件复用决策.md` 经过尽调决策**把 ATD 作为 cognitive plane 的统一工具调度协议**（与 ROS 2 在控制平面的混合架构）。现在进入工程实现阶段（`docs/research/14`），第一个里程碑 W1–W10 要把 MuJoCo 仿真 + Hermes Agent + cbrain-sim 通过 ATD 协议串起来。
 
-工程过程中发现 ATD 当前实现（commit head, 2026-05）虽然 wire / protocol / type system 已基本就绪，但有若干 **gap 阻塞 cbrain 直接采用**。本 issue 把所有 gap 按优先级汇总，作为 cbrain adopter 的依赖清单，请 atd-mvp 团队评估提前排期。
+工程过程中发现 ATD 当前实现（commit head, 2026-05）虽然 wire / protocol / type system 已基本就绪，但有若干 **gap 阻塞 cbrain 直接采用**。本 issue 把所有 gap 按优先级汇总，作为 cbrain adopter 的依赖清单，请 atd 团队评估提前排期。
 
 cbrain 这边会同时维护一份 vendored shim（实现这些 gap 的最小子集，跑通 W1–W7）；一旦 atd 团队官方实现就绪，cbrain 立即切回上游，不希望长期维护 fork。
 
@@ -78,7 +78,7 @@ await server.serve()  # block until SIGTERM
 
 **为什么不让 cbrain 自己写**：cbrain 自己写一份意味着两份代码漂移，cbrain 没有维护 ATD 协议的人力；且未来其他 Python adopter（如 healthkit_cli 后续可能转 Python）也会遇到。这是 ATD ecosystem 的基础设施，应该官方维护。
 
-**cbrain 临时方案**：在 cbrain `sim/cbrain_sim/atd_shim/` 下 vendor 一份 minimal server，绑死在 cbrain repo 内，标注 `# TODO: upstream when atd-mvp ships official server runtime`，并跟踪本 issue。
+**cbrain 临时方案**：在 cbrain `sim/cbrain_sim/atd_shim/` 下 vendor 一份 minimal server，绑死在 cbrain repo 内，标注 `# TODO: upstream when atd ships official server runtime`，并跟踪本 issue。
 
 ---
 
@@ -93,7 +93,7 @@ await server.serve()  # block until SIGTERM
 
 **Effort**：~2–3 天 CI 工作。
 
-**cbrain 临时方案**：cbrain 的 `scripts/setup.sh` 内会自动 `cd ../atd-mvp && cargo build --release -p atd-mcp-bridge`，但这强假设 cbrain 和 atd-mvp 同级目录。
+**cbrain 临时方案**：cbrain 的 `scripts/setup.sh` 内会自动 `cd ../atd && cargo build --release -p atd-mcp-bridge`，但这强假设 cbrain 和 atd 同级目录。
 
 ---
 
@@ -233,7 +233,7 @@ async def merkle_audit(request, response, next):
 - `world.reset` / `world.set_state`
 - `task.lifecycle.write`
 
-**Required**：在 `docs/design.md` 或 `docs/protocol/` 增加 "Capability naming guidelines"，列出推荐 domain × action 矩阵。
+**Required**：在 `docs/archive/design.md` 或 `docs/protocol/` 增加 "Capability naming guidelines"，列出推荐 domain × action 矩阵。
 
 **Effort**：~1 周文档 + 社区讨论。
 
@@ -243,7 +243,7 @@ async def merkle_audit(request, response, next):
 
 cbrain repo 在 `sim/cbrain_sim/atd_shim/` 下会维护一份 minimal Python ATD server side（~300 LOC），**仅满足 W1–W7 demo**。它实现：
 
-- 完整 wire / protocol（与 atd-mvp 字节兼容）
+- 完整 wire / protocol（与 atd 字节兼容）
 - `ping` / `hello` / `tool_list` / `tool_schema` / `run_tool`
 - 同步 1:1 request/response（无 cancel / 无 streaming）
 - Tier-aware `asyncio.wait_for` deadline
@@ -252,9 +252,9 @@ cbrain repo 在 `sim/cbrain_sim/atd_shim/` 下会维护一份 minimal Python ATD
 
 **不实现**：Cancel / Streaming / Binary payload / Conformance runner —— 等 atd 上游。
 
-**协议字节兼容**：cbrain shim 严格按 `docs/protocol/wire-format.md` v0.1.0 实现；atd-mvp 升级 spec 时 cbrain 跟进。
+**协议字节兼容**：cbrain shim 严格按 `docs/protocol/wire-format.md` v0.1.0 实现；atd 升级 spec 时 cbrain 跟进。
 
-**切换计划**：atd-mvp 一旦正式发布 `atd-server` Python 包，cbrain 在 1 周内切换，删除 shim。本 issue 关闭。
+**切换计划**：atd 一旦正式发布 `atd-server` Python 包，cbrain 在 1 周内切换，删除 shim。本 issue 关闭。
 
 ---
 
@@ -296,14 +296,14 @@ cbrain 的 W1–W10 路线图（见 `cbrain/docs/research/14`）：
 - `cbrain/docs/research/14-仿真环境工程实现方案.md` —— 本期 PoC 工程方案
 - `cbrain/docs/research/15-cbrain-对atd的需求.md` —— 本 issue 的 cbrain 视角镜像
 
-**atd-mvp 端**：
-- `docs/design.md` —— 协议设计文档
+**atd 端**：
+- `docs/archive/design.md` —— 协议设计文档
 - `docs/protocol/wire-format.md` —— v0.1.0 wire spec
 - `docs/protocol/error-codes.md` —— 错误码表（cbrain 申请 2000–2099 命名空间；P1-6 will formalize）
 - `crates/atd-protocol` / `python/src/atd_client/` —— client / protocol crates
 - `python/src/atd_server/` —— **NEW** Python server runtime (P0-1 ship, 2026-05-19)
-- `docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` —— SP-server-py-v1 design
-- `docs/superpowers/plans/2026-05-19-sp-server-py-v1.md` —— SP-server-py-v1 phasing plan
+- `docs/archive/superpowers/specs/2026-05-19-sp-server-py-v1-design.md` —— SP-server-py-v1 design
+- `docs/archive/superpowers/plans/2026-05-19-sp-server-py-v1.md` —— SP-server-py-v1 phasing plan
 - `docs/integrations/python-server.md` —— **NEW** cbrain-style hello-world + adopter guide
 
 ---
@@ -342,8 +342,8 @@ ACK 已收到。本节是 ATD 团队对 §3 全部 11 项的 per-item 裁决与 
 
 | # | cbrain ask | 裁决 | SP slot | 备注 |
 |---|---|---|---|---|
-| **P0-1** | Python server runtime | ✅ **shipped 2026-05-19** | **`SP-server-py-v1`** Phase A-H | spec + plan + all 8 phases landed same session (8 commits `c79317d`→`aeab2f5`): skeleton / handshake / registry / dispatch / middleware (P2-8 bundled) / conformance subset (22/24 fixtures, 96% coverage) / docs. cbrain swap = `path = "../atd-mvp/python"` + `from atd_server import AtdServer` + delete `cbrain/sim/cbrain_sim/atd_shim/` (~2h if §9.3 guidance followed). |
-| **P0-2** | `atd-mcp-bridge` 预编译二进制 | ⏳ **queued — not yet started** | `SP-release-binaries-v1` | next action: file `docs/superpowers/specs/<date>-sp-release-binaries-v1-design.md`. Scope: GitHub Actions matrix (linux x86_64/aarch64 + macOS arm64) + tag-triggered GH release; pypi wrapper via maturin optional. Effort ~2-3 days CI work. Target: 1 month. **Not blocked by anything**; can be picked up by anyone with GitHub Actions familiarity. |
+| **P0-1** | Python server runtime | ✅ **shipped 2026-05-19** | **`SP-server-py-v1`** Phase A-H | spec + plan + all 8 phases landed same session (8 commits `c79317d`→`aeab2f5`): skeleton / handshake / registry / dispatch / middleware (P2-8 bundled) / conformance subset (22/24 fixtures, 96% coverage) / docs. cbrain swap = `path = "../atd/python"` + `from atd_server import AtdServer` + delete `cbrain/sim/cbrain_sim/atd_shim/` (~2h if §9.3 guidance followed). |
+| **P0-2** | `atd-mcp-bridge` 预编译二进制 | ⏳ **queued — not yet started** | `SP-release-binaries-v1` | next action: record the decision as an ADR in `docs/adr/`. Scope: GitHub Actions matrix (linux x86_64/aarch64 + macOS arm64) + tag-triggered GH release; pypi wrapper via maturin optional. Effort ~2-3 days CI work. Target: 1 month. **Not blocked by anything**; can be picked up by anyone with GitHub Actions familiarity. |
 | **P1-3** | Cancel / abort | ⏳ **queued · merged with P1-4** | **`SP-cancel-streaming-v1`** | next action: file the umbrella design spec; uses per-`request_id` router on connection. **SP-server-py-v1 left the Phase-2 seam** (see `python/src/atd_server/server.py:163-194` — `_serve_one_connection` is strictly serial; v2 just replaces the inner `await self._dispatch(msg, ctx)` with `asyncio.create_task(...)` + request_id router without changing the registry/handler API). Supersedes legacy `2026-04-24-dispatch-session-cancel-not-implemented.md`. Target 6 weeks. |
 | **P1-4** | Chunked / streaming 响应 | ⏳ **queued · merged with P1-3** | `SP-cancel-streaming-v1` | 见上 |
 | **P1-5** | Binary payload | 🟡 **deferred — design SP only** | `SP-binary-frames-v1` (design only) | 协议 breaking change. cbrain W1-W10 base64 jpeg ≤100KB unchanged — no immediate pressure. Recommendation: don't open the SP until either (a) cbrain hits real-robot stage and measures the base64 overhead as a real bottleneck, or (b) healthkit / celia presents an independent need. **Risk if opened prematurely**: design churn against a single use case. |
@@ -356,8 +356,8 @@ ACK 已收到。本节是 ATD 团队对 §3 全部 11 项的 per-item 裁决与 
 
 ### 9.2 P0-1 立即动作
 
-- **设计**：`docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`（本 commit）。
-- **计划**：`docs/superpowers/plans/2026-05-19-sp-server-py-v1.md`（本 commit）。
+- **设计**：`docs/archive/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`（本 commit）。
+- **计划**：`docs/archive/superpowers/plans/2026-05-19-sp-server-py-v1.md`（本 commit）。
 - **API 兼容承诺**：Python server 复用 `atd_client.wire` / `atd_client.protocol` 常量，与 `crates/atd-protocol` byte-for-byte 兼容。cbrain shim 按 `docs/protocol/wire-format.md` v0.1.0 实现的话，**切换零协议改动**，只是 import 换源 + 删 shim。
 - **Phase B 落地节奏**（详见 plan）：B 骨架 → C 握手 → D 注册/列表/schema → E 派发+dry_run+tier deadline → F middleware → G 测试+conformance 子集 → H 文档+integrations 页。每阶段独立可 commit，**B-E 出来后 cbrain 就能开始切换**（不必等 F-H 全部 ship）。
 
@@ -383,9 +383,9 @@ cbrain §4 计划 vendor ~300 LOC shim 跑 W1。ATD 团队建议：
 - current：`triaged-2026-05-19, P0-1 + P2-8 done; 6 SPs queued; 2 deferred`
 - close criteria：P0-2 + P1-3/4 + P1-6 都 ship 之后整体 close；其余子项独立追踪不再绑定本 umbrella
 
-**cbrain 下一步**：merge worktree branch `worktree-cbrain-triage-and-sp-server-py-v1` (8 commits `c79317d` → `aeab2f5`) 到 master，然后在 cbrain 端 `path = "../atd-mvp/python"` 拉 `atd_server` + 删 shim。切换工作量 ~2h（详见 `docs/integrations/python-server.md` cbrain-style hello-world 范例）。
+**cbrain 下一步**：merge worktree branch `worktree-cbrain-triage-and-sp-server-py-v1` (8 commits `c79317d` → `aeab2f5`) 到 master，然后在 cbrain 端 `path = "../atd/python"` 拉 `atd_server` + 删 shim。切换工作量 ~2h（详见 `docs/integrations/python-server.md` cbrain-style hello-world 范例）。
 
-**ATD team contact:** atd-mvp maintainers
+**ATD team contact:** atd maintainers
 **Triage by:** ATD team, 2026-05-19
 **P0-1 ship:** ATD team, 2026-05-19 (same session as triage; SP-server-py-v1 Phase A-H)
 

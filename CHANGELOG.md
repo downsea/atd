@@ -7,13 +7,81 @@ documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Workspace crates share a single version cadence (`workspace.package.version`),
-so a `0.3.0` line below means **every** crate in `crates/` ships at
-`0.3.0` — adopters pinning one crate get a consistent set across the
+so a `1.0.0` line below means **every** crate in `crates/` ships at
+`1.0.0` — adopters pinning one crate get a consistent set across the
 whole stack.
 
-Each entry cites the SP / Phase tag where the change landed; full
-design rationale lives at `docs/superpowers/specs/` and (for cross-
-phase architecture decisions) `docs/adr/`.
+Each entry cites the tag where the change landed; full design rationale
+lives at `docs/adr/` and (for pre-1.0 history) `docs/archive/superpowers/specs/`.
+
+---
+
+## [1.0.0] — 2026-05-21
+
+The stability release. ATD's wire format, JSON schema, and public
+extension traits are now **frozen for the 1.x line** — see
+[`docs/release-plan-v1.0.md`](docs/release-plan-v1.0.md) for the full
+stability contract.
+
+1.0 ships no new protocol features over `0.3.0`: it declares the `0.3.0`
+surface stable, completes the documentation, and renames the repository.
+
+### Stability commitment
+
+- **Wire format frozen** for 1.x. Additive changes (new optional fields,
+  new enum variants) are minor bumps; removing or reshaping a field is a
+  major (2.0) bump.
+- **`atd-protocol-schema.json` frozen** on the same contract — code
+  generated from the 1.0 schema deserialises every 1.x message.
+- **Public extension traits stable** — `Tool`, `Binding`, `Middleware`,
+  `TokenBroker`, `AuditSink`. Extensions built against 1.0 keep
+  compiling across the 1.x line.
+- **`AtdError` variants and `ERR_*` wire codes stable.**
+- MSRV `1.85`; workspace-lockstep versioning through 1.x.
+
+### Changed
+
+- **Repository renamed** `atd-mvp` → **`atd`**. The protocol, the brand,
+  and every crate already used the `atd` name; the directory now matches.
+  Crate names are unchanged.
+- **Workspace version** bumped `0.3.0` → `1.0.0`.
+
+### Documentation
+
+A full overhaul to meet the agent-native bar — a code agent cloning the
+repo can implement, verify, and extend ATD without external context:
+
+- **`AGENTS.md`** — rewritten as the authoritative agent entry point
+  (was a stale Phase-0 file).
+- **`docs/index.md`** — new documentation map + authority hierarchy.
+- **`docs/extending/`** — new: eight how-to guides, one per extension
+  point (tool, binding, middleware, transport, token-broker,
+  audit-sink, protocol-and-schema).
+- **`docs/roadmap.md`** — new: evolution scope — deferred features,
+  known limitations, post-1.0 direction.
+- **`docs/release-plan-v1.0.md`** — new: the 1.0 stability contract +
+  release procedure.
+- **`docs/archive/`** — new home for frozen history: the Superpowers
+  (SP) design archive, the Phase 0 `design.md`, validation logs, and the
+  superseded 0.3.0 release plan.
+- **Removed** `docs/whitepaper/` (external snapshots, not
+  source-of-truth) and `docs/reference/` (ANOS-scoped content).
+- Every surviving doc — architecture, protocol reference, quickstarts,
+  integrations, crate READMEs — accuracy-checked against the 1.0 code.
+
+### Fixed
+
+- **CI release-build step** built a non-existent package
+  `atd-ref-server-bin`; corrected to `atd-ref-server`.
+- Schema `$id` and the protocol-reference version header advanced from
+  `0.1.0` to the `1.0` line.
+
+### Issues closed
+
+- `docs/issues/2026-04-24-security-capability-tokens-deferred.md` —
+  resolved by UCAN-lite capability tokens (shipped 0.3.0).
+- `docs/issues/2026-04-24-security-audit-logging-missing.md` — resolved
+  by the structured audit sink (shipped 0.3.0).
 
 ---
 
@@ -312,7 +380,8 @@ Canonical-dispatch landing (SP-12). See `git log v0.1.0..v0.2.0`.
 
 Initial workspace + reference server.
 
-[0.3.0]: https://github.com/downsea/atd-mvp/compare/v0.2.1...phase-l-0
-[0.2.1]: https://github.com/downsea/atd-mvp/releases/tag/v0.2.1
-[0.2.0]: https://github.com/downsea/atd-mvp/releases/tag/v0.2.0
-[0.1.0]: https://github.com/downsea/atd-mvp/releases/tag/v0.1.0
+[1.0.0]: https://github.com/downsea/atd/releases/tag/v1.0.0
+[0.3.0]: https://github.com/downsea/atd/compare/v0.2.1...phase-l-0
+[0.2.1]: https://github.com/downsea/atd/releases/tag/v0.2.1
+[0.2.0]: https://github.com/downsea/atd/releases/tag/v0.2.0
+[0.1.0]: https://github.com/downsea/atd/releases/tag/v0.1.0

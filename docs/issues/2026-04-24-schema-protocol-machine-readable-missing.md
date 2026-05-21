@@ -1,12 +1,23 @@
 # No machine-readable protocol schema
 
-**Status:** resolved by SP-protocol-schema (2026-04-25; tag `sp-protocol-schema`).
-
 **Layer:** schema
-**Status:** tracked
+**Status:** closed-verified
 **Effort:** ~0.5 day
 **Filed:** 2026-04-24
+**Closed:** 2026-04-25
 **Related tag:** `sp11-docs`
+
+## Resolution
+
+**Shipped** as **SP-protocol-schema** (tag `sp-protocol-schema`,
+2026-04-25). `/atd-protocol-schema.json` is generated from the Rust
+types in `atd-protocol` via `schemars`, validated against the JSON
+Schema 2020-12 meta-schema, and CI-gated for drift. Third-party
+implementers no longer need to read Rust to build a TS / Go / Java
+implementation. See the `[0.3.0]` entry in
+[`CHANGELOG.md`](../../CHANGELOG.md) ("Machine-readable protocol
+schema") and [`docs/architecture.md`](../architecture.md) §2. The body
+below is the original gap report, kept as a record.
 
 ## Summary
 

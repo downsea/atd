@@ -1,22 +1,28 @@
 # atd-client / atd-server (Python)
 
-Reference Python SDK and **server runtime** for the [ATD protocol](../docs/design.md).
+Reference Python SDK and **server runtime** for the
+[ATD (Agent Tool Dispatch) protocol](../docs/architecture.md).
 
-- `atd_client` — async-first client (with sync wrapper), LLM adapters, type
-  models. The original Phase-1 package.
-- `atd_server` — Python server runtime (SP-server-py-v1, 2026-05-19).
-  Use this when your tool host needs to live inside a Python process
-  (e.g. a MuJoCo-backed simulator, a notebook server). Byte-compat with
-  the Rust `atd-server`; the Python `AtdClient`, Rust `atd-sdk`, and
-  `atd-mcp-bridge` can all connect to either reference server
-  indistinguishably. See [`docs/integrations/python-server.md`](../docs/integrations/python-server.md).
+- `atd_client` — async-first client (with a sync wrapper), LLM adapters, and
+  type models. Wire-compatible with the Rust `atd-sdk`.
+- `atd_server` — Python server runtime. Use this when your tool host needs to
+  live inside a Python process (e.g. a MuJoCo-backed simulator, a notebook
+  server). Byte-compatible with the Rust `atd-server`; the Python `AtdClient`,
+  Rust `atd-sdk`, and `atd-mcp-bridge` can all connect to either reference
+  server indistinguishably. See
+  [`docs/integrations/python-server.md`](../docs/integrations/python-server.md).
+
+This package is the Python mirror of the Rust workspace. The protocol contract
+itself is normative — see
+[`docs/architecture.md`](../docs/architecture.md) and
+[`docs/protocol/wire-format.md`](../docs/protocol/wire-format.md).
 
 ## Install
 
-From source (during Phase 1, before PyPI publish):
+From source:
 
 ```bash
-cd atd-mvp/python
+cd atd/python
 uv sync
 uv run python examples/hello_atd.py
 ```
@@ -35,23 +41,27 @@ import asyncio
 from atd_client import AtdClient
 
 async def main():
-    async with await AtdClient.connect() as client:     # uses ~/.anos/anos.sock
+    async with await AtdClient.connect() as client:
         tools = await client.discover(query="fs", limit=5)
         for t in tools:
             print(t.id, "—", t.name)
-        result = await client.call("anos:fs.read", {"path": "/etc/hostname"})
+        result = await client.call("ref:fs.read", {"path": "/etc/hostname"})
         print(result)
 
 asyncio.run(main())
 ```
 
-## Quickstart — server (cbrain-style)
+`AtdClient.connect()` with no argument resolves the default socket path; pass an
+explicit path (`AtdClient.connect("/tmp/my-atd.sock")`) to target a specific
+server.
+
+## Quickstart — server
 
 ```python
 import asyncio
 from atd_server import AtdServer, CallContext
 # ToolDefinition / ToolSuccess / etc. live in atd_client.types
-from atd_client.types import ToolDefinition, ToolSuccess, ToolResultMetadata, ...
+from atd_client.types import ToolDefinition, ToolSuccess, ToolResultMetadata
 
 server = AtdServer(socket_path="/tmp/my-tools.sock", server_id="demo")
 
@@ -72,7 +82,7 @@ from atd_client import AtdClientSync
 
 client = AtdClientSync.connect()
 tools = client.discover(query="fs", limit=5)
-result = client.call("anos:fs.read", {"path": "/etc/hostname"})
+result = client.call("ref:fs.read", {"path": "/etc/hostname"})
 client.close()
 ```
 
@@ -96,12 +106,8 @@ uv run mypy src            # type check
 uv run ruff check src tests
 ```
 
-Contract tests under `tests/test_anos_fixture.py` replay live-ANOS responses captured at `../crates/atd-client/tests/fixtures/`. Refresh with `../scripts/capture_anos_fixtures.sh`.
-
-## Phase 0 known limitation
-
-`call()` currently returns an error against the ANOS reference server because its `run_tool` IPC is stubbed. See `../docs/issues/2026-04-21-atd-run-tool-stub.md`.
-
 ## License
 
 Apache-2.0.
+</content>
+</invoke>

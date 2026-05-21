@@ -1,6 +1,6 @@
 # Python server runtime (`atd_server`)
 
-Reference Python server runtime for the [ATD protocol](../design.md). Sibling
+Reference Python server runtime for the [ATD protocol](../architecture.md). Sibling
 package of `atd_client`; lives at `python/src/atd_server/`.
 
 Use this when your tool host needs to run inside a Python process — e.g.
@@ -221,8 +221,8 @@ COLD tier or external API waits) should override.
 
 ## Related
 
-- Spec: [`docs/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`](../superpowers/specs/2026-05-19-sp-server-py-v1-design.md)
-- Plan: [`docs/superpowers/plans/2026-05-19-sp-server-py-v1.md`](../superpowers/plans/2026-05-19-sp-server-py-v1.md)
+- Spec: [`docs/archive/superpowers/specs/2026-05-19-sp-server-py-v1-design.md`](../archive/superpowers/specs/2026-05-19-sp-server-py-v1-design.md)
+- Plan: [`docs/archive/superpowers/plans/2026-05-19-sp-server-py-v1.md`](../archive/superpowers/plans/2026-05-19-sp-server-py-v1.md)
 - Driving issue: [`docs/issues/2026-05-19-cbrain-adopter-requirements.md`](../issues/2026-05-19-cbrain-adopter-requirements.md) (cbrain P0-1)
 - Sibling Rust runtime: [`crates/atd-server/`](../../crates/atd-server/) (UDS) and `crates/atd-server-http/` (HTTP)
 - Wire format (shared with Rust): [`docs/protocol/wire-format.md`](../protocol/wire-format.md)
