@@ -1,7 +1,9 @@
-//! Contract test: atd-sdk must correctly parse the wire shapes that the
-//! ANOS daemon actually produces. Fixtures in tests/fixtures/ are captured
-//! from a live daemon via scripts/capture_anos_fixtures.sh — refresh them
-//! whenever ANOS bumps its protocol.
+//! Contract test: atd-sdk must correctly parse the wire shapes a real
+//! third-party ATD server produces — a cross-vendor regression guard for
+//! the SDK decoder. The fixtures in `tests/fixtures/` (`anos_tool_list.json`,
+//! `anos_tool_schema_fs_read.json`) are a frozen snapshot once captured
+//! from a live ANOS daemon; they are static test data and the SDK has no
+//! runtime dependency on ANOS.
 
 use atd_sdk::{AtdClient, DiscoverFilter, Endpoint};
 use std::path::PathBuf;
