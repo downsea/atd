@@ -12,15 +12,15 @@ keywords = ["atd", "fhir", "healthcare", "middleware", "validation"]
 categories = ["api-bindings"]
 
 [dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
-atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
-atd-server = { path = "../atd-server", version = "0.3.0" }
+atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
+atd-server = { path = "../atd-server", version = "1.0.0" }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = "0.8"

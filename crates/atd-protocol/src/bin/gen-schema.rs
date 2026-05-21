@@ -36,7 +36,7 @@ fn build_schema_text() -> String {
 
     let root = serde_json::json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://atd.dev/schema/v0.1.0/atd-protocol-schema.json",
+        "$id": "https://atd.dev/schema/v1.0.0/atd-protocol-schema.json",
         "title": "ATD Protocol Schema",
         "description": "Wire types for the ATD reference implementation. Generated from atd-protocol Rust types via schemars; do not hand-edit.",
         "definitions": definitions,

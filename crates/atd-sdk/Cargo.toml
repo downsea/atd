@@ -13,7 +13,7 @@ categories = ["api-bindings", "asynchronous"]
 exclude = ["tests/fixtures/*", "benches/*"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

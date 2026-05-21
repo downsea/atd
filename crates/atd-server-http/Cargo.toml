@@ -12,8 +12,8 @@ keywords = ["atd", "mcp", "http", "transport", "agent"]
 categories = ["api-bindings", "asynchronous", "network-programming"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
-atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -24,9 +24,9 @@ tower-http = { workspace = true }
 http = { workspace = true }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
-atd-server = { path = "../atd-server", version = "0.3.0" }
-atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.0.0", features = ["testing"] }
+atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
 http-body-util = { workspace = true }

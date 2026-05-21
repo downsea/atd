@@ -21,10 +21,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "1.0.0"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/downsea/atd-mvp"
+repository = "https://github.com/downsea/atd"
 authors = ["ATD Protocol Contributors"]
 rust-version = "1.85"
 

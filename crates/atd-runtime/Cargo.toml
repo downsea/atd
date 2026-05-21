@@ -12,7 +12,7 @@ keywords = ["atd", "agent", "tool-dispatch", "runtime", "server"]
 categories = ["api-bindings", "asynchronous"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

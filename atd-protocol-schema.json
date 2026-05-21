@@ -1,5 +1,5 @@
 {
-  "$id": "https://atd.dev/schema/v0.1.0/atd-protocol-schema.json",
+  "$id": "https://atd.dev/schema/v1.0.0/atd-protocol-schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "definitions": {
     "AtdError": {
@@ -193,6 +193,27 @@
             "ProtocolError"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "SP-pagination-v1 §4.8 — `MergePolicy` couldn't combine pages (e.g., `ConcatArray` but a page wasn't an array; `ConcatField` but the named field was missing).",
+          "properties": {
+            "MergeFailed": {
+              "properties": {
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "MergeFailed"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -311,6 +332,29 @@
             "type"
           ],
           "type": "object"
+        },
+        {
+          "description": "Fetch the next page of a paginated tool result. The cursor is the server-issued opaque string from a prior `Response::ToolResultResponse.next_cursor`. `tool_id` must match the cursor's embedded tool_id (server validates). SP-pagination-v1 §4.1.",
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "tool_id": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "run_tool_continue"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "cursor",
+            "tool_id",
+            "type"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -399,6 +443,13 @@
           "properties": {
             "dry_run": {
               "type": "boolean"
+            },
+            "next_cursor": {
+              "description": "SP-pagination-v1 §4.1 — when present, the tool has more pages. The client passes this verbatim to `Request::RunToolContinue.cursor` to fetch the next page. Server-opaque (HMAC-signed in the reference impl); clients MUST NOT parse it. Absent on terminal pages and on responses from non-paginating tools.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "result": true,
             "success": {

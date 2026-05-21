@@ -20,13 +20,13 @@ name = "atd-ref-server"
 path = "src/main.rs"
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "0.3.0" }
-atd-runtime = { path = "../atd-runtime", version = "0.3.0" }
-atd-server = { path = "../atd-server", version = "0.3.0" }
-atd-tools-echo = { path = "../atd-tools-echo", version = "0.3.0" }
-atd-tools-fs = { path = "../atd-tools-fs", version = "0.3.0" }
-atd-tools-shell = { path = "../atd-tools-shell", version = "0.3.0" }
-atd-tools-web = { path = "../atd-tools-web", version = "0.3.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
+atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-tools-echo = { path = "../atd-tools-echo", version = "1.0.0" }
+atd-tools-fs = { path = "../atd-tools-fs", version = "1.0.0" }
+atd-tools-shell = { path = "../atd-tools-shell", version = "1.0.0" }
+atd-tools-web = { path = "../atd-tools-web", version = "1.0.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
@@ -35,11 +35,11 @@ ulid = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "0.3.0", features = ["testing"] }
-atd-sdk = { path = "../atd-sdk", version = "0.3.0" }
-atd-server = { path = "../atd-server", version = "0.3.0" }
-atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "0.3.0" }
-atd-middleware-pii-redact-medical = { path = "../atd-middleware-pii-redact-medical", version = "0.3.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.0.0", features = ["testing"] }
+atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
+atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "1.0.0" }
+atd-middleware-pii-redact-medical = { path = "../atd-middleware-pii-redact-medical", version = "1.0.0" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
