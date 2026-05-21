@@ -1,88 +1,208 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+The authoritative guide for any AI coding agent — or human — working in the
+**`atd`** repository. A fresh clone should be able to read this file and then
+implement, verify, and extend ATD without further context.
 
-## Project state
+> This file is the tracked, canonical agent entry point. (`CLAUDE.md`, if
+> present, is a local-only working file and is git-ignored — do not rely on it.)
 
-**SP-6 capstone complete.** atd-ref-server ships with 9 tools across 4 domains (echo, fs, shell, web), 243+ workspace tests, and a `hello_atd.{rs,py}` demo that auto-spawns the ref-server — zero ANOS dependency in the default path. Tag: `sp6-ref-server-capstone`.
+---
 
-## Reading order
+## 1. What this repository is
 
-1. [`docs/design.md`](docs/design.md) — approved MVP design spec, **read this first**
-2. [`docs/whitepaper/atd-v2-dual-track.md`](docs/whitepaper/atd-v2-dual-track.md) — primary whitepaper (decision-maker + developer)
-3. [`docs/whitepaper/atd-v1-formal.md`](docs/whitepaper/atd-v1-formal.md) — formal/theoretical backing (CAP, H/W/C, POSIX analogy)
-4. [`docs/reference/`](docs/reference/) — ATD architecture + ANOS dispatch module reference
-5. [`docs/issues/`](docs/issues/) — 11 tracked gaps (dated 2026-04-21) in the ANOS reference server. These are **Phase 0/1 planning inputs**, not bugs to fix in this repo.
+`atd` is the **reference implementation of the ATD (Agent Tool Dispatch)
+protocol** — a neutral, cross-vendor wire protocol that lets any LLM agent, on
+any framework, call any tool, on any platform, through a single typed RPC
+surface.
 
-## Project identity
+The repository is a Rust workspace (16 crates) plus a Python package mirror.
+It ships: the wire-type crate, a server runtime, a client SDK, two transports
+(Unix socket + HTTP), middleware crates, built-in tools, an MCP bridge, a CLI,
+a conformance suite, and a reference server binary.
 
-atd-mvp is the **independent reference implementation** of the ATD (Agent Tool Dispatch) protocol and client SDK. It is intentionally separate from the ANOS project at `/home/nan/proj/anos/` — ATD is positioned as a neutral cross-vendor protocol, and cannot live inside one vendor's repo.
+**Authoritative architecture:** [`docs/architecture.md`](docs/architecture.md).
+Read it before making any non-trivial change.
 
-## Relationship to ANOS
+**Hard rule — the ANOS boundary.** ATD is a *neutral* protocol. This repository
+must have **zero runtime dependency on any `anos-*` crate**. Pattern inspiration
+is fine; a `[dependencies]` entry is not. Never add one.
 
-- **Reference server:** `crates/atd-ref-server` is atd-mvp's own neutral reference ATD server, shipped via SP-1 through SP-5 (tags `sp1-ref-server-foundation` through `sp5-ref-server-web`) and demo'd in SP-6. The `hello_atd` demos run against it by default. ANOS is still a valid server to speak to — set `ATD_SOCK=~/.anos/anos.sock` on any demo to demo against ANOS instead. Both backends speak the same wire protocol; that's the point.
-- **Code reuse:** Pattern inspiration from ANOS crates is welcome, but **atd-mvp must have zero runtime dependency on any `anos-*` crate**. CI enforces this via an ANOS-free test harness.
-- **Whitepapers:** Source-of-truth lives in `/home/nan/proj/anos/docs/research/`. Copies in `docs/whitepaper/` are snapshots — update from the source before major design work.
+---
 
-## Key reference files (absolute paths)
+## 2. Start here — reading order
 
-When the design doc or tasks reference ANOS implementation patterns, they mean:
+| Order | Document | Why |
+|---|---|---|
+| 1 | [`docs/index.md`](docs/index.md) | The doc map — what every document is and when to read it. |
+| 2 | [`docs/architecture.md`](docs/architecture.md) | The normative architecture: layers, dispatch, security, middleware, crate map. |
+| 3 | [`docs/protocol/wire-format.md`](docs/protocol/wire-format.md) · [`error-codes.md`](docs/protocol/error-codes.md) | The byte-level wire contract + error taxonomy. |
+| 4 | [`docs/extending/`](docs/extending/) | How to add a tool, binding, middleware, transport, etc. — read the one matching your task. |
+| 5 | This file, §4–§6 | Build / test / verify commands and conventions. |
 
-- `/home/nan/proj/anos/crates/anos-cli/src/client.rs` — IPC client pattern
-- `/home/nan/proj/anos/crates/anos-runtime/src/ipc.rs` — wire protocol (length-prefixed JSON)
-- `/home/nan/proj/anos/crates/anos-types/src/tool.rs` — tool definition types (port cleanly, no `anos-*` deps)
-- `/home/nan/proj/anos/crates/anos-llm-anthropic/src/provider.rs` — tool-name sanitization logic
-- `/home/nan/proj/anos/crates/anos-tool-dispatch/src/` — dispatch core implementation
+For implementers writing an ATD SDK or server in another language, the
+authoritative pair is the wire format (§3 above) plus
+[`/atd-protocol-schema.json`](atd-protocol-schema.json).
 
-## Phase 0 scope (hard boundary)
+---
 
-Do not expand beyond these in the first 2-3 weeks:
-
-- 3 APIs only: `discover` + `describe` + `call`
-- 1 transport only: Unix socket
-- 1 language only: Rust reference
-- Phase 0 demo: capstone `hello_atd` exercising atd-ref-server — three tools, two language SDKs, zero ANOS dependency
-
-Everything else (Python / TS SDK, stdio transport, MCP-compat, AppFunction binding, HTTP, events, skill runtime) is Phase 1+. See `docs/design.md` §7.
-
-## Non-goals (explicit)
-
-- ❌ Skill runtime — `atd-client` does not parse SKILL.md or execute skill bodies
-- ❌ SOUL.md / identity / personality injection
-- ❌ `subscribe` / event streaming (Phase 2+)
-- ❌ HTTP transport (Phase 2+)
-- ❌ AppFunction reference binding (Phase 2+, needs real hardware)
-- ❌ Conformance test suite (Phase 2)
-
-## Open questions (block Day 1 commit)
-
-Per `docs/design.md` §10, confirm before first commit:
-
-1. Create repo now or wait for first code? — current answer: create now, initialize with docs, push when `github.com/downsea/atd-mvp` org exists
-2. Cargo workspace vs polyrepo? — current answer: Cargo workspace with Python/TS as sibling directories
-3. License? — current answer: Apache-2.0
-4. Versioning? — current answer: 0.1.0 semver, breaking changes allowed until 1.0
-5. Governance / org ownership — current answer: individual during Phase 0, transfer to APWG at Phase 2
-
-## Development workflow
-
-Once implementation starts:
-
-1. Every PR must pass `cargo test -p atd-<crate>` for the touched crate
-2. `cargo check --workspace` must stay clean (per ANOS workflow convention)
-3. The `ANOS-free` harness in `tests/integration/mock_server.rs` must pass — proves protocol independence
-4. Align with design.md — if a change contradicts the design, update the design first, then the code
-
-## Commit messages
-
-Follow conventional commits (same as ANOS):
+## 3. Repository map
 
 ```
-feat(atd-client): add stdio transport
-fix(atd-types): correct ToolSummary serde
-docs(design): clarify session semantics
+atd/
+├── AGENTS.md            ← you are here
+├── README.md            project overview / quick start
+├── CONTRIBUTING.md      contributor guide + full build/test/verify SOP
+├── CHANGELOG.md         release history (truth for what changed)
+├── Cargo.toml           workspace root; workspace.package.version
+├── atd-protocol-schema.json   generated wire schema (build artifact, checked in)
+├── crates/              the 16-crate Rust workspace
+├── python/              Python package mirror (atd_client + atd_server)
+├── examples/            runnable examples (atd-examples crate)
+├── docs/                all documentation — start at docs/index.md
+└── scripts/             developer helper scripts
 ```
 
-## Not to be mixed with ANOS
+### Crates
 
-Do not commit atd-mvp changes to the ANOS repo. Do not commit ANOS changes here. The two repos are deliberately separate for governance reasons.
+| Crate | Layer | Purpose |
+|---|---|---|
+| `atd-protocol` | Schema | Wire types, codec, sanitize. The schema's Rust source. |
+| `atd-sdk` | Client | Rust client API: discover / describe / call / call_page / call_all / hello. |
+| `atd-runtime` | Server core | `Tool`, `Registry`, dispatch, `Binding`, `Middleware`, `TokenBroker`, `AuditSink`, `CursorIssuer`, UCAN verifier. Transport-agnostic. |
+| `atd-server` | Transport | Unix-socket listener. |
+| `atd-server-http` | Transport | HTTP listener + MCP JSON-RPC translator + bearer auth + SSE refresh. |
+| `atd-middleware-fhir` | Middleware | FHIR R4 egress validation. |
+| `atd-middleware-pii-redact-medical` | Middleware | HIPAA Safe Harbor PHI redaction. |
+| `atd-tools-echo` / `-fs` / `-shell` / `-web` | Built-in tools | Reference `Tool` implementations. `atd-tools-echo` is the documented template. |
+| `atd-cli` | Binary | Reference CLI client — the `atd` command. |
+| `atd-ref-server` | Binary | Reference server binary wiring runtime + tools + Unix server. |
+| `atd-mcp-bridge` | Binary | MCP-over-stdio gateway to any ATD server. |
+| `atd-conformance` | Test suite + bin | Reusable conformance scenarios; adopters dev-dep on it. |
+| `atd-mock-weather-server` | Binary (`publish = false`) | Cross-vendor composition demo helper. |
+
+All publishable crates share `workspace.package.version` — the workspace ships
+as one coordinated version. See [`docs/architecture.md`](docs/architecture.md) §9.
+
+---
+
+## 4. Build, test, verify
+
+MSRV is **Rust 1.85**, edition 2024. The four workspace gates — **all must pass
+before any commit**:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-features -- -D warnings
+cargo nextest run --workspace          # or: cargo test --workspace --all-targets
+cargo build --release --workspace
+```
+
+Plus, when you touch wire types in `crates/atd-protocol/`:
+
+```bash
+cargo run -p atd-protocol --features schema --bin gen-schema -- --check
+```
+
+This regenerates [`atd-protocol-schema.json`](atd-protocol-schema.json) and
+fails if the committed file drifts from the Rust types. CI runs the same check.
+
+The full step-by-step verification SOP — when each gate applies, how to run the
+conformance suite, the Python gates — is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+### Test discipline (read before running the workspace suite)
+
+The test suite spawns real listeners and recompiles ~10 downstream crates when
+`atd-runtime` changes. To keep the host responsive:
+
+1. **Iterate narrow.** Use `cargo test -p <crate> --lib <module>` while
+   developing; run the whole workspace only as the pre-commit gate.
+2. **One workspace run at a time.** A workspace build/test can take tens of
+   seconds — do not launch a second concurrently.
+3. **Prefer `cargo nextest run --workspace`.** The repo ships
+   `.config/nextest.toml` (caps test-threads at 4); nextest isolates
+   bind-listener integration tests so one panic can't poison siblings.
+4. Integration tests (`e2e_bearer_*`, `ucan_*_via_http`, conformance
+   scenarios) bind real ports. A flaky `EADDRINUSE` → re-run with
+   `--test-threads=4`.
+
+### Quick run
+
+```bash
+cargo run --example hello_atd -p atd-examples   # auto-spawns the ref server
+```
+
+---
+
+## 5. How to extend ATD
+
+ATD is designed so third-party code attaches **without forking** the reference
+server. Each extension point is a `pub` trait in `atd-runtime` with a how-to
+guide. Read the guide for your task — it gives the trait signature, a reference
+implementation to copy, the test pattern, and the invariants the extension must
+preserve.
+
+| You want to… | Guide | Reference impl |
+|---|---|---|
+| Add a built-in tool | [`docs/extending/tool.md`](docs/extending/tool.md) | `crates/atd-tools-echo` |
+| Add an invocation binding | [`docs/extending/binding.md`](docs/extending/binding.md) | `NativeBinding`, `CliBinding` in `atd-runtime` |
+| Add result middleware | [`docs/extending/middleware.md`](docs/extending/middleware.md) | `atd-middleware-fhir` |
+| Add a transport / listener | [`docs/extending/transport.md`](docs/extending/transport.md) | `atd-server`, `atd-server-http` |
+| Add an auth / secret scheme | [`docs/extending/token-broker.md`](docs/extending/token-broker.md) | `FileTokenBroker` in `atd-runtime` |
+| Add an audit sink | [`docs/extending/audit-sink.md`](docs/extending/audit-sink.md) | `JsonLinesAuditSink` in `atd-runtime` |
+| Add a wire type / error code / capability | [`docs/extending/protocol-and-schema.md`](docs/extending/protocol-and-schema.md) | `crates/atd-protocol` |
+
+Changing the wire format itself, or adding a `ToolTier` variant, is **not** an
+extension point — it is a protocol change. See
+[`docs/extending/protocol-and-schema.md`](docs/extending/protocol-and-schema.md)
+and [`docs/architecture.md`](docs/architecture.md) §9.3.
+
+---
+
+## 6. Conventions
+
+### Documentation authority
+
+When two documents disagree, the higher tier wins:
+
+| Tier | Documents | Role |
+|---|---|---|
+| **Normative** | `docs/architecture.md`, `docs/protocol/*`, `atd-protocol-schema.json` | The contract. Source of truth. |
+| **Policy** | `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/release-plan-v1.0.md` | How the project runs. |
+| **How-to** | `docs/extending/*`, `docs/quickstart/*`, `docs/integrations/*` | Task guides. |
+| **Archive** | `docs/archive/*` | Frozen history. **Never** authoritative; never edit. |
+
+### Commits
+
+Conventional commits — `feat`, `fix`, `refactor`, `docs`, `test`, `chore`,
+`perf`, `ci` — scoped to the crate or area:
+
+```
+feat(atd-sdk): add stdio transport
+fix(atd-protocol): correct ToolSummary serde
+docs(extending): add the middleware guide
+```
+
+Do not add `Co-Authored-By` footers unless explicitly asked.
+
+### Forward design process
+
+Post-1.0, new work is recorded as:
+
+- **Decisions** → an ADR in [`docs/adr/`](docs/adr/) (Context / Options /
+  Decision / Rationale).
+- **How-to** → a guide in [`docs/extending/`](docs/extending/).
+- **Tracked gaps** → an issue in [`docs/issues/`](docs/issues/).
+
+The historical Superpowers (SP) spec/plan process is archived under
+[`docs/archive/superpowers/`](docs/archive/superpowers/) — read-only history,
+not a live workflow.
+
+### What not to do
+
+- Do not add an `anos-*` dependency (see §1).
+- Do not edit anything under `docs/archive/` — it is frozen.
+- Do not hand-edit `atd-protocol-schema.json` — it is generated (§4).
+- Do not commit secrets; `RedactedString` exists because credentials must never
+  reach a log or the wire.
