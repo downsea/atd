@@ -1,0 +1,10 @@
+{
+  "name": "atd-preview-decks",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build scripts for the ATD 技术预览 slide series (docs/preview/*.pptx).",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "pptxgenjs": "4.0.1"
+  }
+}

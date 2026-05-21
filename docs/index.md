@@ -54,6 +54,7 @@ When two documents disagree, the higher tier wins.
 | [`atd-design-philosophy.md`](atd-design-philosophy.md) | Seven principles for building ATD tool servers that hold up across vendors. |
 | [`roadmap.md`](roadmap.md) | Evolution scope — deferred features, known limitations, post-1.0 direction. |
 | [`release-plan-v1.0.md`](release-plan-v1.0.md) | The 1.0 release contract, checklist, and publish procedure. |
+| [`preview/`](preview/) | The ATD 技术预览 — a five-part Chinese slide series generated from these docs. See [`preview/README.md`](preview/README.md). |
 | [`archive/`](archive/) | Frozen history — the SP design archive, the Phase 0 spec, validation logs. See [`archive/README.md`](archive/README.md). |
 
 ---
