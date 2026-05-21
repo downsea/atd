@@ -8,13 +8,13 @@
 #   ./scripts/cross-vendor-demo.sh status    # show what's running
 #
 # Optional env vars (override defaults):
-#   ATD_REPO     atd-mvp repo                          (default: $HOME/proj/atd-mvp)
-#   HK_REPO      healthkit_cli repo                    (default: $HOME/proj/healthkit_cli)
+#   ATD_REPO     atd repo                              (default: $HOME/code/atd)
+#   HK_REPO      healthkit_cli repo                    (default: $HOME/code/healthkit_cli)
 #   HK_SOCK      healthkit socket                      (default: /tmp/hk.sock)
 #   WX_SOCK      mock-weather socket                   (default: /tmp/atd-weather.sock)
 #
 # Prereqs:
-#   - atd-mvp built:        (cd $ATD_REPO && cargo build --release \
+#   - atd built:            (cd $ATD_REPO && cargo build --release \
 #                              -p atd-mock-weather-server -p atd-cli)
 #   - healthkit_cli built:  (cd $HK_REPO && cargo build --release)
 #   - healthkit auth'd:     $HK_REPO/target/release/healthkit auth login
@@ -25,8 +25,8 @@ set -euo pipefail
 
 ACTION="${1:-up}"
 
-ATD_REPO="${ATD_REPO:-$HOME/proj/atd-mvp}"
-HK_REPO="${HK_REPO:-$HOME/proj/healthkit_cli}"
+ATD_REPO="${ATD_REPO:-$HOME/code/atd}"
+HK_REPO="${HK_REPO:-$HOME/code/healthkit_cli}"
 HK_SOCK="${HK_SOCK:-/tmp/hk.sock}"
 WX_SOCK="${WX_SOCK:-/tmp/atd-weather.sock}"
 
