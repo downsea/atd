@@ -50,15 +50,78 @@ The example auto-spawns the reference server and exercises three tools:
 
 No external daemon — everything runs from this repo, with zero ANOS dependency.
 
-## Install as a library
+## Using the atd crates
+
+Every crate publishes to crates.io under the `atd-*` prefix at one shared
+version — pin `atd-sdk = "1"` and the whole stack stays mutually consistent.
+Pick by what you're doing:
+
+### Call ATD tools from an agent — `atd-sdk`
 
 ```bash
-cargo add atd-sdk            # Rust agents that speak ATD
-cargo install atd-mcp-bridge # reach ATD servers from any MCP client
+cargo add atd-sdk          # Rust   ·   Python:  pip install atd-client
 ```
 
-See the quickstarts: [Rust](docs/quickstart/rust.md) ·
-[Python](docs/quickstart/python.md) · [TypeScript](docs/quickstart/typescript.md).
+```rust
+use atd_sdk::{AtdClient, CallOptions, DiscoverFilter, Endpoint};
+
+let atd = AtdClient::connect(Endpoint::unix("/tmp/atd.sock")).await?;
+let tools = atd.discover(None, DiscoverFilter::default()).await?;        // discovery
+let out = atd.call("ref:echo.say",
+    serde_json::json!({ "text": "hello" }), CallOptions::default()).await?;
+```
+
+Full walkthrough — discover / describe / call, the OpenAI · Anthropic ·
+LangChain adapters, error handling: [Rust quickstart](docs/quickstart/rust.md) ·
+[Python quickstart](docs/quickstart/python.md).
+
+### Build your own ATD server (publish tools) — `atd-runtime` + a listener
+
+```bash
+cargo add atd-runtime atd-server        # Unix-socket transport
+cargo add atd-runtime atd-server-http   # …or HTTP + MCP JSON-RPC
+```
+
+Implement the `Tool` trait, register it, hand the registry to a listener:
+
+```rust
+let mut registry = Registry::new();
+registry.register(Arc::new(MyTool::new()));
+atd_server::Server::new(registry, ServerConfig::default()).run().await?;
+```
+
+How-to: [docs/extending/tool.md](docs/extending/tool.md). Working skeleton
+(~80 lines): [`crates/atd-mock-weather-server`](crates/atd-mock-weather-server).
+Opt-in egress middleware: `atd-middleware-fhir`,
+`atd-middleware-pii-redact-medical`.
+
+### Reach an ATD server from an MCP client — `atd-mcp-bridge`
+
+```bash
+cargo install atd-mcp-bridge
+```
+
+Point Claude Desktop / Cursor / Hermes / any MCP client at the bridge binary —
+config examples in [docs/integrations/](docs/integrations/).
+
+### Drive ATD from the command line — `atd-cli`
+
+```bash
+cargo install atd-cli
+atd --sock /tmp/atd.sock list           # subcommands: list · schema · call · doctor · skills
+```
+
+See [docs/cli.md](docs/cli.md).
+
+### Verify a third-party implementation — `atd-conformance`
+
+Dev-dep on `atd-conformance` and run the cross-implementation fixture corpus
+against your server — pass it and you interoperate. See
+[`crates/atd-conformance`](crates/atd-conformance).
+
+> Not sure which path fits? [docs/integrations/overview.md](docs/integrations/overview.md)
+> maps every framework to one of five integration paths; the full 16-crate
+> map is [docs/architecture.md](docs/architecture.md) §9.
 
 ## What ships
 
