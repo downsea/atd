@@ -92,9 +92,41 @@ if [[ $DRY_RUN -eq 1 ]]; then
 fi
 
 # ---------------- confirm (irreversible) ----------------
-warn "cargo publish is IRREVERSIBLE — a published version can be yanked but never deleted."
-read -r -p "Publish atd ${VERSION} to crates.io and tag ${TAG}? Type 'release' to proceed: " ans
-[[ "$ans" == "release" ]] || die "aborted by user"
+if (( todo < total )); then
+  say "resuming — $(( total - todo )) crate(s) already on crates.io; publishing the remaining ${todo}"
+else
+  warn "cargo publish is IRREVERSIBLE — a published version can be yanked but never deleted."
+  read -r -p "Publish atd ${VERSION} to crates.io and tag ${TAG}? Type 'release' to proceed: " ans
+  [[ "$ans" == "release" ]] || die "aborted by user"
+fi
+
+# publish_one CRATE — cargo publish, transparently waiting out crates.io 429
+# rate limits: on a 429, sleep until the server's retry-after time and retry
+# the same crate. Any other failure is fatal. crates.io throttles *new*
+# crates (~1 per 10 min after a burst), so a 15-crate first release sleeps
+# through several of these; the script resumes each crate by itself.
+publish_one() {
+  local c="$1" log rc after target now secs
+  log=$(mktemp)
+  while true; do
+    if cargo publish -p "$c" 2>&1 | tee "$log"; then rm -f "$log"; return 0; fi
+    rc=${PIPESTATUS[0]:-1}
+    if grep -q '429 Too Many Requests' "$log"; then
+      after=$(sed -n 's/.*try again after \(.*GMT\).*/\1/p' "$log" | head -1)
+      secs=600
+      if [[ -n "$after" ]]; then
+        target=$(date -d "$after" +%s 2>/dev/null || echo 0)
+        now=$(date +%s)
+        if (( target > now )); then secs=$(( target - now + 20 )); fi
+      fi
+      warn "crates.io rate-limit hit — waiting ${secs}s, then retrying ${c}"
+      sleep "$secs"
+      continue
+    fi
+    rm -f "$log"
+    return "$rc"
+  done
+}
 
 # ---------------- publish waves (§5) ----------------
 i=0
@@ -107,7 +139,7 @@ for wave in "${WAVES[@]}"; do
       continue
     fi
     echo "    publish  $c ${VERSION}"
-    cargo publish -p "$c"
+    publish_one "$c"
   done
   # wait for crates.io to index this wave before the next wave depends on it
   if [[ $i -lt ${#WAVES[@]} ]]; then
