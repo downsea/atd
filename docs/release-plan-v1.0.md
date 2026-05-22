@@ -225,6 +225,12 @@ the 1.0 surface is a drop-in semver-compatible upgrade for each.
 
 ## 5. Publish order
 
+> **[`scripts/release.sh`](../scripts/release.sh) automates §5 + §6** —
+> preflight, the publish waves below (skipping any crate already on
+> crates.io, so a failed run resumes cleanly), the `v1.0.0` tag, and the
+> GitHub release. Run `scripts/release.sh --dry-run` first to preview.
+> The waves below are the reference / manual equivalent.
+
 `cargo publish` requires bottom-up order — a dependency must already be
 on crates.io before its dependents publish. Waves inferred from the
 workspace dep graph:
