@@ -1,6 +1,6 @@
 //! Phase L.0 — baseline-verification integration test.
 //!
-//! Closes the verification section of atd-mvp#6 (the cross-repo
+//! Closes the verification section of atd#6 (the cross-repo
 //! L.0 ask from celia PHASE_L_PLAN.md §6 L.0). Five protocol
 //! primitives must compose end-to-end through `atd-server` UDS +
 //! `atd-sdk`:

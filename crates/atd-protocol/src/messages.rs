@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn tool_result_response_back_compat_default_when_field_missing() {
         // Pre-pagination wire shape (no next_cursor field) must deserialize
-        // to next_cursor: None — adopters on old atd-mvp builds keep working.
+        // to next_cursor: None — adopters on old atd builds keep working.
         let j =
             r#"{"type":"tool_result","tool_id":"x","result":{},"success":true,"dry_run":false}"#;
         let back: Response = serde_json::from_str(j).unwrap();

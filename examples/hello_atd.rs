@@ -1,4 +1,4 @@
-//! atd-mvp capstone demo. Auto-spawns `atd-ref-server` (the in-repo neutral
+//! atd capstone demo. Auto-spawns `atd-ref-server` (the in-repo neutral
 //! reference ATD server), connects via `atd-sdk`, exercises three
 //! representative tools end-to-end.
 //!

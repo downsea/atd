@@ -1,7 +1,7 @@
 //! Disk-backed [`TokenBroker`] for adopters that need cross-process
 //! persistence (Phase L.0 deliverable, `docs/issues/`
 //! 2026-04-24-security-capability-tokens-deferred path, and the
-//! `atd-mvp#6` GitHub issue).
+//! `atd#6` GitHub issue).
 //!
 //! ## Layout
 //!

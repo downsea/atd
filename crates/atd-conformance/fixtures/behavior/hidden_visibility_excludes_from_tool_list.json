@@ -1,7 +1,7 @@
 {
   "category": "behavior",
   "name": "hidden_visibility_excludes_from_tool_list",
-  "description": "ref:conformance.hidden_op is registered with ToolVisibility::Hidden. The server must exclude it from Request::ToolList responses. Third-party servers that want to validate this case must expose a tool with id `ref:conformance.hidden_op` declaring `visibility: \"hidden\"` and arrange for it to be registered (atd-mvp does this when `--enable-conformance-tool` is passed). describe-by-id and call-by-id are exercised by the sibling fixtures `hidden_tool_describable_by_id` and `hidden_tool_callable_by_id`.",
+  "description": "ref:conformance.hidden_op is registered with ToolVisibility::Hidden. The server must exclude it from Request::ToolList responses. Third-party servers that want to validate this case must expose a tool with id `ref:conformance.hidden_op` declaring `visibility: \"hidden\"` and arrange for it to be registered (atd does this when `--enable-conformance-tool` is passed). describe-by-id and call-by-id are exercised by the sibling fixtures `hidden_tool_describable_by_id` and `hidden_tool_callable_by_id`.",
   "setup": null,
   "send": { "type": "tool_list" },
   "expect_response_matches": {

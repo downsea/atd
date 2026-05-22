@@ -1,4 +1,4 @@
-# cargo-nextest configuration for atd-mvp.
+# cargo-nextest configuration for atd.
 #
 # Activate by installing nextest (`cargo install cargo-nextest --locked`)
 # and running `cargo nextest run --workspace`. The defaults profile fires

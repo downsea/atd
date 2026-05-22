@@ -33,8 +33,8 @@ validation = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/downsea/atd-mvp"
-Repository = "https://github.com/downsea/atd-mvp"
+Homepage = "https://github.com/downsea/atd"
+Repository = "https://github.com/downsea/atd"
 
 [dependency-groups]
 dev = [

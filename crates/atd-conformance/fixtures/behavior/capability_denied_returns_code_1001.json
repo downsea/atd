@@ -1,7 +1,7 @@
 {
   "category": "behavior",
   "name": "capability_denied_returns_code_1001",
-  "description": "Calling a tool whose required_capabilities aren't granted returns Response::Error { code: 1001, retryable: false }. Requires the target server to expose a capability-gated tool — the atd-mvp reference server does this via `ref:conformance.denied_op` (registered when `--enable-conformance-tool` is passed). Third-party servers that want to validate this case must expose a tool with id `ref:conformance.denied_op` requiring capability `conformance.denied` (and NOT grant that cap by default).",
+  "description": "Calling a tool whose required_capabilities aren't granted returns Response::Error { code: 1001, retryable: false }. Requires the target server to expose a capability-gated tool — the atd reference server does this via `ref:conformance.denied_op` (registered when `--enable-conformance-tool` is passed). Third-party servers that want to validate this case must expose a tool with id `ref:conformance.denied_op` requiring capability `conformance.denied` (and NOT grant that cap by default).",
   "setup": null,
   "send": {
     "type": "run_tool",

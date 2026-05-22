@@ -1,4 +1,4 @@
-"""atd-mvp capstone demo (Python SDK).
+"""atd capstone demo (Python SDK).
 
 Auto-spawns `atd-ref-server` (the in-repo neutral reference ATD server),
 connects via the Python `atd_client` SDK, exercises three representative
