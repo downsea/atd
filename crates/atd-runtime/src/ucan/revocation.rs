@@ -16,7 +16,7 @@
 //! doesn't have. SP-capability-v2 §4.7 leaves "how revocations get
 //! recorded" deliberately adopter-side.
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.7
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.7
 
 use std::collections::HashSet;
 use std::fmt::Debug;

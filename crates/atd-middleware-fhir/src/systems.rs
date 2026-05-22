@@ -3,7 +3,7 @@
 //! 2026-05-12.
 //!
 //! Drift between this list and celia's is caught by the set-equality
-//! test [`tests::vendored_toml_matches_default`], which parses the
+//! test `vendored_toml_matches_default`, which parses the
 //! vendored copy at `vendor/celia-whitelists.toml` and asserts both
 //! sides hold the same URI set. Sync protocol is documented at
 //! `vendor/README.md`. Removing or changing entries is a minor-version

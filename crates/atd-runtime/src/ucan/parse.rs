@@ -5,7 +5,7 @@
 //! (`ucan::verify::verify_chain`). Pure structural validation: alg / typ /
 //! ucv / cmd / DID-method-prefix only.
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.1, §4.3, §4.4, §4.5
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.1, §4.3, §4.4, §4.5
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;

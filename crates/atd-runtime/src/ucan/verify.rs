@@ -13,7 +13,7 @@
 //! `args.caps`, which after attenuation walking is already the
 //! intersection of all link caps.
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.6 + §4.7
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.6 + §4.7
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

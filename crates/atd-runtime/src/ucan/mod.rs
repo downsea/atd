@@ -7,13 +7,13 @@
 //! - Capabilities tunneled as `cmd = "atd-cap"`, `args.caps: Vec<String>`,
 //!   `args.with: Vec<{patient: String}>` (or other binding kinds reserved).
 //!
-//! Phasing (per [`plans/2026-05-11-sp-capability-v2.md`]):
+//! Phasing (per `docs/archive/superpowers/plans/2026-05-11-sp-capability-v2.md`):
 //! - Phase B.1 ([`parse`]): structural decoder; no signature, no chain walk.
 //! - Phase B.2 (`verify`, not yet landed): chain attenuation, signature
 //!   verification (Ed25519), audience pinning, depth limit, revocation
 //!   consultation. Lands in a follow-up commit on the same SP.
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.1–§4.7
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.1–§4.7
 
 pub mod error;
 pub mod parse;

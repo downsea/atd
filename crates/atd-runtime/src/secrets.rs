@@ -3,8 +3,8 @@
 //! [`TokenBroker`] is the trait an operator implements to map a caller
 //! identity (`CallContext::caller_id`, populated from the SP-12 Hello
 //! handshake) to a [`SecretBundle`] that gets attached to the
-//! [`CallContext`] before `Tool::call` runs. Tools that need secrets
-//! read them via [`CallContext::secrets`]; tools that don't, ignore the
+//! [`crate::CallContext`] before `Tool::call` runs. Tools that need secrets
+//! read them via [`crate::CallContext::secrets`]; tools that don't, ignore the
 //! field — full back-compat with single-tenant deployments.
 //!
 //! Secrets are wrapped in [`RedactedString`], whose `Debug`/`Display`

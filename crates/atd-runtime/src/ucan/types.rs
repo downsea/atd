@@ -4,7 +4,7 @@
 //! data — no behaviour, no allocations beyond the strings these fields
 //! own.
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.1, §4.5, §5.1
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.1, §4.5, §5.1
 
 use serde::{Deserialize, Serialize};
 

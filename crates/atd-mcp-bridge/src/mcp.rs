@@ -1,5 +1,5 @@
 //! MCP (Model Context Protocol) message shapes for initialize/tools/list/tools/call.
-//! Spec: https://modelcontextprotocol.io/specification/2025-11-25
+//! Spec: <https://modelcontextprotocol.io/specification/2025-11-25>
 
 use serde::{Deserialize, Serialize};
 

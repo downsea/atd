@@ -6,7 +6,7 @@
 //! signature), `ERR_UCAN_EXPIRED` (1011), `ERR_DELEGATION_TOO_DEEP`
 //! (1012), `ERR_AUDIENCE_MISMATCH` (1013).
 //!
-//! Spec: [`specs/2026-05-11-sp-capability-v2-design.md`] §4.1 + §5.4
+//! Spec: `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §4.1 + §5.4
 
 use thiserror::Error;
 
