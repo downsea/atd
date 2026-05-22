@@ -35,11 +35,11 @@ ulid = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "1.0.0", features = ["testing"] }
-atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
-atd-server = { path = "../atd-server", version = "1.0.0" }
-atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "1.0.0" }
-atd-middleware-pii-redact-medical = { path = "../atd-middleware-pii-redact-medical", version = "1.0.0" }
+atd-runtime = { path = "../atd-runtime", features = ["testing"] }
+atd-sdk = { path = "../atd-sdk" }
+atd-server = { path = "../atd-server" }
+atd-middleware-fhir = { path = "../atd-middleware-fhir" }
+atd-middleware-pii-redact-medical = { path = "../atd-middleware-pii-redact-medical" }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

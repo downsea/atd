@@ -28,8 +28,8 @@ tokio = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
-atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "1.0.0" }
-atd-ref-server = { path = "../atd-ref-server", version = "1.0.0" }
-atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
-atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-middleware-fhir = { path = "../atd-middleware-fhir" }
+atd-ref-server = { path = "../atd-ref-server" }
+atd-runtime = { path = "../atd-runtime" }
+atd-server = { path = "../atd-server" }
 tempfile = { workspace = true }

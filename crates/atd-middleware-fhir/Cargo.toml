@@ -19,8 +19,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
-atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-sdk = { path = "../atd-sdk" }
+atd-server = { path = "../atd-server" }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 toml = "0.8"

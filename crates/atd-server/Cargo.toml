@@ -21,8 +21,8 @@ thiserror = { workspace = true }
 ulid = { workspace = true }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "1.0.0", features = ["testing"] }
-atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
+atd-runtime = { path = "../atd-runtime", features = ["testing"] }
+atd-sdk = { path = "../atd-sdk" }
 tempfile = { workspace = true }
 # SP-capability-v2 Phase F: integration tests construct UCAN-lite JWTs.
 base64 = "0.22"

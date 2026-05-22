@@ -24,9 +24,9 @@ tower-http = { workspace = true }
 http = { workspace = true }
 
 [dev-dependencies]
-atd-runtime = { path = "../atd-runtime", version = "1.0.0", features = ["testing"] }
-atd-server = { path = "../atd-server", version = "1.0.0" }
-atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
+atd-runtime = { path = "../atd-runtime", features = ["testing"] }
+atd-server = { path = "../atd-server" }
+atd-sdk = { path = "../atd-sdk" }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
 http-body-util = { workspace = true }

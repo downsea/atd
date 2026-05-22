@@ -21,8 +21,8 @@ regex = "1"
 sha2 = "0.10"
 
 [dev-dependencies]
-atd-middleware-fhir = { path = "../atd-middleware-fhir", version = "1.0.0" }
-atd-sdk = { path = "../atd-sdk", version = "1.0.0" }
-atd-server = { path = "../atd-server", version = "1.0.0" }
+atd-middleware-fhir = { path = "../atd-middleware-fhir" }
+atd-sdk = { path = "../atd-sdk" }
+atd-server = { path = "../atd-server" }
 tempfile = { workspace = true }
 tokio = { workspace = true }
