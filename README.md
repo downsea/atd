@@ -123,6 +123,49 @@ against your server — pass it and you interoperate. See
 > maps every framework to one of five integration paths; the full 16-crate
 > map is [docs/architecture.md](docs/architecture.md) §9.
 
+## Prompting your coding agent
+
+ATD is agent-native — paste the prompt below into Claude Code · Cursor ·
+Codex, fill in the `My task:` line at the bottom, and the agent will clone
+the repo, read the relevant docs, and pick the matching integration path.
+
+```text
+ATD (Agent Tool Dispatch) is a neutral cross-vendor wire protocol — any LLM
+agent on any framework can call any tool on any platform via one typed RPC
+surface. Reference implementation: https://github.com/downsea/atd. Clone it
+locally if it isn't already.
+
+Get oriented in this order:
+  1. AGENTS.md             — architectural map for AI coding agents
+  2. docs/index.md         — documentation map
+  3. docs/architecture.md  — dispatch pipeline + 16-crate layout
+
+Then pick the path matching my task:
+
+- Expose <my CLI / REST API / library> as an ATD server
+  → docs/extending/tool.md + the ~80-line skeleton at
+    crates/atd-mock-weather-server/. Implement Tool, register on a Registry,
+    serve via atd-server (Unix socket) or atd-server-http (HTTP + MCP).
+
+- Call ATD tools from <my agent>
+  → docs/quickstart/rust.md (or docs/quickstart/python.md). Use atd-sdk:
+    discover at startup, render through the OpenAI / Anthropic / LangChain
+    adapter, dispatch with AtdClient::call.
+
+- Bridge an ATD server into an MCP-only client
+  (Claude Desktop / Cursor / Hermes / …)
+  → install atd-mcp-bridge and follow docs/integrations/.
+
+- Verify a third-party ATD server
+  → dev-dep atd-conformance and run its fixture corpus per
+    crates/atd-conformance. Fix every failing fixture — the suite is the
+    interop contract.
+
+Confirm which path my task maps to before writing code; flag ambiguity.
+
+My task: <describe what you want built / changed / verified>
+```
+
 ## What ships
 
 - **Protocol** — length-prefixed JSON over a duplex byte stream; one unified
