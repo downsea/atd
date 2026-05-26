@@ -1,6 +1,8 @@
 # ATD — Agent Tool Dispatch
 
 [![CI](https://github.com/downsea/atd/actions/workflows/ci.yml/badge.svg)](https://github.com/downsea/atd/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/atd-sdk?label=crates.io)](https://crates.io/crates/atd-sdk)
+[![docs.rs](https://img.shields.io/docsrs/atd-sdk?label=docs.rs)](https://docs.rs/atd-sdk)
 
 **The reference implementation of the Agent Tool Dispatch (ATD) protocol.**
 
