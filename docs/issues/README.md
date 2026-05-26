@@ -34,6 +34,7 @@ From adopter requirements (2026-05):
 | # | Layer | Status | Summary |
 |---|---|---|---|
 | [2026-05-19-cbrain-adopter-requirements.md](2026-05-19-cbrain-adopter-requirements.md) | adopter (cbrain) | **P0-1 + P2-8 shipped 2026-05-19** | 11 项 triage 见 issue §9；**P0-1 (`SP-server-py-v1`) + P2-8 (bundled) shipped** in same session (Phase A-H, 8 commits, 72 tests, 22/24 conformance fixtures, 96% coverage). cbrain swap-over ready. Queued: P0-2 / P1-3+4 / P1-6 / P2-7 / P2-9 / P2-11. Deferred: P1-5 / P2-10. |
+| [2026-05-26-atd-ts-sdk-adopter-requirements.md](2026-05-26-atd-ts-sdk-adopter-requirements.md) | adopter (oh-cli) + ecosystem (HarmonyOS ArkTS) | ready-for-atd | **§1 已订正（当日核查后）**：oh-cli 是 atd-rs adopter 不是 atd-ts adopter；本 issue 真正 driver 是 ecosystem opportunity（HMOS 6.1 ArkTS in-process MCP server 官方空白），**等具名 ArkTS adopter 出现再启动 SP**（类比 cbrain P2-10 纪律）。§3 / §5 / §6 的 4 阶段提案（P0-1 TS SDK / P0-2 ArkTS 适配 / P1-3 NAPI / P1-4 OH Kit tool 库含 Intents Kit 自动转译）保留为 design reference，SP 启动时复用不必从头设计。|
 
 ## Recently closed
 
