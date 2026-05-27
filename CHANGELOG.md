@@ -16,6 +16,51 @@ lives at `docs/adr/` and (for pre-1.0 history) `docs/archive/superpowers/specs/`
 
 ---
 
+## [1.1.0] — 2026-05-27
+
+First minor bump on the 1.x line. Purely additive — the wire is
+unchanged, every 1.0.x adopter upgrades drop-in by changing
+`atd-* = "1.0"` to `atd-* = "1.1"` (or already with `= "1"` caret).
+
+### Added
+
+- **`atd-protocol::CliBindingConfig`** — typed canonical shape for
+  `ToolBinding.config` when `protocol = "Cli"`. Encodes the recurring
+  CLI-binding fields (`cmd`, `args`, `args_template`, `env`,
+  `output_format`, `page_all_flag`, `dry_run_flag`, `exit_code_map`)
+  with serde `skip_serializing_if` so pre-v2 `{"cmd": "..."}` configs
+  round-trip byte-identical. Plus `CliOutputFormat` enum (`Json` /
+  `Ndjson` / `Lines`) and `ToolBinding::cli_config()` helper.
+  Tag: `sp-cli-binding-v2`. Spec: `docs/extending/cli-binding.md`.
+- **`atd-protocol-schema.json`** picks up `CliBindingConfig` +
+  `CliOutputFormat` under `definitions/` so adopter manifests can
+  `$ref` them.
+
+### Notes
+
+- `ToolBinding.config` on the wire remains untyped `serde_json::Value`
+  — the new types are *peer* definitions, not a tightening of the
+  existing field. Pre-1.1 servers and clients continue to function
+  unchanged.
+- The runtime subprocess dispatcher that consumes `CliBindingConfig`
+  (i.e. a generic `CliBinding` in `atd-runtime` that reads
+  `ToolBinding.config` instead of being hardcoded per-instance) is
+  deferred to a future SP (`SP-cli-dispatcher-v1`). 1.1 ships the
+  declarative *shape*; 1.2 or later will ship the dispatcher that
+  consumes it.
+
+### Compatibility
+
+- **Wire**: no change. Pre-1.1 frames parse byte-identically on 1.1
+  servers and vice versa.
+- **API**: purely additive new types in `atd-protocol`. Caret-pinned
+  adopters (`atd-* = "1"`) pick up the new types automatically.
+- **Workspace cadence**: 15 publishable crates re-released at `1.1.0`
+  for version unification per the v0.3.0 decision; `atd-mock-weather-
+  server` stays `publish = false`.
+
+---
+
 ## [1.0.0] — 2026-05-21
 
 The stability release. ATD's wire format, JSON schema, and public

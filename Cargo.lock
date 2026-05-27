@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "atd-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "atd-conformance"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-middleware-fhir",
  "atd-protocol",
@@ -155,7 +155,7 @@ dependencies = [
 
 [[package]]
 name = "atd-examples"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -166,7 +166,7 @@ dependencies = [
 
 [[package]]
 name = "atd-mcp-bridge"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-sdk",
@@ -179,7 +179,7 @@ dependencies = [
 
 [[package]]
 name = "atd-middleware-fhir"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -195,7 +195,7 @@ dependencies = [
 
 [[package]]
 name = "atd-middleware-pii-redact-medical"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-middleware-fhir",
  "atd-protocol",
@@ -213,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "atd-mock-weather-server"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "atd-protocol"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "jsonschema",
  "schemars",
@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "atd-ref-server"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-middleware-fhir",
  "atd-middleware-pii-redact-medical",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "atd-runtime"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "base64",
@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "atd-sdk"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "serde",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "atd-server"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -313,7 +313,7 @@ dependencies = [
 
 [[package]]
 name = "atd-server-http"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-echo"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-fs"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-shell"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "atd-tools-web"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "atd-protocol",
  "atd-runtime",

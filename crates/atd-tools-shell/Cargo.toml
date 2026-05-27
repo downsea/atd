@@ -12,8 +12,8 @@ keywords = ["atd", "tool", "shell", "agent"]
 categories = ["api-bindings", "command-line-utilities"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
-atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.1.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["process", "io-util", "rt-multi-thread", "macros", "time"] }

@@ -12,8 +12,8 @@ keywords = ["atd", "tool", "web", "fetch", "agent"]
 categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]
-atd-protocol = { path = "../atd-protocol", version = "1.0.0" }
-atd-runtime = { path = "../atd-runtime", version = "1.0.0" }
+atd-protocol = { path = "../atd-protocol", version = "1.1.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
