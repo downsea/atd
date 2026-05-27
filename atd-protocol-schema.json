@@ -226,6 +226,98 @@
       ],
       "type": "string"
     },
+    "CliBindingConfig": {
+      "description": "Canonical CLI binding config (SP-cli-binding-v2).\n\nAll fields except `cmd` are optional and use `skip_serializing_if` so existing `{\"cmd\": \"...\"}` configs from before SP-cli-binding-v2 still round-trip byte-identically.",
+      "properties": {
+        "args": {
+          "description": "Fixed prefix arguments prepended to `args_template` expansion. Useful for subcommand routing (e.g. `[\"api\", \"v1\"]` so a tool always invokes `cmd api v1 <rendered template>`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "args_template": {
+          "description": "Templated argv tail. Placeholders are replaced before spawn:\n\n| Placeholder | Substitution | |---|---| | `{tool_id}` | ATD tool id, e.g. `mycli:gmail.users.messages.list` | | `{params_json}` | `RunTool.args` serialized as one JSON argv slot (quoting handled by the dispatcher) | | `{dry_run}` | Empty string when `dry_run=false`; the value of [`Self::dry_run_flag`] when `dry_run=true` | | `{page_all}` | Empty string normally; [`Self::page_all_flag`] when the dispatcher is fanning out for `call_all` |\n\nThe split between `cmd` + `args` (fixed) and `args_template` (per-call) lets servers reuse one binding for many tool ids by changing only the template. Servers are free to extend the placeholder vocabulary; consumers that don't recognize a placeholder should pass it through literally.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cmd": {
+          "description": "Executable name or absolute path. Required.",
+          "type": "string"
+        },
+        "dry_run_flag": {
+          "description": "CLI-side flag passed when the ATD client sets `dry_run: true` on `RunTool`. Absent = tool doesn't expose dry-run; the dispatcher MUST reject the call rather than silently execute the side effect.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables injected into the spawned process.\n\nThe literal value `\"$ATD_BEARER\"` opts into bearer-token passthrough — the dispatcher replaces it with the connection's bearer (from the SP-12 `hello` handshake) at spawn time. Other `$NAME` syntax is not interpolated; values are passed verbatim.",
+          "type": "object"
+        },
+        "exit_code_map": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Process exit-code → ATD `ToolResult.code` mapping for the error envelope. Codes not present in the map default to `\"TOOL_FAILED\"`; exit code 0 always succeeds and never consults the map. String values are domain-specific (e.g. `\"auth_required\"` for an OAuth refresh, `\"invalid_args\"` for CLI-side validation errors).",
+          "type": "object"
+        },
+        "output_format": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CliOutputFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How to parse the subprocess stdout into the `ToolResult.data` field. Defaults to [`CliOutputFormat::Json`] when absent."
+        },
+        "page_all_flag": {
+          "description": "CLI-side flag the dispatcher appends when fanning out for `call_all` pagination. Absent = tool doesn't support pagination; the dispatcher MUST surface `call_page` / `call_all` requests as unsupported instead of silently calling the tool without paging.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cmd"
+      ],
+      "type": "object"
+    },
+    "CliOutputFormat": {
+      "description": "How to parse subprocess stdout into the ATD `ToolResult.data` payload.",
+      "oneOf": [
+        {
+          "description": "stdout is a single JSON document. Default.",
+          "enum": [
+            "json"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "stdout is newline-delimited JSON. Each line becomes one page on the wire (when paginated) or is concatenated into a JSON array (when called as a single-shot tool).",
+          "enum": [
+            "ndjson"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "stdout is plain text lines. The dispatcher wraps the output as `{\"lines\": [...], \"stderr\": \"...\"}` for the `ToolResult.data` payload.",
+          "enum": [
+            "lines"
+          ],
+          "type": "string"
+        }
+      ]
+    },
     "Request": {
       "description": "Request frames sent from client → server.",
       "oneOf": [

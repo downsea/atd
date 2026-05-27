@@ -35,6 +35,7 @@ stability rule before you start.
 |---|---|---|---|
 | 1 | Add a built-in tool | [`tool.md`](tool.md) | `crates/atd-tools-echo` |
 | 2 | Add an invocation binding (gRPC, WASM, REST…) | [`binding.md`](binding.md) | `NativeBinding`, `CliBinding` in `atd-runtime` |
+| 2a | Declaratively wrap a CLI as an ATD tool | [`cli-binding.md`](cli-binding.md) | `CliBindingConfig` in `atd-protocol` (typed shape; SP-cli-binding-v2) |
 | 3 | Add result middleware (validation, redaction…) | [`middleware.md`](middleware.md) | `atd-middleware-fhir`, `RedactPathsMiddleware` |
 | 4 | Add a transport / listener (WebSocket, vsock…) | [`transport.md`](transport.md) | `atd-server` (UDS), `atd-server-http` (HTTP) |
 | 5 | Add an auth / secret scheme | [`token-broker.md`](token-broker.md) | `FileTokenBroker`, `InMemoryTokenBroker` |

@@ -30,6 +30,10 @@ fn build_schema_text() -> String {
     generator.subschema_for::<atd_protocol::ToolResult>();
     generator.subschema_for::<atd_protocol::ToolResultMetadata>();
     generator.subschema_for::<atd_protocol::AtdError>();
+    // SP-cli-binding-v2: typed canonical shape for `ToolBinding.config`
+    // when `protocol = "Cli"`. Walked explicitly because `ToolBinding.config`
+    // is still untyped `serde_json::Value` on the wire (back-compat).
+    generator.subschema_for::<atd_protocol::CliBindingConfig>();
 
     let root_schema = generator.into_root_schema_for::<()>();
     let definitions = serde_json::to_value(&root_schema.definitions).unwrap();

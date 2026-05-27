@@ -4,6 +4,7 @@
 //! neither. Contains types, wire codec, and sanitization rules that third-
 //! party implementations must match byte-for-byte.
 
+pub mod cli_binding;
 pub mod enums;
 pub mod error;
 pub mod messages;
@@ -13,6 +14,7 @@ pub mod summary;
 pub mod tool;
 pub mod wire;
 
+pub use cli_binding::{CliBindingConfig, CliBindingConfigError, CliOutputFormat};
 pub use enums::{BindingProtocol, SafetyLevel, ToolTier, ToolVisibility, TrustLevel};
 pub use error::AtdError;
 pub use messages::{
