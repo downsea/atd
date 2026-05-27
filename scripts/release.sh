@@ -109,7 +109,11 @@ publish_one() {
   local c="$1" log rc after target now secs
   log=$(mktemp)
   while true; do
-    if cargo publish -p "$c" 2>&1 | tee "$log"; then rm -f "$log"; return 0; fi
+    # --registry crates-io forces publish to crates.io even when the host
+    # has `[source.crates-io] replace-with = "<mirror>"` configured (e.g.
+    # RsProxy on the Chinese mainland). Without this flag cargo errors
+    # "crates-io is replaced with ..." and the publish never starts.
+    if cargo publish --registry crates-io -p "$c" 2>&1 | tee "$log"; then rm -f "$log"; return 0; fi
     rc=${PIPESTATUS[0]:-1}
     if grep -q '429 Too Many Requests' "$log"; then
       after=$(sed -n 's/.*try again after \(.*GMT\).*/\1/p' "$log" | head -1)
