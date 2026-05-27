@@ -155,7 +155,7 @@ dependencies = [
 
 [[package]]
 name = "atd-examples"
-version = "1.1.0"
+version = "0.0.0"
 dependencies = [
  "atd-protocol",
  "atd-sdk",

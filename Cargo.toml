@@ -21,7 +21,10 @@ members = [
 ]
 
 [workspace.package]
-version = "1.1.0"
+# Per ADR 0004, each crate carries an explicit `version = "X.Y.Z"` in its
+# own Cargo.toml. The workspace no longer owns a single version field —
+# `atd-protocol`'s version anchors the ATD release identity; other crates
+# have independent SemVer cadence.
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/downsea/atd"
