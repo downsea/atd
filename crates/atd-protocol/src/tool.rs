@@ -83,6 +83,13 @@ pub struct ToolSafety {
 pub struct ToolResources {
     pub timeout_ms: u64,
     pub max_concurrent: u32,
+    /// **Advisory only in v1 — NOT enforced by dispatch.** The only
+    /// enforced concurrency control is `max_concurrent` (a per-tool
+    /// semaphore in the `atd-runtime` registry). Adopters needing real
+    /// per-minute rate limiting compose their own limiter (e.g. the
+    /// `governor` crate) outside dispatch. A future SP may make this
+    /// field enforced; adopters relying on advisory-only behaviour should
+    /// re-audit when that lands. See architecture §10.7.
     pub rate_limit_per_min: Option<u32>,
     pub estimated_tokens: Option<u32>,
 }
@@ -91,6 +98,11 @@ pub struct ToolResources {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ToolTrust {
     pub publisher: String,
+    /// **Publisher self-declared in v1 — ATD does NOT verify trust level.**
+    /// `L4Certified` means "the publisher claims certification", not "ATD
+    /// verified it". Use only as a hint to higher layers; do NOT base a
+    /// security decision on this field alone. A future SP may add
+    /// publisher-key PKI verification. See architecture §6.1 / §10.3.
     pub trust_level: TrustLevel,
     pub signature: Option<Vec<u8>>,
 }
