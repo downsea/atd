@@ -41,6 +41,30 @@ impl Middleware for PiiRedactMiddleware {
     fn on_result(&self, _tool_id: &str, _tool_def: &ToolDefinition, result: &mut Value) {
         let _findings = crate::redact::redact_value(result, &self.config);
     }
+
+    /// SP-observability-completeness-v1 Axis A — redact PHI from the
+    /// FAILURE wire shape. A tool's `InvalidArgs` / `InternalError` text
+    /// reaches the LLM verbatim and may carry structured identifiers (an
+    /// SSN/MRN/email/IP/URL echoed into an error). Wrap the bare `message`
+    /// as a JSON string so the same regex/path redaction core scrubs it;
+    /// walk `details` directly. (Free-text *names* still need NLP — an
+    /// SP-medical-middleware non-goal — but structured PHI is caught.)
+    fn on_error(
+        &self,
+        _tool_id: &str,
+        _tool_def: &ToolDefinition,
+        message: &mut String,
+        details: &mut Option<Value>,
+    ) {
+        let mut wrapped = Value::String(std::mem::take(message));
+        let _ = crate::redact::redact_value(&mut wrapped, &self.config);
+        if let Value::String(s) = wrapped {
+            *message = s;
+        }
+        if let Some(d) = details {
+            let _ = crate::redact::redact_value(d, &self.config);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -110,6 +134,23 @@ mod tests {
         mw.on_result("hms:patient.get", &stub_def(), &mut v);
         assert_eq!(v["name"], "[REDACTED:NAME]");
         assert_eq!(v["birthDate"], "1955");
+    }
+
+    #[test]
+    fn on_error_redacts_structured_phi_in_message_and_details() {
+        let mw = PiiRedactMiddleware::default();
+        let mut message = "decrypt failed for record; contact ssn 123-45-6789".to_string();
+        let mut details = Some(json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Smith"}]
+        }));
+        mw.on_error("hms:patient.get", &stub_def(), &mut message, &mut details);
+        assert!(
+            !message.contains("123-45-6789"),
+            "SSN must be redacted from failure message; got: {message}"
+        );
+        let d = details.unwrap();
+        assert_eq!(d["name"], "[REDACTED:NAME]");
     }
 
     #[test]
