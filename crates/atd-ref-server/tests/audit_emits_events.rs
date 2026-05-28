@@ -134,11 +134,12 @@ async fn audit_log_emits_expected_event_kinds() {
     // caller_id echoed from the Hello handshake.
     for line in &lines {
         let v: serde_json::Value = serde_json::from_str(line).expect("parse jsonl");
-        // SP-pagination-v1 bumped to 2; cursor_page field is optional + omitted
-        // for non-paginated dispatches, so consumers reading v2 events see a
-        // shape byte-identical to v1 for the non-paginated cases this test
-        // exercises.
-        assert_eq!(v["schema_version"], 2);
+        // SP-pagination-v1 bumped to 2 (cursor_page); SP-observability-
+        // completeness-v1 bumped to 3 (capability_provenance). Both added
+        // fields are optional + omitted when absent, so consumers reading a
+        // v3 event see a shape byte-identical to v1/v2 for the non-paginated,
+        // string-allow-list-free cases this test exercises.
+        assert_eq!(v["schema_version"], 3);
         assert!(
             v["tool_id"].as_str().unwrap().starts_with("ref:"),
             "tool_id should be ref:-prefixed, got: {}",
