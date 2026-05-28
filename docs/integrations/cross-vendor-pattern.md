@@ -152,6 +152,6 @@ ATD makes cross-vendor composition a *config* concern (which sockets to bridge),
 
 - [`healthkit.md`](healthkit.md) — single-vendor adopter case study (the failure → fix arc this composition pattern builds on)
 - [`overview.md`](overview.md) — the five integration paths
-- [`../architecture.md`](../architecture.md) §1.1 — the "Any agent / Any framework" claim this demo cashes
+- [`../atd-architecture.md`](../atd-architecture.md) §1.1 — the "Any agent / Any framework" claim this demo cashes
 - `crates/atd-mock-weather-server/` — the bin crate
 - `scripts/cross-vendor-demo.sh` — the up/down/status helper

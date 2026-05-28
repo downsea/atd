@@ -1,7 +1,7 @@
 # atd-ref-server
 
 Neutral reference server for the
-[ATD (Agent Tool Dispatch) protocol](../../docs/architecture.md). Stands up a
+[ATD (Agent Tool Dispatch) protocol](../../docs/atd-architecture.md). Stands up a
 Unix-socket daemon that speaks the standard ATD wire format and exposes a small
 but real tool catalog. Designed to be **forked**: third parties writing their
 own ATD server can read the code and use it as a working template.
@@ -205,7 +205,7 @@ The reference server registers nine tools out of the box, drawn from the
 
 ## See also
 
-- [`docs/architecture.md`](../../docs/architecture.md) — the normative
+- [`docs/atd-architecture.md`](../../docs/atd-architecture.md) — the normative
   architecture, including the dispatch model and the crate map.
 - [`AGENTS.md`](../../AGENTS.md) §5 — the extension-point guide.
 - [`docs/integrations/`](../../docs/integrations/) — adopter-side tutorials.

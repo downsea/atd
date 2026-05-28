@@ -52,7 +52,7 @@ For the combined FHIR + PHI-redaction chain, see
 
 Full FHIR R4 schema validation, NLP PHI detection, DICOM stripping,
 region-specific code systems, and compliance certifications. See
-[`docs/architecture.md`](../../docs/architecture.md) §7 (Middleware) for the
+[`docs/atd-architecture.md`](../../docs/atd-architecture.md) §7 (Middleware) for the
 middleware model and the whitelist invariant.
 
 ## License

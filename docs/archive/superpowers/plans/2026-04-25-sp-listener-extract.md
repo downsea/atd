@@ -385,11 +385,11 @@ dispatch, and shutdown."
 
 ## Task 6: Architecture doc update + verification + tag + push
 
-- [ ] **6.1: Update `docs/architecture.md` §8.4 (crate map)**
+- [ ] **6.1: Update `docs/atd-architecture.md` §8.4 (crate map)**
 
 Add `atd-server` to the crate diagram between `atd-runtime` and the tool/server consumers. Update arrows: `atd-runtime ← atd-server ← atd-ref-server` (and `← future vendor servers`).
 
-- [ ] **6.2: Update `docs/architecture.md` §10 evolution path**
+- [ ] **6.2: Update `docs/atd-architecture.md` §10 evolution path**
 
 Add a new ✅ row:
 
@@ -413,7 +413,7 @@ If atd-protocol got published between SPs, retry the dry-run. Otherwise, documen
 - [ ] **6.4: Commit doc updates**
 
 ```bash
-git add docs/architecture.md
+git add docs/atd-architecture.md
 git commit -m "docs(architecture): §8.4 + §10 — atd-server crate added
 
 Reflect SP-listener-extract: 12-crate map, listener marked ✅ in
@@ -457,7 +457,7 @@ SP-listener-extract complete.
 - atd-ref-server slimmed to ~50 lines main.rs + builtin tool wiring.
 - 335+ tests pass (existing 334 + new e2e); fmt + clippy gates green.
 - v0.2.1 + sp-listener-extract tagged and pushed.
-- docs/architecture.md §8.4 + §10 updated.
+- docs/atd-architecture.md §8.4 + §10 updated.
 
 healthkit_cli can now depend on atd-protocol + atd-runtime + atd-server
 (no atd-ref-server dep needed) for self-hosting an ATD server.
@@ -474,6 +474,6 @@ healthkit_cli can now depend on atd-protocol + atd-runtime + atd-server
 - [ ] `cargo fmt --all -- --check` clean
 - [ ] `cargo clippy --workspace --all-features -- -D warnings` clean
 - [ ] `cargo test --workspace --all-targets` — ≥ 335 tests pass
-- [ ] `docs/architecture.md` §8.4 reflects 12 crates
-- [ ] `docs/architecture.md` §10 has SP-listener-extract ✅ row
+- [ ] `docs/atd-architecture.md` §8.4 reflects 12 crates
+- [ ] `docs/atd-architecture.md` §10 has SP-listener-extract ✅ row
 - [ ] Tags `v0.2.1`, `sp-listener-extract`, `pre-sp-listener-extract` exist locally and on origin

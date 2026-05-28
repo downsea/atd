@@ -256,7 +256,7 @@ Exit gates:
 - **Broker-driven secret rotation** — refresh-on-demand vs background refresh. Adopter concern; broker trait already supports either via the `async fn resolve` signature.
 - **Secret expiry / TTL semantics** — no opinion in the trait; brokers handle internally.
 
-## 12. `architecture.md` §10 row
+## 12. `atd-architecture.md` §10 row
 
 Add after the SP-cross-vendor-mock-demo row:
 

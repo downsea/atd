@@ -54,7 +54,7 @@ server.run().await?;
 
 NLP PHI detection, DICOM stripping, region-specific code systems, compliance
 certifications, and schema-deep FHIR validation. See
-[`docs/architecture.md`](../../docs/architecture.md) §7 (Middleware) for the
+[`docs/atd-architecture.md`](../../docs/atd-architecture.md) §7 (Middleware) for the
 middleware model.
 
 ## License

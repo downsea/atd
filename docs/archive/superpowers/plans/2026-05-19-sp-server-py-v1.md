@@ -190,7 +190,7 @@ The meat of the SP. **cbrain can now start swapping the shim** after this phase.
 ## Phase H — Documentation
 
 - [x] `docs/integrations/python-server.md`: new file. Cbrain-style hello-world covering tool registration, ServerPolicy / capability gate, error envelope (ToolFailure / ToolError / unhandled Exception), middleware (with the LIFO ordering diagram), graceful shutdown. Cross-links to spec, plan, cbrain issue, sibling Rust crate, and the protocol wire-format doc.
-- [x] `docs/architecture.md`: the existing "Python SDK at `python/src/atd_client/`" paragraph (around §5.1) grows a sibling note about `python/src/atd_server/` + the conformance-subset proof-point + a link to the integrations page. (The doc has no structured crate-map TABLE to amend; the paragraph is the closest analog.)
+- [x] `docs/atd-architecture.md`: the existing "Python SDK at `python/src/atd_client/`" paragraph (around §5.1) grows a sibling note about `python/src/atd_server/` + the conformance-subset proof-point + a link to the integrations page. (The doc has no structured crate-map TABLE to amend; the paragraph is the closest analog.)
 - [x] `python/README.md`: title bumped (`atd-client / atd-server (Python)`) + "Quickstart — server (cbrain-style)" section pointing at the integrations doc.
 - [ ] **`CLAUDE.md` skipped**: the project CLAUDE.md is not git-tracked (per-machine file). The hint about appending `atd_server` to the Python-mirror line is left as a manual note for whoever later modifies CLAUDE.md.
 - [x] cbrain issue (`docs/issues/2026-05-19-cbrain-adopter-requirements.md` §9): P0-1 row marked ✅ shipped; P2-8 row marked ✅ shipped (bundled); §9.4 status string updated; "cbrain 下一步" instructions added (path-dep wiring + shim removal).

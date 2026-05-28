@@ -1,6 +1,6 @@
 # Python server runtime (`atd_server`)
 
-Reference Python server runtime for the [ATD protocol](../architecture.md). Sibling
+Reference Python server runtime for the [ATD protocol](../atd-architecture.md). Sibling
 package of `atd_client`; lives at `python/src/atd_server/`.
 
 Use this when your tool host needs to run inside a Python process — e.g.

@@ -15,7 +15,7 @@ revocation hook. Wire surface: `Hello.ucan_tokens` plus error codes
 1010–1013. Granted capabilities at dispatch = string allow-list ∪
 UCAN-derived caps (additive — pre-token adopters unaffected). See the
 `[0.3.0]` entry in [`CHANGELOG.md`](../../CHANGELOG.md) ("UCAN-lite
-capability tokens"), [`docs/architecture.md`](../architecture.md) §5.2 /
+capability tokens"), [`docs/atd-architecture.md`](../atd-architecture.md) §5.2 /
 §6.2, and [ADR-0001](../adr/0001-celia-atd-roadmap-alignment.md) §1.A.
 The body below is the original deferral rationale, kept as a record.
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restructure the Rust workspace from 5 crates to 10 per `docs/architecture.md` §8.4 target graph, with zero behavior change and zero wire-format change.
+**Goal:** Restructure the Rust workspace from 5 crates to 10 per `docs/atd-architecture.md` §8.4 target graph, with zero behavior change and zero wire-format change.
 
 **Architecture:** Seven bisect-able commits (C1–C7) executed in dependency order bottom-up. Each commit leaves `cargo test --workspace --all-features` green. No crate is published; all renames are free. Python SDK and conformance suite are out of scope per the design doc.
 
@@ -1244,7 +1244,7 @@ Refs: docs/superpowers/specs/2026-04-24-crate-refactor-design.md §6 C6"
 
 **Files:** (10 live docs — historical plans/specs are not rewritten)
 - Modify: `README.md`
-- Modify: `docs/architecture.md`
+- Modify: `docs/atd-architecture.md`
 - Modify: `docs/design.md`
 - Modify: `docs/protocol/wire-format.md`
 - Modify: `docs/protocol/error-codes.md`
@@ -1259,7 +1259,7 @@ Refs: docs/superpowers/specs/2026-04-24-crate-refactor-design.md §6 C6"
 - [ ] **Step 1: Bulk crate-name rewrite across the 10 live docs**
 
 ```bash
-for f in README.md docs/architecture.md docs/design.md \
+for f in README.md docs/atd-architecture.md docs/design.md \
          docs/protocol/wire-format.md docs/protocol/error-codes.md \
          docs/integrations/langchain.md docs/integrations/hermes.md \
          docs/integrations/claude-code.md docs/integrations/openclaw.md \
@@ -1282,7 +1282,7 @@ For each of the 10 docs, grep for `atd-ref-server` and decide per occurrence:
 
 Work through each file individually:
 ```bash
-for f in README.md docs/architecture.md docs/design.md \
+for f in README.md docs/atd-architecture.md docs/design.md \
          docs/protocol/wire-format.md docs/protocol/error-codes.md \
          docs/integrations/langchain.md docs/integrations/hermes.md \
          docs/integrations/claude-code.md docs/integrations/openclaw.md \
@@ -1294,9 +1294,9 @@ done
 
 For each hit, apply a targeted `Edit` (not a global `sed`) — this is a manual reading pass, not a batch replace.
 
-- [ ] **Step 3: Update `docs/architecture.md` §8.2 status cells**
+- [ ] **Step 3: Update `docs/atd-architecture.md` §8.2 status cells**
 
-Open `docs/architecture.md`, find §8.2 (the "Current → target mapping" table). The pre-refactor table has ⚠️ markers on the Protocol and Runtime rows:
+Open `docs/atd-architecture.md`, find §8.2 (the "Current → target mapping" table). The pre-refactor table has ⚠️ markers on the Protocol and Runtime rows:
 
 ```markdown
 | **Protocol** (types, wire, sanitize) | `atd-types` + `atd-client::wire` + `atd-client::protocol` + `atd-client::sanitize` | ⚠️ split across crates | ... |
@@ -1317,7 +1317,7 @@ Rewrite post-refactor — rows become:
 | **Ref-server binary** | `atd-ref-server-bin` (binary name `atd-ref-server`) | ✅ | Thin wrapper over atd-runtime + atd-tools-*. |
 ```
 
-- [ ] **Step 4: Update `docs/architecture.md` §8.3 / §8.4 current-vs-target reconciliation**
+- [ ] **Step 4: Update `docs/atd-architecture.md` §8.3 / §8.4 current-vs-target reconciliation**
 
 §8.3 showed the current (lumped) dep graph; §8.4 showed the target. After the refactor, §8.3 is the historical pre-refactor state. Two options:
 
@@ -1361,18 +1361,18 @@ refactor state is available at tag `pre-refactor-v1` if someone needs the
 historical crate-lumping for comparison.
 ```
 
-Adjust section-number references elsewhere in the doc if `§8.3`/`§8.4` are cited (grep `docs/architecture.md` for `§8.3` and `§8.4` mentions and renumber accordingly).
+Adjust section-number references elsewhere in the doc if `§8.3`/`§8.4` are cited (grep `docs/atd-architecture.md` for `§8.3` and `§8.4` mentions and renumber accordingly).
 
 - [ ] **Step 5: Update `docs/design.md` supersede pointer header**
 
-If `docs/design.md` currently has a note like "Superseded by `docs/architecture.md`", preserve it but add a note that crate names in the design doc reflect the pre-refactor Phase 0 spec. Add an explicit update-or-delete todo for the design-doc author (or delete the stale crate-name examples if they no longer match). This file is allowed to stay partly historical — architecture.md is the live source.
+If `docs/design.md` currently has a note like "Superseded by `docs/atd-architecture.md`", preserve it but add a note that crate names in the design doc reflect the pre-refactor Phase 0 spec. Add an explicit update-or-delete todo for the design-doc author (or delete the stale crate-name examples if they no longer match). This file is allowed to stay partly historical — atd-architecture.md is the live source.
 
 Minimum action: update any `use atd_client::*` or `atd-types` references in prose to the new names, keeping the "Phase 0 historical context" framing intact.
 
 - [ ] **Step 6: Verify no stale crate-name references remain in live docs**
 
 ```bash
-for f in README.md docs/architecture.md docs/design.md \
+for f in README.md docs/atd-architecture.md docs/design.md \
          docs/protocol/wire-format.md docs/protocol/error-codes.md \
          docs/integrations/*.md; do
     echo "=== $f ==="
@@ -1401,7 +1401,7 @@ git commit -m "docs: sync live docs to new crate names (C7)
 - README, architecture, design, protocol/wire-format, protocol/error-codes,
   integrations/{langchain,hermes,claude-code,openclaw,overview}: crate
   names, use paths, dependency diagrams aligned with post-refactor layout.
-- architecture.md §8 rewritten: §8.3 now reflects the current (post-
+- atd-architecture.md §8 rewritten: §8.3 now reflects the current (post-
   refactor) graph; historical lump-layout available via git tag
   pre-refactor-v1. §8.2 status cells flipped ⚠️ → ✅ for Protocol, Runtime,
   built-in tools. Python SDK row kept ⚠️ (pending mirror SP).

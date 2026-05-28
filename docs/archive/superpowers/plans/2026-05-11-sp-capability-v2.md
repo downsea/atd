@@ -481,14 +481,14 @@ Spec: docs/superpowers/specs/2026-05-11-sp-capability-v2-design.md §8.2
 
 ## Phase G — Doc + conformance sync
 
-### Task 8: architecture.md + conformance fixtures + tag
+### Task 8: atd-architecture.md + conformance fixtures + tag
 
 **Files:**
-- Modify: `docs/architecture.md` (flip 🔨 → ✅ for the SP-capability-v2 row in §10; same for §5.3 / §9.3 cross-refs)
+- Modify: `docs/atd-architecture.md` (flip 🔨 → ✅ for the SP-capability-v2 row in §10; same for §5.3 / §9.3 cross-refs)
 - Modify: `crates/atd-conformance/fixtures/` (add UCAN-aware fixtures if scoped — else file follow-up SP)
 - Tag: `sp-capability-v2`
 
-- [ ] **Step 1: Update architecture.md status glyphs**
+- [ ] **Step 1: Update atd-architecture.md status glyphs**
 
 Search-and-replace `🔨 (SP-capability-v2)` → `✅ (SP-capability-v2)` and update the §10 row's Window from "Q2 2026" to actual landing date.
 

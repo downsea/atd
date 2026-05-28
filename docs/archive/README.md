@@ -10,7 +10,7 @@ For current, authoritative documentation start at [`../index.md`](../index.md).
 | Path | What it is | Superseded by |
 |---|---|---|
 | `superpowers/` | The **Superpowers (SP) design archive** — 33 specs + 32 plans, the phase-by-phase design record of how ATD was built from Phase 0 to 1.0. Each SP shipped under a git tag. | Forward design now lives in [`../adr/`](../adr/) (decisions) and [`../extending/`](../extending/) (how-to). |
-| `design.md` | The original Phase 0 design spec (2026-04-21). | [`../architecture.md`](../architecture.md) |
+| `design.md` | The original Phase 0 design spec (2026-04-21). | [`../atd-architecture.md`](../atd-architecture.md) |
 | `validation/` | Three dated milestone validation logs (Hermes E2E, SP-6 capstone, SP-7 MCP bridge) — point-in-time evidence that a milestone worked. | [`../../CHANGELOG.md`](../../CHANGELOG.md) + the conformance suite (`crates/atd-conformance`). |
 | `release-plan-v0.3.0.md` | The 0.3.0 release plan. The 0.3.0 line was never published; the project went straight to 1.0. | [`../release-plan-v1.0.md`](../release-plan-v1.0.md) |
 

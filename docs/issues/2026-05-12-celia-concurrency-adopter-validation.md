@@ -154,7 +154,7 @@ If the rebuild reveals any of these, file a new ATD-side issue cross-linking thi
 - ATD spec: `docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
 - ATD plan: `docs/archive/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
 - ATD conformance test (the test that "passes" the SLO bar celia should meet): `crates/atd-conformance/tests/concurrent_handshake_storm.rs`
-- ATD architecture §11 (deployment shapes, SLOs, postmortem): `docs/architecture.md` §11
+- ATD architecture §11 (deployment shapes, SLOs, postmortem): `docs/atd-architecture.md` §11
 - ADR: `docs/adr/0002-concurrency-baseline.md`
 - Sibling SP-pagination-v1 (separate adopter issue when impl lands): `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`
 - Triggering incident transcript: 2026-05-12 chat session at `/home/nan/code/pha/celia_phr/scripts/agent-eval-hermes-family.ts` (pre-SP run).

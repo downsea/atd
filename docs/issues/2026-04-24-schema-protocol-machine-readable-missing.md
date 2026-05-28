@@ -16,7 +16,7 @@ Schema 2020-12 meta-schema, and CI-gated for drift. Third-party
 implementers no longer need to read Rust to build a TS / Go / Java
 implementation. See the `[0.3.0]` entry in
 [`CHANGELOG.md`](../../CHANGELOG.md) ("Machine-readable protocol
-schema") and [`docs/architecture.md`](../architecture.md) §2. The body
+schema") and [`docs/atd-architecture.md`](../atd-architecture.md) §2. The body
 below is the original gap report, kept as a record.
 
 ## Summary

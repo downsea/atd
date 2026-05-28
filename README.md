@@ -13,7 +13,7 @@ server runtime, a client SDK, two transports, middleware, built-in tools, an
 MCP bridge, a CLI, and a conformance suite — plus a Python package mirror.
 
 > **New here?** Read [`docs/index.md`](docs/index.md) for the documentation map,
-> or [`docs/architecture.md`](docs/architecture.md) for the full picture.
+> or [`docs/atd-architecture.md`](docs/atd-architecture.md) for the full picture.
 > AI coding agents: start at [`AGENTS.md`](AGENTS.md).
 
 ## Why ATD
@@ -123,7 +123,7 @@ against your server — pass it and you interoperate. See
 
 > Not sure which path fits? [docs/integrations/overview.md](docs/integrations/overview.md)
 > maps every framework to one of five integration paths; the full 16-crate
-> map is [docs/architecture.md](docs/architecture.md) §9.
+> map is [docs/atd-architecture.md](docs/atd-architecture.md) §9.
 
 ## Prompting your coding agent
 
@@ -140,7 +140,7 @@ locally if it isn't already.
 Get oriented in this order:
   1. AGENTS.md             — architectural map for AI coding agents
   2. docs/index.md         — documentation map
-  3. docs/architecture.md  — dispatch pipeline + 16-crate layout
+  3. docs/atd-architecture.md  — dispatch pipeline + 16-crate layout
 
 Then pick the path matching my task:
 
@@ -203,7 +203,7 @@ Full inventory: [`CHANGELOG.md`](CHANGELOG.md).
 ```
 
 The full layer model, dispatch pipeline, security model, and crate map are in
-[`docs/architecture.md`](docs/architecture.md).
+[`docs/atd-architecture.md`](docs/atd-architecture.md).
 
 ## Extending ATD
 
@@ -218,7 +218,7 @@ ATD attaches third-party code without forking — every extension point is a
 ## Documentation
 
 - [`docs/index.md`](docs/index.md) — the documentation map (start here)
-- [`docs/architecture.md`](docs/architecture.md) — normative architecture
+- [`docs/atd-architecture.md`](docs/atd-architecture.md) — normative architecture
 - [`docs/protocol/`](docs/protocol/) — wire format + error taxonomy
 - [`docs/extending/`](docs/extending/) — how to extend each layer
 - [`docs/integrations/`](docs/integrations/) — per-framework wiring

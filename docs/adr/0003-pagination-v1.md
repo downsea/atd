@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-05-12
 - **Deciders:** `atd` maintainers
-- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11.5 · [`docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md) · sibling [SP-concurrency-baseline](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [ADR-0002](./0002-concurrency-baseline.md)
+- **Related:** [`docs/atd-architecture.md`](../atd-architecture.md) §10 + §11.5 · [`docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md) · sibling [SP-concurrency-baseline](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) (perf-v1 axis 1) · [ADR-0002](./0002-concurrency-baseline.md)
 
 ## 1. Context
 
@@ -78,5 +78,5 @@ The protocol is missing a continuation primitive.
 - Wire format: `docs/protocol/wire-format.md` §4.4.1
 - Error codes: `docs/protocol/error-codes.md` §2.3g + §2.3h
 - Conformance test: `crates/atd-conformance/tests/paginated_dispatch.rs`
-- Architecture deployment-shapes section: `docs/architecture.md` §11.5
+- Architecture deployment-shapes section: `docs/atd-architecture.md` §11.5
 - Sibling SP for the runtime/concurrency axis of the same perf-v1 iteration: `docs/adr/0002-concurrency-baseline.md`

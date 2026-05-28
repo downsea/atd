@@ -27,7 +27,7 @@ T.statement(d, {
   sub: "atd-protocol-schema.json —— 从 atd-protocol 的 Rust 类型经 schemars 生成，按 JSON Schema " +
        "2020-12 元 schema 校验，CI 守护 Rust 源与 JSON 之间的漂移。UDS 与 HTTP 两个 listener " +
        "反序列化成同一套 Rust 类型，没有 per-transport 分叉 —— 跨语言 SDK 因此能与 Rust 实现自动类型兼容。",
-  attin: "权威架构文档：docs/architecture.md",
+  attin: "权威架构文档：docs/atd-architecture.md",
 });
 
 T.layers(d, {

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-05-12
 - **Deciders:** `atd` maintainers
-- **Related:** [`docs/architecture.md`](../architecture.md) §10 + §11 · [`docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) · sibling [`SP-pagination-v1`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md)
+- **Related:** [`docs/atd-architecture.md`](../atd-architecture.md) §10 + §11 · [`docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`](../archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md) · sibling [`SP-pagination-v1`](../archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md)
 
 ## 1. Context
 
@@ -79,5 +79,5 @@ vs the pre-SP incident: 71s wall, 60% session-init failure at *10×* lower concu
 - Spec: `docs/archive/superpowers/specs/2026-05-12-sp-concurrency-baseline-design.md`
 - Plan: `docs/archive/superpowers/plans/2026-05-12-sp-concurrency-baseline.md`
 - Conformance test: `crates/atd-conformance/tests/concurrent_handshake_storm.rs`
-- Architecture deployment-shapes section: `docs/architecture.md` §11
+- Architecture deployment-shapes section: `docs/atd-architecture.md` §11
 - Sibling SP for the result-pagination axis of the same perf-v1 iteration: `docs/archive/superpowers/specs/2026-05-12-sp-pagination-v1-design.md`

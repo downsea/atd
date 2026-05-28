@@ -4,7 +4,7 @@
 **Status:** Approved — ready for implementation plan
 **Scope:** New `atd-conformance` crate + self-conformance integration test.
 **Parent:** Follows `sp-fmt-clippy-cleanup` (4-gate clean baseline).
-**Architecture anchor:** `docs/architecture.md` §10 roadmap row "Conformance suite (SP-8 original)".
+**Architecture anchor:** `docs/atd-architecture.md` §10 roadmap row "Conformance suite (SP-8 original)".
 
 ## 1. Context
 

@@ -330,7 +330,7 @@ OH 的 `insight_intent.json` 已经是开发者"声明 app 能力给系统/小�
 
 **atd 端**：
 - `atd-mvp/docs/quickstart/typescript.md` —— TS SDK NOT SHIPPED 现状说明
-- `atd-mvp/docs/architecture.md` —— ATD 整体架构（含 TypeScript / ArkTS SDK 在 cross-language parity 表中的位置）
+- `atd-mvp/docs/atd-architecture.md` —— ATD 整体架构（含 TypeScript / ArkTS SDK 在 cross-language parity 表中的位置）
 - `atd-mvp/crates/atd-protocol/` —— wire format ground truth
 - `atd-mvp/crates/atd-mcp-bridge/` —— MCP bridge 现有实现（oh-cli Phase A 计划包成 `oh mcp serve`）
 - `atd-mvp/docs/issues/2026-05-19-cbrain-adopter-requirements.md` —— cbrain Python server runtime 提案（本 issue 的体例参照）

@@ -756,15 +756,15 @@ test(atd-ref-server): medical-middleware chain — non-medical tools unaffected
 
 ## Phase D — Doc + tag
 
-### Task 10: architecture.md flip + adopter issues + tag
+### Task 10: atd-architecture.md flip + adopter issues + tag
 
 **Files:**
-- Modify: `docs/architecture.md` (§10 evolution path row 📜 → ✅; potentially §6 component map adds the 2 new crates)
+- Modify: `docs/atd-architecture.md` (§10 evolution path row 📜 → ✅; potentially §6 component map adds the 2 new crates)
 - Modify: `CLAUDE.md` (crate map 14 → 16; mention sp-medical-middleware tag)
 - Create: `~/code/pha/celia_phr/docs/sp-medical-middleware-adopter.md` (4-step migration tracker following SP-cap-v2-adopter.md pattern)
 - Create: `~/code/healthkit_cli/docs/sp-medical-middleware-no-regression.md` (no-op for healthkit; middleware is opt-in)
 
-- [ ] **Step 1: Update architecture.md §10**
+- [ ] **Step 1: Update atd-architecture.md §10**
 
 Find the row `| Medical middleware suite (FHIR validation + PHI redaction) | Dispatch (middleware) | 📜 | ...`; flip to ✅ with full body — cite both crates, the test counts, the spec, the plan.
 

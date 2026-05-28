@@ -358,7 +358,7 @@ let preview = client
 A tool whose result can be large may opt into pagination. `call_page` fetches
 one page (pass `cursor: None` on the first call, then the server's
 `next_cursor` verbatim); `call_all` auto-loops and merges every page per a
-`MergePolicy`. See [`../architecture.md`](../architecture.md) §5.6 for the
+`MergePolicy`. See [`../atd-architecture.md`](../atd-architecture.md) §5.6 for the
 cursor contract.
 
 ```rust

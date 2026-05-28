@@ -232,6 +232,6 @@ If the rebuild or migration reveals any of these, file a new ATD-side issue cros
 - ATD plan (pagination): `docs/archive/superpowers/plans/2026-05-12-sp-pagination-v1.md` (§Phase D walkthrough is the closest fit for the adopter migration)
 - Reference paginating tool: `crates/atd-conformance/tests/paginated_dispatch.rs::RowGenerator` (100 lines, copy-paste-friendly)
 - Reference dispatch tests: `crates/atd-server/src/connection.rs::tests::run_tool_continue_*`
-- Architecture deployment shapes: `docs/architecture.md` §11 (concurrency) + §11.5 (pagination)
+- Architecture deployment shapes: `docs/atd-architecture.md` §11 (concurrency) + §11.5 (pagination)
 - ADRs: `docs/adr/0002-concurrency-baseline.md` · `docs/adr/0003-pagination-v1.md`
 - Hermes integration with passthrough env: `docs/integrations/hermes.md` § "Pagination (SP-pagination-v1)"

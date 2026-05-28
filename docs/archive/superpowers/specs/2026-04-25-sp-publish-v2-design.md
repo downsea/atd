@@ -3,13 +3,13 @@
 **Date:** 2026-04-25
 **Status:** Draft — awaiting approval
 **Parent:** Replaces the now-stale SP-9 (`docs/superpowers/plans/2026-04-24-sp9-public-release.md`), which targeted the pre-refactor 3-crate layout.
-**Anchor:** `docs/architecture.md` §8.4 (target crate graph) — landed at tag `sp-refactor-v1`.
+**Anchor:** `docs/atd-architecture.md` §8.4 (target crate graph) — landed at tag `sp-refactor-v1`.
 
 ## 1. Context
 
 SP-9 wrote the path to v0.1.0: GitHub push, repo polish, and `cargo publish --dry-run` for **3 crates** (`atd-types` / `atd-client` / `atd-mcp-bridge`). The git tag `v0.1.0` was created but the actual `cargo publish` step (manual, requires user credentials) was never executed.
 
-Since v0.1.0 the workspace went through SP-refactor-v1, splitting and renaming crates to match `docs/architecture.md` §8.4. The crates.io target surface is now **11 crates** with renamed and newly-extracted ones. SP-9's plan no longer matches reality:
+Since v0.1.0 the workspace went through SP-refactor-v1, splitting and renaming crates to match `docs/atd-architecture.md` §8.4. The crates.io target surface is now **11 crates** with renamed and newly-extracted ones. SP-9's plan no longer matches reality:
 
 - `atd-types` → renamed to **`atd-protocol`** (and absorbed wire + sanitize)
 - `atd-client` → renamed to **`atd-sdk`**
@@ -30,7 +30,7 @@ This SP plans the v2 publish: bump version, polish remaining metadata, write mis
 | Q5 | What about the old v0.1.0 git tag — leave or move? | Leave. Tag a new `v0.2.0` at the publish HEAD. The two tags reflect two distinct project states; rewriting history is wrong. |
 | Q6 | Path-only deps? | All current path deps already include `version = "0.1.0"`. **Bump these to `0.2.0`** in the same workspace bump (Cargo doesn't auto-rewrite version pins inside `[dependencies]` — must update each `version = "..."` literal manually). |
 | Q7 | Python SDK rename (`atd_client` → `atd_sdk`)? | **Out of scope.** Per CLAUDE.md, deferred to its own SP. `python/pyproject.toml` stays at `atd-client` for now. |
-| Q8 | Multi-platform CI before publish? | **Out of scope.** Existing CI (Linux ubuntu-latest) is sufficient gate; macOS/Windows is Phase 2 per `docs/architecture.md` §10. |
+| Q8 | Multi-platform CI before publish? | **Out of scope.** Existing CI (Linux ubuntu-latest) is sufficient gate; macOS/Windows is Phase 2 per `docs/atd-architecture.md` §10. |
 | Q9 | Rename the `-bin`-suffixed package before publish? | **Yes** — last chance to drop the awkward suffix. Pre-rename package = `atd-ref-server-bin`, post-rename = `atd-ref-server` (matches the binary name, which was already `atd-ref-server`). Done as a dedicated T0 commit so the rename bisects cleanly separately from version/metadata changes. |
 | Q10 | Actually `cargo publish`? | **No.** This SP stops at dry-run verification. The user explicitly chose not to upload to crates.io at this time. No manual `cargo publish` hand-off note is included. |
 | Q11 | `git push` to GitHub at the end? | **Yes** — the SP includes pushing master + the new tags to `origin`. Credentials are already configured (SSH key for `git@github.com:downsea/atd-mvp.git`). |
@@ -48,7 +48,7 @@ This SP plans the v2 publish: bump version, polish remaining metadata, write mis
 - `crates/atd-mcp-bridge/tests/integration_e2e.rs`: 2 references (comments + cargo build instructions)
 - `examples/hello_atd.rs`: 2 references (comments + cargo build instructions)
 - `crates/atd-runtime/src/error.rs`: 1 doc-comment reference
-- Live docs: `README.md`, `docs/architecture.md`, `docs/design.md`, `docs/protocol/error-codes.md`, `docs/integrations/*.md`, `crates/atd-mcp-bridge/README.md`
+- Live docs: `README.md`, `docs/atd-architecture.md`, `docs/design.md`, `docs/protocol/error-codes.md`, `docs/integrations/*.md`, `crates/atd-mcp-bridge/README.md`
 - **Historical SP plans/specs are NOT touched** (project rule: "Historical plans/specs are read-only")
 
 **T1+ Cargo.toml / README changes** (post-rename):
@@ -95,7 +95,7 @@ The plan splits into 5 task groups:
 - Python `atd_client` → `atd_sdk` rename (separate SP)
 - Multi-platform CI matrix (Phase 2)
 - New crate features or API changes (this is publish-prep, not feature work)
-- Updating `docs/architecture.md` §10 (already shipped via prior commit)
+- Updating `docs/atd-architecture.md` §10 (already shipped via prior commit)
 - Announcement / blog content (not a code SP)
 
 ## 6. Risks

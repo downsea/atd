@@ -155,5 +155,5 @@ deadline path — set `ctx.deadline = Some(Instant::now() + …)` and assert the
 ## See also
 
 - [`tool.md`](tool.md) — the `Tool` half of the pair.
-- [`../architecture.md`](../architecture.md) §5.4 (bindings), §10.4 (why REST /
+- [`../atd-architecture.md`](../atd-architecture.md) §5.4 (bindings), §10.4 (why REST /
   AppFunction bindings are not shipped).

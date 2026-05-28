@@ -1318,7 +1318,7 @@ Add a helper `target_to_path` at the bottom of runner.rs (before `#[cfg(test)]`)
 ```rust
 /// Extract the Unix socket path from an atd_sdk::Endpoint.
 /// The conformance suite is Unix-socket-only in v1 (HTTP/stdio not
-/// in scope; architecture.md §9.7). Current Endpoint enum has only
+/// in scope; atd-architecture.md §9.7). Current Endpoint enum has only
 /// `UnixSocket`, so this match is exhaustive; if new variants are
 /// added upstream, the compiler will force us to decide here.
 fn target_to_path(endpoint: &atd_sdk::Endpoint) -> std::path::PathBuf {

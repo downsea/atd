@@ -19,7 +19,7 @@ If you're evaluating ATD's cross-vendor composition story (one agent session, mu
 
 If you're choosing between options or evaluating coverage, read on.
 
-For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../architecture.md`](../architecture.md).
+For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../atd-architecture.md`](../atd-architecture.md).
 
 ---
 
@@ -283,7 +283,7 @@ Both Path 1 and Path 2 support this.
 ### "I'm building a commercial product and need tool-level access control"
 
 ATD ships a capability gate plus UCAN-lite bearer tokens (see
-[`../architecture.md`](../architecture.md) §5.2 / §6.2). Tools declare
+[`../atd-architecture.md`](../atd-architecture.md) §5.2 / §6.2). Tools declare
 `required_capabilities`; the server intersects them against an
 operator allow-list and any UCAN tokens the client presents.
 
@@ -371,7 +371,7 @@ Honest gaps, for expectations management:
 - Protocol reference:
   [`../protocol/wire-format.md`](../protocol/wire-format.md),
   [`../protocol/error-codes.md`](../protocol/error-codes.md)
-- Architecture: [`../architecture.md`](../architecture.md)
+- Architecture: [`../atd-architecture.md`](../atd-architecture.md)
 - End-to-end validation (archived):
   [`../archive/validation/2026-04-23-sp6-capstone.md`](../archive/validation/2026-04-23-sp6-capstone.md)
   (standalone),

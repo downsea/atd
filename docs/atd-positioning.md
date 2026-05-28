@@ -1,10 +1,13 @@
-# ATD 协议介绍 — 功能与优势
+# ATD Positioning — 是什么 / 不是什么 / 为什么不用 raw 替代品
 
 > Agent Tool Dispatch (ATD) — 跨 vendor 中立的 agent ↔ 工具调度协议。
 >
-> 本文从一个真实跑过的 LLM session（[v1.4.0 doctor-perspective HR analysis](https://github.com/downsea/healthkit_cli/blob/main/docs/case-study-v1.4.0/case-study.md)）切入，自下而上讲清楚 ATD 是什么、ships 了什么、解决了哪些 raw CLI / raw MCP / 自研 vendor adapter 解决不了的问题。
+> 本文是 **ATD 的定位文档**：回答"ATD 是什么、不是什么、什么场景该用、与 raw CLI / raw MCP / 自研 adapter 的差异"。从一个真实跑过的 LLM session（[v1.4.0 doctor-perspective HR analysis](https://github.com/downsea/healthkit_cli/blob/main/docs/case-study-v1.4.0/case-study.md)）切入，自下而上讲清楚 ships 了什么、解决了哪些其它方案解决不了的问题。
 >
-> 深度架构参考见 [`architecture.md`](architecture.md)；本文是入门 + 立场总览。
+> **三份宪法文档**：
+> - **`atd-positioning.md`** *(本文档)* — 范围 / 身份问题。"X 应该在 ATD 里吗？"
+> - [`atd-design-philosophy.md`](atd-design-philosophy.md) — 设计冲突 / 取舍（7 条原则 + 反模式 + 适配者清单）
+> - [`atd-architecture.md`](atd-architecture.md) — 代码导航 / 结构变更（layer model · dispatch · crate map）
 
 ---
 
@@ -264,7 +267,7 @@ healthkit_cli 的 `healthkit serve` 是 ~150 行 glue（一半是命令行参数
 
 ## 7. Workspace 实现（ATD reference impl 1.0）
 
-16 个 crate，Apache-2.0。完整 crate map 见 [`architecture.md`](architecture.md) §8：
+17 个 crate（含 demo bin），Apache-2.0，1.0.0+ 全部已发到 crates.io（workspace-lockstep 版本通过 1.x）。完整 crate map 见 [`atd-architecture.md`](atd-architecture.md) §9：
 
 | crate | 职责 |
 |---|---|
@@ -362,7 +365,7 @@ async fn main() -> anyhow::Result<()> {
 
 ## 10. 关键引用
 
-- 架构深度参考：[`docs/architecture.md`](architecture.md)
+- 架构深度参考：[`docs/atd-architecture.md`](atd-architecture.md)
 - Wire 协议：[`docs/protocol/wire-format.md`](protocol/wire-format.md)
 - 错误码：[`docs/protocol/error-codes.md`](protocol/error-codes.md)
 - 集成路径总览：[`docs/integrations/overview.md`](integrations/overview.md)

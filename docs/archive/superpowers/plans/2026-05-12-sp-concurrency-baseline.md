@@ -530,10 +530,10 @@ test(atd-conformance): concurrent_handshake_storm scenario (SP-concurrency-basel
 
 ## Phase I — Docs + tag
 
-### Task 10: `docs/architecture.md` §11 + adopter notification
+### Task 10: `docs/atd-architecture.md` §11 + adopter notification
 
 **Files:**
-- Modify: `docs/architecture.md` (add §11 with subsections per spec §5.8)
+- Modify: `docs/atd-architecture.md` (add §11 with subsections per spec §5.8)
 - Modify: `CLAUDE.md` (note new bench gate + storm conformance)
 - Create: `docs/adr/0002-concurrency-baseline.md` (one-page summary for adopters)
 
@@ -578,7 +578,7 @@ docs(architecture): SP-concurrency-baseline shipped — §11 deployment shapes
 - [ ] `cargo nextest run --test storm -p atd-conformance` passes with p99 < 200ms, 0 errors, 0 drops.
 - [ ] `cargo bench -p atd-bench` runs all 7 benches; output committed to `crates/atd-bench/baselines/` as the new baseline.
 - [ ] celia_phr's 10-concurrent benchmark (`scripts/agent-eval-hermes-family.ts --queries 10 --concurrency 10`) reports 0 connection-lost errors and 100% tool-schema-loaded sessions on a rebuilt-against-this-tag tree.
-- [ ] `docs/architecture.md` §11 is published with two deployment-shape diagrams + the SLO table + postmortem of the celia incident.
+- [ ] `docs/atd-architecture.md` §11 is published with two deployment-shape diagrams + the SLO table + postmortem of the celia incident.
 - [ ] `CLAUDE.md` "Recent SPs shipped" lists `sp-concurrency-baseline`.
 - [ ] git tag `sp-concurrency-baseline` exists and is pushed.
 

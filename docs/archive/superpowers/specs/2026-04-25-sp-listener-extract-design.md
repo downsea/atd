@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-25
 **Status:** Draft — awaiting approval
-**Anchor:** `docs/architecture.md` §8.4 (target crate graph). Triggered by the first concrete second-vendor-server adopter signal: `healthkit_cli` (Huawei HMS HealthKit). Generalizes the listener layer that today only `atd-ref-server` consumes.
+**Anchor:** `docs/atd-architecture.md` §8.4 (target crate graph). Triggered by the first concrete second-vendor-server adopter signal: `healthkit_cli` (Huawei HMS HealthKit). Generalizes the listener layer that today only `atd-ref-server` consumes.
 
 ## 1. Context
 
@@ -59,8 +59,8 @@ crates/atd-server/
 | `crates/atd-ref-server/tests/*.rs` | Same — update imports for any direct Server use (most use atd-sdk to drive) |
 | `crates/atd-ref-server/examples/rw_cycle.rs` | Update imports (`atd_ref_server::server::*` → `atd_server::*`) |
 | All `crates/*/Cargo.toml` containing `version = "0.2.0"` path-dep literals | Bump to `"0.2.1"` |
-| `docs/architecture.md` §8.4 | Add `atd-server` to crate map; update arrows |
-| `docs/architecture.md` §10 | Add row marking listener extraction ✅ at SP-listener-extract |
+| `docs/atd-architecture.md` §8.4 | Add `atd-server` to crate map; update arrows |
+| `docs/atd-architecture.md` §10 | Add row marking listener extraction ✅ at SP-listener-extract |
 | `crates/atd-server/README.md` | New, ~30 lines |
 
 ### Files NOT touched
@@ -82,7 +82,7 @@ crates/atd-server/
 - **T3** Update `atd-ref-server` to depend on `atd-server`; delete the now-empty `server.rs`; fix imports in `main.rs`, `lib.rs`, `builtin.rs`, `tests/*`, `examples/rw_cycle.rs`.
 - **T4** Bump workspace version to 0.2.1 (workspace + all path-dep literals).
 - **T5** Write `atd-server/tests/e2e_minimal.rs`: minimal Server with a 1-tool registry, driven via atd-sdk; smoke-test discover + call.
-- **T6** Update `docs/architecture.md` §8.4 + §10; verify 334 tests pass, fmt + clippy clean, dry-run atd-server packaging clean; tag `v0.2.1` + `sp-listener-extract`; push.
+- **T6** Update `docs/atd-architecture.md` §8.4 + §10; verify 334 tests pass, fmt + clippy clean, dry-run atd-server packaging clean; tag `v0.2.1` + `sp-listener-extract`; push.
 
 ## 5. Out of scope
 
@@ -112,5 +112,5 @@ crates/atd-server/
 6. `cargo fmt --all -- --check` clean
 7. `cargo clippy --workspace --all-features -- -D warnings` clean
 8. `cargo publish -p atd-server --dry-run --registry crates-io` packages cleanly with no metadata warnings
-9. `docs/architecture.md` §8.4 reflects the 12-crate map; §10 has a ✅ row for listener extraction
+9. `docs/atd-architecture.md` §8.4 reflects the 12-crate map; §10 has a ✅ row for listener extraction
 10. Tags `v0.2.1` + `sp-listener-extract` exist at the SP HEAD and are pushed to `origin`

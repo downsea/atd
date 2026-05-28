@@ -4,7 +4,7 @@
 **Status:** Approved — ready for implementation plan
 **Scope:** 3 architecture-§10 ❌ items merged into one operational-readiness SP.
 **Parent:** Follows `sp-8.1-capability-denied-gated-tool`.
-**Anchor:** `docs/architecture.md` §5.2 ("audit is the most valuable next security-adjacent SP") + §10 roadmap.
+**Anchor:** `docs/atd-architecture.md` §5.2 ("audit is the most valuable next security-adjacent SP") + §10 roadmap.
 
 ## 1. Context
 
@@ -48,7 +48,7 @@ safety drills (dry-run contract).
 | `atd-tools-shell/src/exec.rs` | `ToolSafety.dry_run: false → true` (has side effects) | C3 |
 | `atd-tools-shell/src/pwsh.rs` | `ToolSafety.dry_run: false → true` | C3 |
 | `docs/protocol/dry-run-contract.md` (new) | Informational-field semantics + agent-side contract | C3 |
-| `docs/architecture.md` §10 | 4 rows (audit / rate limit / dry-run / per-call identity) flip ❌ → ✅ | C3 |
+| `docs/atd-architecture.md` §10 | 4 rows (audit / rate limit / dry-run / per-call identity) flip ❌ → ✅ | C3 |
 | `crates/atd-ref-server-bin/tests/audit_emits_events.rs` (new) | Integration: spawn server with `--audit-log <tmpfile>`, run 3 calls, parse events | C1 |
 | `crates/atd-ref-server-bin/tests/rate_limit.rs` (new) | Integration: in-process test harness with a gated `max_concurrent = 1` tool, fire 2 concurrent requests, assert 1002 | C2 |
 
@@ -416,7 +416,7 @@ SP is complete when all of the following hold:
 3. `--audit-log` omitted → no audit overhead (no sink allocation, no emission).
 4. Setting a tool's `max_concurrent = 1` and firing 2 concurrent calls yields: first `tool_result`, second `Response::Error { code: 1002, retryable: true }`.
 5. Audit event for rate-limited call has `outcome: { kind: "rate_limited" }`.
-6. `docs/protocol/dry-run-contract.md` exists; `docs/architecture.md` §10 has 4 flipped rows.
+6. `docs/protocol/dry-run-contract.md` exists; `docs/atd-architecture.md` §10 has 4 flipped rows.
 7. `shell.exec` / `shell.pwsh` declare `ToolSafety.dry_run: true`.
 8. Workspace test count: 322 → ~328-330 (+6-8 from new unit + integration tests).
 9. Conformance: 32 cases still pass; self-conformance test unchanged.

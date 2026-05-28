@@ -153,7 +153,7 @@ queue saturates, and a final flush on drop.
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) §6.4 (audit), §6.5 (rate limiting
+- [`../atd-architecture.md`](../atd-architecture.md) §6.4 (audit), §6.5 (rate limiting
   and the metrics snapshot).
 - [`token-broker.md`](token-broker.md) — the matching no-secrets rule for the
   secret side.

@@ -21,7 +21,7 @@ It ships: the wire-type crate, a server runtime, a client SDK, two transports
 (Unix socket + HTTP), middleware crates, built-in tools, an MCP bridge, a CLI,
 a conformance suite, and a reference server binary.
 
-**Authoritative architecture:** [`docs/architecture.md`](docs/architecture.md).
+**Authoritative architecture:** [`docs/atd-architecture.md`](docs/atd-architecture.md).
 Read it before making any non-trivial change.
 
 **Hard rule — the ANOS boundary.** ATD is a *neutral* protocol. This repository
@@ -35,7 +35,7 @@ is fine; a `[dependencies]` entry is not. Never add one.
 | Order | Document | Why |
 |---|---|---|
 | 1 | [`docs/index.md`](docs/index.md) | The doc map — what every document is and when to read it. |
-| 2 | [`docs/architecture.md`](docs/architecture.md) | The normative architecture: layers, dispatch, security, middleware, crate map. |
+| 2 | [`docs/atd-architecture.md`](docs/atd-architecture.md) | The normative architecture: layers, dispatch, security, middleware, crate map. |
 | 3 | [`docs/protocol/wire-format.md`](docs/protocol/wire-format.md) · [`error-codes.md`](docs/protocol/error-codes.md) | The byte-level wire contract + error taxonomy. |
 | 4 | [`docs/extending/`](docs/extending/) | How to add a tool, binding, middleware, transport, etc. — read the one matching your task. |
 | 5 | This file, §4–§6 | Build / test / verify commands and conventions. |
@@ -82,7 +82,7 @@ atd/
 | `atd-mock-weather-server` | Binary (`publish = false`) | Cross-vendor composition demo helper. |
 
 All publishable crates share `workspace.package.version` — the workspace ships
-as one coordinated version. See [`docs/architecture.md`](docs/architecture.md) §9.
+as one coordinated version. See [`docs/atd-architecture.md`](docs/atd-architecture.md) §9.
 
 ---
 
@@ -156,7 +156,7 @@ preserve.
 Changing the wire format itself, or adding a `ToolTier` variant, is **not** an
 extension point — it is a protocol change. See
 [`docs/extending/protocol-and-schema.md`](docs/extending/protocol-and-schema.md)
-and [`docs/architecture.md`](docs/architecture.md) §9.3.
+and [`docs/atd-architecture.md`](docs/atd-architecture.md) §9.3.
 
 ---
 
@@ -168,7 +168,7 @@ When two documents disagree, the higher tier wins:
 
 | Tier | Documents | Role |
 |---|---|---|
-| **Normative** | `docs/architecture.md`, `docs/protocol/*`, `atd-protocol-schema.json` | The contract. Source of truth. |
+| **Normative** | `docs/atd-architecture.md`, `docs/protocol/*`, `atd-protocol-schema.json` | The contract. Source of truth. |
 | **Policy** | `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/release-plan-v1.0.md` | How the project runs. |
 | **How-to** | `docs/extending/*`, `docs/quickstart/*`, `docs/integrations/*` | Task guides. |
 | **Archive** | `docs/archive/*` | Frozen history. **Never** authoritative; never edit. |

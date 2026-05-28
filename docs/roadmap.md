@@ -2,12 +2,12 @@
 
 **Scope:** This document defines ATD's *evolution scope* — where the
 protocol and reference implementation are heading. It is the companion
-to [`architecture.md`](architecture.md), which describes the system *as
+to [`atd-architecture.md`](atd-architecture.md), which describes the system *as
 it stands today*.
 
 **Why this document exists.** ATD's 1.0 acceptance bar requires that an
 agent can build "consistent extensions within ATD's design **and
-evolution scope**." [`architecture.md`](architecture.md) §9.3 and
+evolution scope**." [`atd-architecture.md`](atd-architecture.md) §9.3 and
 [`extending/`](extending/) cover the design scope — the `pub` traits and
 how to attach to them. This file covers the *evolution* scope: the
 features ATD has deliberately deferred, the work that has been designed
@@ -18,7 +18,7 @@ direction.
 
 **Authority.** This is a **Context**-tier document (see
 [`index.md`](index.md)). It is not normative — when it disagrees with
-[`architecture.md`](architecture.md) or the wire spec, the higher tier
+[`atd-architecture.md`](atd-architecture.md) or the wire spec, the higher tier
 wins. Deferred work moves onto the roadmap only on a concrete adopter
 signal, recorded as an issue in [`issues/`](issues/) or an ADR in
 [`adr/`](adr/).
@@ -36,7 +36,7 @@ signal, recorded as an issue in [`issues/`](issues/) or an ADR in
 
 ## 1. Deferred features
 
-These are [`architecture.md`](architecture.md) §10 non-goals plus §5.7.
+These are [`atd-architecture.md`](atd-architecture.md) §10 non-goals plus §5.7.
 Each is *intentionally* absent — neither shipped nor an extension point.
 **The bar to add any of them is a concrete adopter need**, not
 aspiration. An extension that quietly assumes one of these exists is
@@ -127,7 +127,7 @@ tracked in [`issues/`](issues/).
 | **Tool signature declarative-only** | `ToolTrust::signature` and `TrustLevel` are descriptive metadata. The runtime never verifies the signature against a publisher key — trust level is honor-system. | [`issues/2026-04-24-security-trust-signature-unverified.md`](issues/2026-04-24-security-trust-signature-unverified.md) |
 | **Dry-run is server-side short-circuit only** | `dry_run: true` is honored by the dispatcher (synthetic `tool_result`, tool never invoked) — uniformly safe. But it does *not* route into a tool's own preview path; `ToolSafety::dry_run` advertises a capability nothing consumes yet. | [`issues/2026-04-24-security-dry-run-inconsistent.md`](issues/2026-04-24-security-dry-run-inconsistent.md) |
 | **No session / cancel** | There is no `session()` or `cancel()` in the SDK and no server-side session state machine — a connection *is* the session. | [`issues/2026-04-24-dispatch-session-cancel-not-implemented.md`](issues/2026-04-24-dispatch-session-cancel-not-implemented.md) |
-| **Python types hand-ported** | `python/src/atd_client/types.py` is hand-written, not generated from `atd-protocol-schema.json`. Drift is caught only by integration tests against the Rust server, not by a generator gate. Switching to schema-generated types is post-1.0 work. | tracked via [`architecture.md`](architecture.md) §2.4 |
+| **Python types hand-ported** | `python/src/atd_client/types.py` is hand-written, not generated from `atd-protocol-schema.json`. Drift is caught only by integration tests against the Rust server, not by a generator gate. Switching to schema-generated types is post-1.0 work. | tracked via [`atd-architecture.md`](atd-architecture.md) §2.4 |
 
 None of these is a *bug* — each is a deliberate stop-line at 1.0. They
 are listed so an extension author knows the real edge of the
@@ -184,7 +184,7 @@ fixes the *principle* — debt waits, and it waits in one place.
 
 ## See also
 
-- [`architecture.md`](architecture.md) — the normative architecture;
+- [`atd-architecture.md`](atd-architecture.md) — the normative architecture;
   §10 is the non-goals source for §1 here.
 - [`release-plan-v1.0.md`](release-plan-v1.0.md) — the 1.0 stability
   contract and the wire-freeze rule §4.1 summarises.

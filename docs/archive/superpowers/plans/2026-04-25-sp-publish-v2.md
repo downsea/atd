@@ -87,7 +87,7 @@ One doc-comment reference; replace `atd-ref-server-bin` → `atd-ref-server`.
 
 Live docs that mention the old name:
 - `README.md`
-- `docs/architecture.md`
+- `docs/atd-architecture.md`
 - `docs/design.md`
 - `docs/protocol/error-codes.md`
 - `docs/integrations/{overview,hermes,langchain,claude-code}.md`
@@ -269,7 +269,7 @@ This crate provides the building blocks for hosting ATD tools:
 If you want to **build** an ATD-speaking server, use this crate.
 If you want to **call** an ATD server, use [`atd-sdk`](https://crates.io/crates/atd-sdk).
 
-See `docs/architecture.md` §4 (Dispatch Layer) for the conceptual model.
+See `docs/atd-architecture.md` §4 (Dispatch Layer) for the conceptual model.
 
 ## License
 

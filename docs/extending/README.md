@@ -7,7 +7,7 @@ extension with zero deviation." Each guide gives the exact trait signature, a
 reference implementation to copy, a numbered procedure, the wiring point, the
 test pattern, and the invariants the extension must preserve.
 
-Read [`../architecture.md`](../architecture.md) §3 (layer model) and §9.3
+Read [`../atd-architecture.md`](../atd-architecture.md) §3 (layer model) and §9.3
 (extension-point table) first — this directory is the how-to companion to that
 normative description.
 
@@ -78,7 +78,7 @@ adds a new listener crate that translates its framing into `ClientMessage` /
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) — normative architecture.
+- [`../atd-architecture.md`](../atd-architecture.md) — normative architecture.
 - [`../../AGENTS.md`](../../AGENTS.md) — build / test / verify SOP.
 - [`../protocol/wire-format.md`](../protocol/wire-format.md) ·
   [`../protocol/error-codes.md`](../protocol/error-codes.md) — the wire contract.

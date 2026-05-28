@@ -116,7 +116,7 @@ Close this issue when **any one** of the following becomes true:
 - [ ] A second ATD adopter beyond celia implements a UCAN issuer (signals protocol-neutrality maturity).
 - [ ] Patent §13.5 office action requires demonstrating the cryptographic-token branch in production deployment (legal trigger; would force activation regardless of business demand).
 
-Closing the issue means: do the ATD-side adaptation work in §4, write activation SPs as needed, update `architecture.md` §11.6 (or wherever) to record actual production usage.
+Closing the issue means: do the ATD-side adaptation work in §4, write activation SPs as needed, update `atd-architecture.md` §11.6 (or wherever) to record actual production usage.
 
 ## Until trigger: do nothing
 

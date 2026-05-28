@@ -179,6 +179,6 @@ contain the secret.
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) §5.5 (secret routing), §6.4
+- [`../atd-architecture.md`](../atd-architecture.md) §5.5 (secret routing), §6.4
   (audit), §5.2 (UCAN-lite capability gate).
 - [`audit-sink.md`](audit-sink.md) — the matching no-secrets rule for audit.

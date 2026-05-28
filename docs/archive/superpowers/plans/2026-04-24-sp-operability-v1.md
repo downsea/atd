@@ -1339,7 +1339,7 @@ Refs: docs/superpowers/specs/2026-04-24-sp-operability-v1-design.md §5"
 - Modify: `crates/atd-tools-shell/src/exec.rs` — `ToolSafety.dry_run: false → true`
 - Modify: `crates/atd-tools-shell/src/pwsh.rs` — `ToolSafety.dry_run: false → true`
 - Create: `docs/protocol/dry-run-contract.md`
-- Modify: `docs/architecture.md` §10 — flip 4 rows ❌ → ✅
+- Modify: `docs/atd-architecture.md` §10 — flip 4 rows ❌ → ✅
 - Modify: `crates/atd-ref-server-bin/src/builtin.rs` — add unit test asserting shell tools declare dry_run: true
 
 ### 3.1 Fix shell tool declarations
@@ -1494,7 +1494,7 @@ Expected: no hits, ~60-80 lines.
 
 ### 3.4 Architecture §10 status updates
 
-- [ ] **Step 7: Update `docs/architecture.md` §10 — flip 4 rows**
+- [ ] **Step 7: Update `docs/atd-architecture.md` §10 — flip 4 rows**
 
 Find the §10 evolution-path table. Apply 4 row rewrites:
 
@@ -1517,7 +1517,7 @@ After:
 Also scan §5 (security chapter) for text that says "audit not implemented" or similar — if present, update references to point at the shipped module. Specifically §5.2 may have a sentence "Shipping audit is the most valuable next security-adjacent SP"; rephrase to past tense or replace with "Audit landed in SP-operability-v1; see `crates/atd-runtime/src/audit.rs`."
 
 ```bash
-grep -n "audit" docs/architecture.md | head -15
+grep -n "audit" docs/atd-architecture.md | head -15
 ```
 
 Review each match; update any that claim audit is missing or pending. Preserve everything else.
@@ -1570,7 +1570,7 @@ git commit -m "feat(docs,atd-tools-shell): dry-run consistency + arch §10 statu
   v1 server-side short-circuit, when to declare true, agent-side
   contract, audit event correlation.
 - docs/protocol/error-codes.md: document ERR_RATE_LIMITED (1002).
-- docs/architecture.md §10: 4 rows flip ❌ → ✅ (audit / rate limit /
+- docs/atd-architecture.md §10: 4 rows flip ❌ → ✅ (audit / rate limit /
   dry-run / per-call identity).
 
 Zero wire changes. Zero behavior changes in the tools themselves
@@ -1668,7 +1668,7 @@ Expected: 3 commits listed.
 - [ ] Tool with `max_concurrent=1` returns 1002 on 2nd concurrent call (verified by `tests/rate_limit.rs`).
 - [ ] `shell.exec` and `shell.pwsh` declare `ToolSafety.dry_run: true`.
 - [ ] `docs/protocol/dry-run-contract.md` exists.
-- [ ] `docs/architecture.md` §10 has 4 flipped rows.
+- [ ] `docs/atd-architecture.md` §10 has 4 flipped rows.
 - [ ] `docs/protocol/error-codes.md` lists 1002.
 - [ ] Conformance suite still at 32/32 passing (no change).
 - [ ] Tags: `pre-sp-operability-v1` at baseline, `sp-operability-v1` at completion.

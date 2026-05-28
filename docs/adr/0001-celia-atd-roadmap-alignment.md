@@ -3,7 +3,7 @@
 - **Status:** Accepted (amended same-day after author re-read SP-capability-v2 design; SP-capability-v2 shipped 2026-05-11 — see §2.4 amendment)
 - **Date:** 2026-05-11 · amendments: §2.4 UCAN re-categorized; SP-capability-v2 shipped (tag `sp-capability-v2`)
 - **Deciders:** `atd` maintainers
-- **Related:** [`docs/architecture.md`](../architecture.md) §9 + §10 · [`docs/roadmap.md`](../roadmap.md) · [`docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](../archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md) · upstream tracker: `~/code/pha/celia_phr/docs/ATD_FUTURE_ISSUES.md`
+- **Related:** [`docs/atd-architecture.md`](../atd-architecture.md) §9 + §10 · [`docs/roadmap.md`](../roadmap.md) · [`docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md`](../archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md) · upstream tracker: `~/code/pha/celia_phr/docs/ATD_FUTURE_ISSUES.md`
 
 ## 1. Context
 
@@ -16,7 +16,7 @@ The `celia_phr` downstream adopter (a Tauri-packaged PHR application) maintains 
 | 1.C | Multi-device dispatch + distributed sessions |
 | 4.A | `atd` crates.io publication |
 
-The adopter framing ("on the roadmap") risks an expectations gap: `atd`'s authoritative roadmap surfaces are the v3 whitepaper (aspirational scope) and `docs/architecture.md` §9 (non-goals) / §10 (evolution path). Neither has previously stated, item-by-item, where each of these four sits. A conformance review (`docs/atd-vs-mcp.md` was its predecessor; this ADR is its sequel) found no spec conflicts in celia's integration, but flagged the four items as needing explicit alignment.
+The adopter framing ("on the roadmap") risks an expectations gap: `atd`'s authoritative roadmap surfaces are the v3 whitepaper (aspirational scope) and `docs/atd-architecture.md` §9 (non-goals) / §10 (evolution path). Neither has previously stated, item-by-item, where each of these four sits. A conformance review (`docs/atd-vs-mcp.md` was its predecessor; this ADR is its sequel) found no spec conflicts in celia's integration, but flagged the four items as needing explicit alignment.
 
 This ADR records the categorization, so adopters can read one document instead of cross-referencing two.
 
@@ -25,11 +25,11 @@ This ADR records the categorization, so adopters can read one document instead o
 Each of celia's four items is categorized against two sources of authority:
 
 - **Whitepaper v3** (`atd-v3-multi-device.md`) — what the protocol *aspires* to be
-- **architecture.md** (this repo) — what the reference implementation *commits* to, under §9 (non-goals + their re-open gates) and §10 (evolution path with status glyphs)
+- **atd-architecture.md** (this repo) — what the reference implementation *commits* to, under §9 (non-goals + their re-open gates) and §10 (evolution path with status glyphs)
 
 The categorization:
 
-| # | celia item | Whitepaper v3 stance | architecture.md status | celia-side re-open gate | Categorization |
+| # | celia item | Whitepaper v3 stance | atd-architecture.md status | celia-side re-open gate | Categorization |
 |---|---|---|---|---|---|
 | 1.A | UCAN capability tokens | ✅ Core vision (Security Layer is the three primitives at L341; concept 4 at L1212-1229; multi-device delegation chain at L1923-1925) | ✅ **SP-capability-v2 SHIPPED 2026-05-11** (tag `sp-capability-v2`); §9.3 amended; §10 row ✅ | Real gate was **sub-agent delegation** (not "multi-tenant per-socket" as originally framed in §9.3): "Agent A delegates read-only Patient X access to sub-agent B." **Triggered** by celia_phr (Hermes orchestrator + N specialised children; celia's flat RBAC forces user to re-pair every child). See SP-capability-v2 §1.2. | **ATD owned; near-term unlock = ✅ SHIPPED — adopter validation work tracked at `celia_phr/docs/sp-capability-v2-adopter.md` + `healthkit_cli/docs/sp-capability-v2-no-regression.md`.** |
 | 1.B | Streamable HTTP transport | ❌ Not mentioned (grep: 0 hits) | ✅ Landed 2026-05-11 (architecture §10 row "HTTP transport"; §9.7 marked transitioned) | Gate at §9.7: "cloud-hosted ATD deployment surfaces a real need." **Triggered** by `celia_phr` 2026-05; gate cleared via SP-streamable-http + SP-token-broker-phase2 + SP-1.B. | **ATD owned and DONE.** |
@@ -59,7 +59,7 @@ The categorization:
 
 ### 2.4 Amendment note (2026-05-11 same-day)
 
-The original 1.A categorization read "near-term unlock = NO" based on the architecture.md §9.3 gate text "multi-tenant deployment needs per-agent authorization finer than per-socket." A same-day re-read of `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §1.2 surfaced that the **real** gate is *sub-agent delegation* (workflow-level), not *multi-tenant per-socket* (process-level), and celia_phr has been articulating this pain via Hermes's "orchestrator + N specialised children" workflow. The §9.3 gate text was rewritten on the same day to match the spec. This ADR is amended (not superseded) to record the corrected verdict; the categorization table row, §2.1 first bullet, §2.3 first bullet, and §5 first revisit condition all reflect the amendment.
+The original 1.A categorization read "near-term unlock = NO" based on the atd-architecture.md §9.3 gate text "multi-tenant deployment needs per-agent authorization finer than per-socket." A same-day re-read of `docs/archive/superpowers/specs/2026-05-11-sp-capability-v2-design.md` §1.2 surfaced that the **real** gate is *sub-agent delegation* (workflow-level), not *multi-tenant per-socket* (process-level), and celia_phr has been articulating this pain via Hermes's "orchestrator + N specialised children" workflow. The §9.3 gate text was rewritten on the same day to match the spec. This ADR is amended (not superseded) to record the corrected verdict; the categorization table row, §2.1 first bullet, §2.3 first bullet, and §5 first revisit condition all reflect the amendment.
 
 ### 2.5 What `healthkit_cli` should do
 
@@ -71,8 +71,8 @@ The original 1.A categorization read "near-term unlock = NO" based on the archit
 ### 3.1 Positive
 
 - One reference document (this ADR) replaces ad-hoc Q&A about "is X on the ATD roadmap."
-- `architecture.md` §9.7 + §10 are now factually correct (HTTP transport ✅ instead of 🚫).
-- Future adopters get a clear template for asking the same question: cite the whitepaper section + architecture.md status + gate trigger condition.
+- `atd-architecture.md` §9.7 + §10 are now factually correct (HTTP transport ✅ instead of 🚫).
+- Future adopters get a clear template for asking the same question: cite the whitepaper section + atd-architecture.md status + gate trigger condition.
 - Avoids implicit promises around UCAN / multi-device that ATD has not made.
 
 ### 3.2 Negative / risks
@@ -89,7 +89,7 @@ The original 1.A categorization read "near-term unlock = NO" based on the archit
 
 ## 4. References
 
-- `docs/architecture.md` §9.7 (HTTP transitioned), §10 (evolution path)
+- `docs/atd-architecture.md` §9.7 (HTTP transitioned), §10 (evolution path)
 - `docs/roadmap.md` — evolution scope; superseded the v3 whitepaper as the multi-device / UCAN vision surface
 - `docs/archive/superpowers/specs/2026-05-11-sp-streamable-http-design.md` (1.B design)
 - `docs/archive/superpowers/specs/2026-05-11-sp-token-broker-phase2-design.md` (1.B bearer integration)

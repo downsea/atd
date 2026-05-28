@@ -155,7 +155,7 @@ Server-local middleware with no special deps can live as a module instead.
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) §7 (middleware), §7.2 (the FHIR
+- [`../atd-architecture.md`](../atd-architecture.md) §7 (middleware), §7.2 (the FHIR
   whitelist drift-guard invariant).
 - `crates/atd-middleware-pii-redact-medical` — HIPAA Safe Harbor PHI redaction,
   a second standalone-crate example.

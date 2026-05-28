@@ -6,7 +6,7 @@
 
 **Validated against:** `sp-listener-extract` tag (2026-04-25) for the listener split, `healthkit_cli` v1.2.0 (2026-04-27) for the helper-tool surface, v1.2.1 (2026-04-27) for the HRV fix.
 
-This document tells the full arc — failure → fix → win — of integrating a real REST API into ATD as a self-hosted server. It complements the per-framework integration guides under [`docs/integrations/`](.) by showing what an adopter who *publishes* tools (rather than consumes them) had to build, what didn't work, and what fixed it. If you're evaluating "should I expose my service via ATD?", read this before [the architecture doc](../architecture.md).
+This document tells the full arc — failure → fix → win — of integrating a real REST API into ATD as a self-hosted server. It complements the per-framework integration guides under [`docs/integrations/`](.) by showing what an adopter who *publishes* tools (rather than consumes them) had to build, what didn't work, and what fixed it. If you're evaluating "should I expose my service via ATD?", read this before [the architecture doc](../atd-architecture.md).
 
 ---
 
@@ -19,7 +19,7 @@ When the maintainer wanted to make this surface reachable from agents (Hermes, C
 - One process feeds many agent platforms simultaneously (Hermes + Claude Code share `/tmp/hk.sock` in this case study)
 - Audit log unification across all callers
 - Capability gate (`healthkit:read` / `healthkit:write`) enforced at the server, not per-client
-- No bespoke wire protocol — the [ATD listener](../architecture.md#84-current-crate-map) handles connect / discover / describe / call / dry-run for free
+- No bespoke wire protocol — the [ATD listener](../atd-architecture.md#84-current-crate-map) handles connect / discover / describe / call / dry-run for free
 
 The integration path:
 
@@ -216,7 +216,7 @@ tail -f /tmp/hk-audit.jsonl | jq
 
 **This repo (ATD reference implementation):**
 
-- Architecture doc: [`docs/architecture.md`](../architecture.md) — see §10 for the SP-listener-extract row this case triggered
+- Architecture doc: [`docs/atd-architecture.md`](../atd-architecture.md) — see §10 for the SP-listener-extract row this case triggered
 - Integration overview: [`docs/integrations/overview.md`](overview.md)
 - Wire spec: [`docs/protocol/wire-format.md`](../protocol/wire-format.md), [`docs/protocol/error-codes.md`](../protocol/error-codes.md)
 

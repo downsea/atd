@@ -546,7 +546,7 @@ git commit -m "test(atd-conformance): 3 fixtures for ToolVisibility::Hidden sema
 - Modify: `crates/atd-server/Cargo.toml`
 - Modify: `crates/atd-conformance/Cargo.toml`
 - Modify: `crates/atd-ref-server-bin/Cargo.toml`
-- Modify: `docs/architecture.md` (§3 Wire format paragraph + §10 status row)
+- Modify: `docs/atd-architecture.md` (§3 Wire format paragraph + §10 status row)
 - Modify: `crates/atd-conformance/README.md` (document `expect_tools_exclude`)
 
 - [ ] **Step 1: Inspect current versions**
@@ -569,7 +569,7 @@ If `[workspace.package]` defines `version = "0.2.x"` and the per-crate `Cargo.to
 
 Edit the workspace root `Cargo.toml` (or each per-crate `Cargo.toml`) to set version to `"0.3.0"`. Crates listed in §3 of the spec only — `atd-mcp-bridge`, `atd-cli`, `atd-tools-*` stay on their current versions (no code touched).
 
-- [ ] **Step 4: Update `docs/architecture.md`**
+- [ ] **Step 4: Update `docs/atd-architecture.md`**
 
 In §10 status table, add a row right after the SP-listener-extract row:
 
@@ -613,13 +613,13 @@ All four must pass. Expected workspace test count: ~354+ (was 352; +2 new units 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Cargo.toml crates/*/Cargo.toml docs/architecture.md crates/atd-conformance/README.md Cargo.lock
+git add Cargo.toml crates/*/Cargo.toml docs/atd-architecture.md crates/atd-conformance/README.md Cargo.lock
 git commit -m "$(cat <<'EOF'
 chore(workspace): bump 0.2.x → 0.3.0 + docs for SP-tool-visibility-hidden
 
 - Workspace minor bump for new ToolVisibility::Hidden variant (breaks
   exhaustive match in downstream consumers; nothing published yet).
-- architecture.md §10 status row + §3 wire-format paragraph.
+- atd-architecture.md §10 status row + §3 wire-format paragraph.
 - atd-conformance README documents the new expect_tools_exclude primitive.
 EOF
 )"

@@ -15,7 +15,7 @@ This SP standardizes the wire-level convention for *publishing* skills and ships
 
 | # | Question | Answer |
 |---|---|---|
-| Q1 | Architectural tension: §7.3 says "ATD does not manage skill installation". Where does the sync helper live? | **(c) Hybrid.** Convention (tool-id naming rule + response shapes) is core ATD; ships in `docs/protocol/wire-format.md` and `docs/architecture.md` §7. The sync helper is a subcommand on the existing `atd` CLI binary (`atd skills sync ...`). No new crate. §7.3 softens by one line: "ATD does not own per-platform install paths; those are convention-driven and easily overridable via `--out-dir`." Keeps protocol crates pure. |
+| Q1 | Architectural tension: §7.3 says "ATD does not manage skill installation". Where does the sync helper live? | **(c) Hybrid.** Convention (tool-id naming rule + response shapes) is core ATD; ships in `docs/protocol/wire-format.md` and `docs/atd-architecture.md` §7. The sync helper is a subcommand on the existing `atd` CLI binary (`atd skills sync ...`). No new crate. §7.3 softens by one line: "ATD does not own per-platform install paths; those are convention-driven and easily overridable via `--out-dir`." Keeps protocol crates pure. |
 | Q2 | Scoping — single SP across both repos, or two paired SPs? | **One SP, both repos.** Convention shape, `atd skills sync`, and healthkit_cli adoption are tightly coupled — they need to ship together to be self-validating. Each repo still gets independent commits. |
 | Q3 | Tool-id shape — `<publisher>:<service>.skills.list/get` (dot segment) or `<publisher>:<service>.skills/list` (slash)? | **Dot.** Matches existing v1.2.0 convention (`huawei:hms.healthkit.heartrate`). No new id-syntax surface. |
 | Q4 | `skills.list` response shape? | `Vec<{name: String, description: String, version: Option<String>}>`. `name` is the slug (e.g., `"healthkit-heartrate"`); `description` is the SKILL.md frontmatter `description` field; `version` is reserved for future semver — Optional in v0. |
@@ -34,7 +34,7 @@ This SP standardizes the wire-level convention for *publishing* skills and ships
 | # | File | Change |
 |---|---|---|
 | 1 | `docs/protocol/wire-format.md` | New section "§N — Skills meta-tool convention". Tool-id naming rule + response shapes (`SkillSummary`, `SkillContent`). Marked as a convention, not a wire-protocol message. |
-| 2 | `docs/architecture.md` | §7.3 — soften the "ATD does not manage skill installation" line per Q1. §7.5 — replace "future SP" stub with concrete pointer to this SP. §10 — new status row. |
+| 2 | `docs/atd-architecture.md` | §7.3 — soften the "ATD does not manage skill installation" line per Q1. §7.5 — replace "future SP" stub with concrete pointer to this SP. §10 — new status row. |
 | 3 | `crates/atd-cli/src/skills.rs` | New module. `pub async fn cmd_skills_sync(...)` + helper functions. ~150-200 lines. Three target adapters: `hermes`, `claude-code`, `stdout`. |
 | 4 | `crates/atd-cli/src/main.rs` (or `src/cli.rs`) | Wire `skills sync` subcommand into the clap tree. Args: `--target {hermes,claude-code,stdout}` (required), `--out-dir <path>` (optional, overrides target default), `--dry-run` (lists what would be written without writing). Inherits `--sock` from the global `atd` arg. |
 | 5 | `crates/atd-cli/tests/skills_sync.rs` (new integration test file) | Spin up an in-process AtdServer with two stub tools (`stub:test.skills.list` + `stub:test.skills.get`); call `cmd_skills_sync` with `--target stdout`; assert content. ~120 lines. |

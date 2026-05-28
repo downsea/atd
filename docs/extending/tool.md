@@ -93,7 +93,7 @@ tool. Walk it:
    the cursor for you. Mint the next cursor with
    `ctx.cursor_issuer().issue(payload)` and return
    `PaginatedResult { value, next_cursor }`. See
-   [`../architecture.md`](../architecture.md) §5.6 and `atd_runtime::cursor`.
+   [`../atd-architecture.md`](../atd-architecture.md) §5.6 and `atd_runtime::cursor`.
 
 ## `CallContext` — what the runtime hands you
 
@@ -169,6 +169,6 @@ path returning `InvalidArgs`, and the `max_output_bytes` boundary.
 ## See also
 
 - [`binding.md`](binding.md) — when the work is a subprocess / remote service.
-- [`../architecture.md`](../architecture.md) §5 (dispatch), §6.3 (per-tool
+- [`../atd-architecture.md`](../atd-architecture.md) §5 (dispatch), §6.3 (per-tool
   runtime controls).
 - `crates/atd-tools-fs/src/` — a richer multi-action tool family.

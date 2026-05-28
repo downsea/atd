@@ -13,10 +13,10 @@ truth. Where a deck and the docs disagree, the docs win
 
 | # | Deck | 内容 | Sourced from |
 |---|---|---|---|
-| 1 | [`atd-preview-1-background.pptx`](atd-preview-1-background.pptx) | 背景与必要性 —— 对比 CLI / MCP / REST，ATD 解决了什么 | `architecture.md` · `atd-introduction.md` · `README.md` |
+| 1 | [`atd-preview-1-background.pptx`](atd-preview-1-background.pptx) | 背景与必要性 —— 对比 CLI / MCP / REST，ATD 解决了什么 | `atd-architecture.md` · `atd-positioning.md` · `README.md` |
 | 2 | [`atd-preview-2-design-principles.pptx`](atd-preview-2-design-principles.pptx) | 设计原则 —— 三类消费者 + 七条原则 | `atd-design-philosophy.md` |
-| 3 | [`atd-preview-3-architecture.pptx`](atd-preview-3-architecture.pptx) | 架构与设计 —— schema · dispatch · 安全 · 扩展点 · crate 地图 | `architecture.md` · `extending/` |
-| 4 | [`atd-preview-4-adoption.pptx`](atd-preview-4-adoption.pptx) | 实施案例与集成 —— 五条路径 · 三家 adopter | `integrations/` · `atd-introduction.md` |
+| 3 | [`atd-preview-3-architecture.pptx`](atd-preview-3-architecture.pptx) | 架构与设计 —— schema · dispatch · 安全 · 扩展点 · crate 地图 | `atd-architecture.md` · `extending/` |
+| 4 | [`atd-preview-4-adoption.pptx`](atd-preview-4-adoption.pptx) | 实施案例与集成 —— 五条路径 · 三家 adopter | `integrations/` · `atd-positioning.md` |
 | 5 | [`atd-preview-5-roadmap.pptx`](atd-preview-5-roadmap.pptx) | 路线与生态发展建议 | `roadmap.md` · `release-plan-v1.0.md` |
 
 ## Regenerating the decks

@@ -16,7 +16,7 @@
 
 **Files:**
 - Modify: `docs/protocol/wire-format.md` (append a new section)
-- Modify: `docs/architecture.md` (§7.3, §7.5, §10 — see spec §10)
+- Modify: `docs/atd-architecture.md` (§7.3, §7.5, §10 — see spec §10)
 
 - [ ] **Step 1: Find the right insert point in wire-format.md**
 
@@ -67,11 +67,11 @@ If 2+ vendor servers adopt this convention without divergence, a future SP can p
 - SP-skills-discovery-convention spec for the full design rationale.
 ```
 
-- [ ] **Step 3: Update architecture.md §7.3**
+- [ ] **Step 3: Update atd-architecture.md §7.3**
 
-Find the line `- ATD does not manage skill installation` in `docs/architecture.md` and replace it per spec §10. Use Edit tool with the exact spec text.
+Find the line `- ATD does not manage skill installation` in `docs/atd-architecture.md` and replace it per spec §10. Use Edit tool with the exact spec text.
 
-- [ ] **Step 4: Update architecture.md §7.5**
+- [ ] **Step 4: Update atd-architecture.md §7.5**
 
 Find the existing §7.5 paragraph starting "A future SP (proposed) adds..." and replace with the spec §10 text pointing to this SP.
 
@@ -83,7 +83,7 @@ Find the row `| Skills meta-tool convention + ...` (already in spec §10) and in
 
 ```bash
 grep -c "## Skills meta-tool convention" docs/protocol/wire-format.md
-grep -c "atd skills sync" docs/architecture.md
+grep -c "atd skills sync" docs/atd-architecture.md
 ```
 
 Expected: both ≥ 1.
@@ -91,7 +91,7 @@ Expected: both ≥ 1.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add docs/protocol/wire-format.md docs/architecture.md
+git add docs/protocol/wire-format.md docs/atd-architecture.md
 git commit -m "docs(protocol): skills meta-tool convention + architecture updates"
 ```
 
@@ -1067,7 +1067,7 @@ cd ~/proj/atd-mvp && gh issue close 2 --comment "Fixed in $(git rev-parse --shor
 
 **Landed:**
 - Convention documented in docs/protocol/wire-format.md (skills meta-tool §)
-- architecture.md §7.3 softened, §7.5 updated, §10 row added
+- atd-architecture.md §7.3 softened, §7.5 updated, §10 row added
 - atd-cli: \`atd skills sync\` subcommand with hermes / claude-code / stdout targets
 - Integration test against in-process stub server
 - healthkit_cli v1.3.0 first adopter (separate repo, see linked PR)
@@ -1093,7 +1093,7 @@ Re-read `docs/superpowers/specs/2026-04-27-sp-skills-discovery-convention-design
 - [ ] **Step 2: Confirm the §10 architecture entry**
 
 ```bash
-grep "Skills meta-tool convention" docs/architecture.md
+grep "Skills meta-tool convention" docs/atd-architecture.md
 ```
 
 Expected: matches the spec §10 wording.

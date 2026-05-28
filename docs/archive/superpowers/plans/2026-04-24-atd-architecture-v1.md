@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce `docs/architecture.md` — a single reconciled-but-authoritative architecture reference for the ATD reference implementation, 1300-1800 lines, per the approved spec at `docs/superpowers/specs/2026-04-24-atd-architecture-v1-design.md`.
+**Goal:** Produce `docs/atd-architecture.md` — a single reconciled-but-authoritative architecture reference for the ATD reference implementation, 1300-1800 lines, per the approved spec at `docs/superpowers/specs/2026-04-24-atd-architecture-v1-design.md`.
 
 **Architecture:** Five sequential tasks writing one file in four bite-sized content passes (narrative + schema/dispatch + security/extensibility + skills/crate map/non-goals/evolution) plus a fifth wrap-up task for ancillary cross-link updates and the release tag. Each task independently re-verifies the current code state before writing ✅/⚠️/❌ rows — the subagents do not trust the spec's snapshot.
 
@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-04-24-atd-architecture-v1-design.md`
 
 **Scope boundary:**
-- **In:** one new file (`docs/architecture.md`); four ancillary doc updates (README, design.md header note, wire-format.md cross-link, integrations/overview.md cross-link); one git tag.
+- **In:** one new file (`docs/atd-architecture.md`); four ancillary doc updates (README, design.md header note, wire-format.md cross-link, integrations/overview.md cross-link); one git tag.
 - **Out:** code changes; new tests; refactor planning; whitepaper edits.
 
 **Prerequisites:**
@@ -19,11 +19,11 @@
 - 10 issues in `docs/issues/` committed (verify via `ls docs/issues/`).
 
 **Exit criteria:**
-1. `docs/architecture.md` exists, 1300-1800 lines, 10 H2 sections in spec order.
+1. `docs/atd-architecture.md` exists, 1300-1800 lines, 10 H2 sections in spec order.
 2. Every `✅`/`⚠️`/`❌`/`🔨`/`🚫`/`📜` status row cites a concrete source (file path, issue file, or §9 non-goal anchor).
 3. Spec §6's 10 resolved decisions all appear authoritatively in the doc's §6 section.
-4. `grep -E 'TBD|TODO|placeholder' docs/architecture.md` returns empty EXCEPT the legitimate TBD in §10's Target-SP column for session/cancel (one row).
-5. `grep -E '^#{0,6}.*ANOS' docs/architecture.md` returns no assertion-form references (historical "previously depended on ANOS" context is acceptable; current "ATD depends on ANOS" claims are not).
+4. `grep -E 'TBD|TODO|placeholder' docs/atd-architecture.md` returns empty EXCEPT the legitimate TBD in §10's Target-SP column for session/cancel (one row).
+5. `grep -E '^#{0,6}.*ANOS' docs/atd-architecture.md` returns no assertion-form references (historical "previously depended on ANOS" context is acceptable; current "ATD depends on ANOS" claims are not).
 6. README, design.md, wire-format.md, integrations/overview.md each updated per §9.2 of the spec.
 7. `cargo test --workspace --all-targets` still passes (sanity — docs shouldn't affect tests).
 8. Annotated tag `sp13-architecture-doc` created.
@@ -36,7 +36,7 @@
 ```
 /home/nan/proj/atd-mvp/
 ├── docs/
-│   ├── architecture.md                (NEW — Tasks 1-4)
+│   ├── atd-architecture.md                (NEW — Tasks 1-4)
 │   ├── design.md                       (MODIFY — Task 5; add supersede note)
 │   ├── protocol/
 │   │   └── wire-format.md              (MODIFY — Task 5; cross-link to arch)
@@ -49,7 +49,7 @@
 
 ## Shared conventions (applies to every task)
 
-Each content task writes **additional content appended** to `docs/architecture.md` — the file grows monotonically across Tasks 1-4. Do not rewrite earlier sections; only append. This means each task's first action after verification is reading the file's current end to confirm the append position.
+Each content task writes **additional content appended** to `docs/atd-architecture.md` — the file grows monotonically across Tasks 1-4. Do not rewrite earlier sections; only append. This means each task's first action after verification is reading the file's current end to confirm the append position.
 
 **Status vocabulary — use exactly these six glyphs and words:**
 
@@ -90,7 +90,7 @@ Plus ~80-150 for frontmatter/ToC/trailer. Total: ~1600 lines midpoint.
 ## Task 1: Frontmatter, ToC, §1 identity, §2 layer model
 
 **Files:**
-- Create: `/home/nan/proj/atd-mvp/docs/architecture.md`
+- Create: `/home/nan/proj/atd-mvp/docs/atd-architecture.md`
 
 **Target content:** H1 + frontmatter + ToC + §1 (~80 lines) + §2 (~200 lines) ≈ **380-450 lines of content**.
 
@@ -102,12 +102,12 @@ Run:
 ```bash
 cd /home/nan/proj/atd-mvp
 ls docs/superpowers/specs/2026-04-24-atd-architecture-v1-design.md
-ls docs/architecture.md  # should NOT exist yet
+ls docs/atd-architecture.md  # should NOT exist yet
 ls docs/issues/ | wc -l  # should be 11 (10 issues + README)
 git log --oneline | head -15
 ```
 
-Expected: spec file exists; `docs/architecture.md` is absent; 11 files in `docs/issues/`; git log shows SP-12 commits landed (search for `SP-12`).
+Expected: spec file exists; `docs/atd-architecture.md` is absent; 11 files in `docs/issues/`; git log shows SP-12 commits landed (search for `SP-12`).
 
 ### Step 1.2: Verify SP-12 landing state (informs §2 cross-ref tables later, and Task 2)
 
@@ -128,7 +128,7 @@ If SP-12 primitives are NOT all landed, mark the relevant sub-section as `⚠️
 
 ### Step 1.3: Write the file's H1 + frontmatter + ToC
 
-- [ ] **Create `docs/architecture.md` with this EXACT content.**
+- [ ] **Create `docs/atd-architecture.md` with this EXACT content.**
 
 ```markdown
 # ATD Architecture (v1)
@@ -354,7 +354,7 @@ Both examples traverse exactly the same ATD dispatch. The Skills runtime is an a
 Run:
 ```bash
 cd /home/nan/proj/atd-mvp
-wc -l docs/architecture.md
+wc -l docs/atd-architecture.md
 ```
 
 Expected: 380-450 lines. If >500 or <300, trim or expand to fit budget. Shorter is OK if §1 and §2 still cover everything listed; longer means either §1 or §2 is exceeding budget and should be tightened.
@@ -363,7 +363,7 @@ Expected: 380-450 lines. If >500 or <300, trim or expand to fit budget. Shorter 
 
 ```bash
 cd /home/nan/proj/atd-mvp
-git add docs/architecture.md
+git add docs/atd-architecture.md
 git commit -m "docs(architecture): scaffold architecture doc — §1 identity + §2 layer model"
 ```
 
@@ -372,7 +372,7 @@ git commit -m "docs(architecture): scaffold architecture doc — §1 identity + 
 ## Task 2: §3 Schema Layer + §4 Dispatch Layer
 
 **Files:**
-- Modify: `/home/nan/proj/atd-mvp/docs/architecture.md` (append §3 + §4)
+- Modify: `/home/nan/proj/atd-mvp/docs/atd-architecture.md` (append §3 + §4)
 
 **Target content:** §3 (~180 lines) + §4 (~280 lines) = **450-550 additional lines**.
 
@@ -621,7 +621,7 @@ v2 dispatch extends with additional bindings, more built-in middleware, and pote
 
 ```bash
 cd /home/nan/proj/atd-mvp
-wc -l docs/architecture.md
+wc -l docs/atd-architecture.md
 ```
 
 Expected: 830-980 lines (Task 1's ~400 + Task 2's ~450-550).
@@ -630,7 +630,7 @@ Expected: 830-980 lines (Task 1's ~400 + Task 2's ~450-550).
 
 ```bash
 cd /home/nan/proj/atd-mvp
-git add docs/architecture.md
+git add docs/atd-architecture.md
 git commit -m "docs(architecture): §3 schema layer + §4 dispatch layer with SP-12 primitives"
 ```
 
@@ -639,7 +639,7 @@ git commit -m "docs(architecture): §3 schema layer + §4 dispatch layer with SP
 ## Task 3: §5 Security Layer + §6 Extensibility
 
 **Files:**
-- Modify: `/home/nan/proj/atd-mvp/docs/architecture.md` (append §5 + §6)
+- Modify: `/home/nan/proj/atd-mvp/docs/atd-architecture.md` (append §5 + §6)
 
 **Target content:** §5 (~220 lines) + §6 (~180 lines) = **380-440 additional lines**.
 
@@ -892,7 +892,7 @@ A third-party implementer asking "what can I extend without forking the referenc
 
 ```bash
 cd /home/nan/proj/atd-mvp
-wc -l docs/architecture.md
+wc -l docs/atd-architecture.md
 ```
 
 Expected: 1210-1420 lines total.
@@ -901,7 +901,7 @@ Expected: 1210-1420 lines total.
 
 ```bash
 cd /home/nan/proj/atd-mvp
-git add docs/architecture.md
+git add docs/atd-architecture.md
 git commit -m "docs(architecture): §5 security layer + §6 extensibility"
 ```
 
@@ -910,7 +910,7 @@ git commit -m "docs(architecture): §5 security layer + §6 extensibility"
 ## Task 4: §7 Skills + §8 Crate map + §9 Non-goals + §10 Evolution path
 
 **Files:**
-- Modify: `/home/nan/proj/atd-mvp/docs/architecture.md` (append §7, §8, §9, §10)
+- Modify: `/home/nan/proj/atd-mvp/docs/atd-architecture.md` (append §7, §8, §9, §10)
 
 **Target content:** §7 (~80) + §8 (~180) + §9 (~80) + §10 (~120) = **360-460 additional lines**.
 
@@ -1195,7 +1195,7 @@ Minor edits (status updates, new entries in §10) do NOT require a version bump.
 
 ```bash
 cd /home/nan/proj/atd-mvp
-wc -l docs/architecture.md
+wc -l docs/atd-architecture.md
 ```
 
 Expected: 1500-1800 lines total. If outside 1300-1800, figure out which sections overran/undershot and fix. Typical over-run comes from §4 — if so, check whether §4.2.x subsections exceed their briefs.
@@ -1204,7 +1204,7 @@ Expected: 1500-1800 lines total. If outside 1300-1800, figure out which sections
 
 ```bash
 cd /home/nan/proj/atd-mvp
-git add docs/architecture.md
+git add docs/atd-architecture.md
 git commit -m "docs(architecture): §7 skills · §8 crate map · §9 non-goals · §10 evolution path"
 ```
 
@@ -1232,7 +1232,7 @@ Open `README.md` at that section. Locate the "### Quick start guides" sub-headin
 ```markdown
 ### Architecture
 
-- [**Architecture (v1)**](docs/architecture.md) — canonical layer model (Schema · Dispatch · Security · Extensibility · adjacent Skills layer), per-layer status tables, component/crate map, non-goals, and evolution path. Start here for the full picture.
+- [**Architecture (v1)**](docs/atd-architecture.md) — canonical layer model (Schema · Dispatch · Security · Extensibility · adjacent Skills layer), per-layer status tables, component/crate map, non-goals, and evolution path. Start here for the full picture.
 ```
 
 The Quick start, Integration, Protocol, and Issues sub-headings that follow remain unchanged.
@@ -1244,7 +1244,7 @@ The Quick start, Integration, Protocol, and Issues sub-headings that follow rema
 Read the first 3 lines of `docs/design.md` (which is `# ATD Client SDK MVP — Design Spec` + frontmatter). After the frontmatter block ending (before the `---` or before `## 0. Context and Independence`), insert:
 
 ```markdown
-> **Note (2026-04-24):** This document is the original Phase 0 design spec from 2026-04-21. It has been **superseded by** [`docs/architecture.md`](architecture.md) as the normative architecture reference for the reference implementation. This file is retained for historical context — to understand the Phase 0 scoping decisions and the then-open questions (§10), read this doc. To understand the current architecture, crate layout, and evolution path, read `docs/architecture.md`.
+> **Note (2026-04-24):** This document is the original Phase 0 design spec from 2026-04-21. It has been **superseded by** [`docs/atd-architecture.md`](atd-architecture.md) as the normative architecture reference for the reference implementation. This file is retained for historical context — to understand the Phase 0 scoping decisions and the then-open questions (§10), read this doc. To understand the current architecture, crate layout, and evolution path, read `docs/atd-architecture.md`.
 ```
 
 Use `Edit` to insert after the frontmatter (the part with `**Date:** 2026-04-21` etc.) and before the `---` that separates frontmatter from §0. Do not modify the rest of the file.
@@ -1262,7 +1262,7 @@ At the end of §1 (just before `## 2` or the next top-level heading), append a p
 
 ```markdown
 
-See [`../architecture.md`](../architecture.md) for the higher-level layer model this wire protocol implements. The architecture doc describes the three core mechanisms (schema, dispatch, security) and points back to this document for byte-level detail.
+See [`../atd-architecture.md`](../atd-architecture.md) for the higher-level layer model this wire protocol implements. The architecture doc describes the three core mechanisms (schema, dispatch, security) and points back to this document for byte-level detail.
 ```
 
 ### Step 5.4: Add cross-link to integrations/overview.md
@@ -1273,7 +1273,7 @@ Find the top-level introductory paragraph (before "## The five integration paths
 
 ```markdown
 
-For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../architecture.md`](../architecture.md).
+For readers who want the full architectural picture underneath these integration paths — the layer model, mechanisms, crate map, and non-goals — see [`../atd-architecture.md`](../atd-architecture.md).
 ```
 
 ### Step 5.5: Run the grep gate
@@ -1284,13 +1284,13 @@ For readers who want the full architectural picture underneath these integration
 cd /home/nan/proj/atd-mvp
 
 echo "=== Placeholder check (expected: zero results or only the one legitimate TBD in §10) ==="
-grep -nE 'TBD|TODO|placeholder|fill.?in|XXX' docs/architecture.md
+grep -nE 'TBD|TODO|placeholder|fill.?in|XXX' docs/atd-architecture.md
 
 echo "=== ANOS body-text check (expected: zero matches) ==="
-grep -nE '^#{0,6}.*(ATD.*depends.*ANOS|current.*ANOS|require.*ANOS)' docs/architecture.md
+grep -nE '^#{0,6}.*(ATD.*depends.*ANOS|current.*ANOS|require.*ANOS)' docs/atd-architecture.md
 
 echo "=== Section count check (expected: 10 H2 headings) ==="
-grep -c '^## ' docs/architecture.md
+grep -c '^## ' docs/atd-architecture.md
 ```
 
 Expected:
@@ -1308,25 +1308,25 @@ If placeholder grep returns more than the 1 legitimate TBD, open the doc and fix
 cd /home/nan/proj/atd-mvp
 
 echo "=== Arch doc links to issues/ ==="
-grep -oE '\(issues/[^)]+\)' docs/architecture.md | sort -u | while read -r link; do
+grep -oE '\(issues/[^)]+\)' docs/atd-architecture.md | sort -u | while read -r link; do
   p=$(echo "$link" | sed 's/[()]//g')
   if [ -f "docs/$p" ]; then echo "  OK  $p"; else echo "  BROKEN  $p"; fi
 done
 
 echo "=== Arch doc links to protocol/ ==="
-grep -oE '\(protocol/[^)]+\)' docs/architecture.md | sort -u | while read -r link; do
+grep -oE '\(protocol/[^)]+\)' docs/atd-architecture.md | sort -u | while read -r link; do
   p=$(echo "$link" | sed 's/[()]//g')
   if [ -f "docs/$p" ]; then echo "  OK  $p"; else echo "  BROKEN  $p"; fi
 done
 
 echo "=== Arch doc links to superpowers/ ==="
-grep -oE '\(superpowers/[^)]+\)' docs/architecture.md | sort -u | while read -r link; do
+grep -oE '\(superpowers/[^)]+\)' docs/atd-architecture.md | sort -u | while read -r link; do
   p=$(echo "$link" | sed 's/[()]//g')
   if [ -f "docs/$p" ]; then echo "  OK  $p"; else echo "  BROKEN  $p"; fi
 done
 
 echo "=== Arch doc links to whitepaper/ ==="
-grep -oE '\(whitepaper/[^)]+\)' docs/architecture.md | sort -u | while read -r link; do
+grep -oE '\(whitepaper/[^)]+\)' docs/atd-architecture.md | sort -u | while read -r link; do
   p=$(echo "$link" | sed 's/[()]//g')
   if [ -f "docs/$p" ]; then echo "  OK  $p"; else echo "  BROKEN  $p"; fi
 done
@@ -1352,7 +1352,7 @@ Expected: same total as before docs-only changes (around 252 or whatever it was 
 ```bash
 cd /home/nan/proj/atd-mvp
 git add README.md docs/design.md docs/protocol/wire-format.md docs/integrations/overview.md
-git commit -m "docs: cross-link docs/architecture.md from README, design.md, wire-format, integrations/overview"
+git commit -m "docs: cross-link docs/atd-architecture.md from README, design.md, wire-format, integrations/overview"
 ```
 
 - [ ] **Create the annotated tag.**
@@ -1368,15 +1368,15 @@ git tag | grep sp13
 
 ## Post-Plan Verification Checklist
 
-- [ ] `docs/architecture.md` exists, between 1300 and 1800 lines
+- [ ] `docs/atd-architecture.md` exists, between 1300 and 1800 lines
 - [ ] All 10 H2 sections present in the spec's order
 - [ ] Every ✅/⚠️/🔨/❌/🚫/📜 row cites a concrete source (file, issue file, or §9 anchor)
 - [ ] Exactly 1 legitimate "TBD" remains (in §10 TypeScript SDK row); no other placeholders
 - [ ] No ANOS assertions in the body (historical context lines are fine)
-- [ ] README has an Architecture sub-section linking `docs/architecture.md`
+- [ ] README has an Architecture sub-section linking `docs/atd-architecture.md`
 - [ ] `docs/design.md` has a top-of-file supersede note
-- [ ] `docs/protocol/wire-format.md` §1 links to `docs/architecture.md`
-- [ ] `docs/integrations/overview.md` introduction links to `docs/architecture.md`
+- [ ] `docs/protocol/wire-format.md` §1 links to `docs/atd-architecture.md`
+- [ ] `docs/integrations/overview.md` introduction links to `docs/atd-architecture.md`
 - [ ] `cargo test --workspace --all-targets` unaffected
 - [ ] Internal links all resolve (no "BROKEN" from Step 5.6)
 - [ ] Tag `sp13-architecture-doc` created

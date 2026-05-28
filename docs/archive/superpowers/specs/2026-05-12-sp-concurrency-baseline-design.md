@@ -47,7 +47,7 @@ After this SP, an adopter spawning 100 simultaneous bridges against `atd-ref-ser
 - **G5: concurrent-handshake conformance test.** `atd-conformance` gains a `concurrent_handshake_storm` scenario: spawn 50 simultaneous clients each running Hello + ToolList + ToolSchema × 5; assert p99 < 200ms, zero connection errors, zero dropped audit events. Pass criterion is reproducible on the GitHub Actions standard runner (2 vCPU / 7GB).
 - **G6: bench crate.** New `crates/atd-bench` ships criterion benchmarks for: `ping_rtt`, `handshake_with_caps`, `tool_list_19_tools`, `tool_schema_lookup`, `run_tool_echo`, `concurrent_dispatch_10`. Output baselines are committed; pre-commit gate fails any commit that regresses by >20%.
 - **G7: observability hooks.** `atd-runtime` exposes lock-free atomic counters (`AtomicU64`) reachable via `Server::metrics_snapshot()` — `accepted_connections`, `dispatched_requests`, `dispatch_errors_by_code`, `audit_events_total`, `audit_drops_total`, `dispatch_p50_us`, `dispatch_p99_us` (the percentiles via a small `quanta::Histogram` or hand-rolled HDR-lite). Adopters scrape this in their own /metrics endpoint.
-- **G8: documentation.** `docs/architecture.md` gains a new §11 "Deployment shapes & concurrency" with the two blessed shapes (desktop UDS + cloud HTTP), the SLO table, and the failure mode that motivated this SP.
+- **G8: documentation.** `docs/atd-architecture.md` gains a new §11 "Deployment shapes & concurrency" with the two blessed shapes (desktop UDS + cloud HTTP), the SLO table, and the failure mode that motivated this SP.
 
 ## 3. Non-goals
 
@@ -380,9 +380,9 @@ pub struct MetricsSnapshot {
 
 **Why no metrics on the SDK side.** Adopters wrap `AtdClient::call` themselves with their own metrics; SDK-side counters would duplicate state and confuse the per-call vs per-connection axis. Keep state on the server.
 
-### 5.8 Documentation: architecture.md §11 "Deployment shapes & concurrency"
+### 5.8 Documentation: atd-architecture.md §11 "Deployment shapes & concurrency"
 
-**Decision.** New section in `docs/architecture.md` (after the current §10 status table). Outline:
+**Decision.** New section in `docs/atd-architecture.md` (after the current §10 status table). Outline:
 
 ```
 ## 11. Deployment shapes & concurrency
@@ -472,6 +472,6 @@ Detailed task lists live in the companion plan (`docs/superpowers/plans/2026-05-
 - **Phase F**: metrics counters. `atd-runtime` + `atd-server`. Tag: `sp-concurrency-baseline-phase-f`.
 - **Phase G**: bench crate. `crates/atd-bench` new. Tag: `sp-concurrency-baseline-phase-g`.
 - **Phase H**: conformance storm scenario. `atd-conformance`. Tag: `sp-concurrency-baseline-phase-h`.
-- **Phase I**: docs (architecture.md §11 + this SP archive). Tag: `sp-concurrency-baseline` (the umbrella tag).
+- **Phase I**: docs (atd-architecture.md §11 + this SP archive). Tag: `sp-concurrency-baseline` (the umbrella tag).
 
 Each phase is independently committable; the umbrella tag closes after celia_phr and healthkit_cli have both consumed Phase D-E and confirmed no regression. Expected effort: 3-5 working days for one developer.

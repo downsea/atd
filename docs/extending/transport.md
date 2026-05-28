@@ -165,7 +165,7 @@ transport must also pass. Integration tests bind real ports, so cap parallelism
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) §4 (wire & types), §5 (dispatch),
+- [`../atd-architecture.md`](../atd-architecture.md) §4 (wire & types), §5 (dispatch),
   §9.1 (the crate layering diagram).
 - [`../protocol/wire-format.md`](../protocol/wire-format.md) — the byte-level
   framing the UDS transport uses.

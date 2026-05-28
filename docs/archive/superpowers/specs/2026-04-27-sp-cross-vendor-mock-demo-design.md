@@ -43,7 +43,7 @@ One commit. Workspace addition + docs.
 | 5 | `scripts/cross-vendor-demo.sh` | Boot both servers, run discover against each, print MCP-bridge registration commands. ~80 lines. |
 | 6 | `docs/integrations/cross-vendor-pattern.md` | Composition pattern doc. ~150 lines. |
 | 7 | `docs/integrations/overview.md` | One-line cross-link to the new doc, mirroring the healthkit case-study link added in SP-healthkit-case-study. |
-| 8 | `docs/architecture.md` | §10 status row. |
+| 8 | `docs/atd-architecture.md` | §10 status row. |
 
 **Not touched:**
 

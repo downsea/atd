@@ -445,7 +445,7 @@ hermes mcp add --command atd-mcp-bridge \
   --name celia
 ```
 
-For native ATD SDK callers (not via MCP), use `AtdClient::call_all` for auto-loop, or `AtdClient::call_page` for per-page control. See [`docs/architecture.md`](../architecture.md) §11.5 and [`docs/protocol/wire-format.md`](../protocol/wire-format.md) §4.4.1.
+For native ATD SDK callers (not via MCP), use `AtdClient::call_all` for auto-loop, or `AtdClient::call_page` for per-page control. See [`docs/atd-architecture.md`](../atd-architecture.md) §11.5 and [`docs/protocol/wire-format.md`](../protocol/wire-format.md) §4.4.1.
 
 ---
 

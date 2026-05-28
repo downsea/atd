@@ -47,7 +47,7 @@ v3 whitepaper App. A names but the protocol crate has never carried.
 | 11 | `.github/workflows/ci.yml` (or equivalent) | Add `cargo run -p atd-protocol --features schema --bin gen-schema -- --check` step alongside fmt/clippy/test/build. |
 | 12 | `docs/protocol/wire-format.md` | Top section: link to `/atd-protocol-schema.json` as machine-readable source-of-truth. |
 | 13 | `README.md` | New "Schema artifact" subsection: artifact path + local regenerate command. |
-| 14 | `docs/architecture.md` | §3.2 flip "Machine-readable protocol schema" `❌`→`✅`; add `output_schema` row (✅ — was missing); add `ToolErrorDef` / `errors[]` row (✅). §3.4 drop the schema gap row. §10 flip the schema row to `✅`. |
+| 14 | `docs/atd-architecture.md` | §3.2 flip "Machine-readable protocol schema" `❌`→`✅`; add `output_schema` row (✅ — was missing); add `ToolErrorDef` / `errors[]` row (✅). §3.4 drop the schema gap row. §10 flip the schema row to `✅`. |
 | 15 | `docs/issues/2026-04-24-schema-protocol-machine-readable-missing.md` | Append `**Status:** resolved by SP-protocol-schema (commit <SHA>)`. |
 
 Not touched: `atd-sdk`, `atd-runtime`, `atd-mcp-bridge`, `atd-cli`, `atd-conformance`. Their compile graphs do not see the `schema` feature.
@@ -187,7 +187,7 @@ Existing roundtrip tests in `summary.rs` / `tool.rs` keep passing because `error
 
 ## 9. Documentation updates
 
-**`docs/architecture.md` §3.2** — three row edits:
+**`docs/atd-architecture.md` §3.2** — three row edits:
 
 | Component | Status change |
 |---|---|

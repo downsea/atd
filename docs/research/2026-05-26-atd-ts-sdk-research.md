@@ -1037,7 +1037,7 @@ This section answers "if/when an SP starts, what does the engineering effort loo
 ## 17. References
 
 ### Authoritative (this repo)
-- `docs/architecture.md` — ATD architecture overview
+- `docs/atd-architecture.md` — ATD architecture overview
 - `docs/protocol/wire-format.md` — wire-level spec
 - `docs/protocol/error-codes.md` — error taxonomy
 - `docs/quickstart/typescript.md` — planned API stub (pre-research)

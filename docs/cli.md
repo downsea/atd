@@ -168,5 +168,5 @@ exits cleanly — nothing to sync.
 ## See also
 
 - [`quickstart/rust.md`](quickstart/rust.md) — the `atd-sdk` API that `atd` wraps.
-- [`architecture.md`](architecture.md) — the dispatch model behind every call.
+- [`atd-architecture.md`](atd-architecture.md) — the dispatch model behind every call.
 - [`protocol/wire-format.md`](protocol/wire-format.md) — the wire contract.

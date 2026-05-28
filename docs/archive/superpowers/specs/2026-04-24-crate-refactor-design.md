@@ -3,7 +3,7 @@
 **Date:** 2026-04-24
 **Status:** Approved — ready for implementation plan
 **Scope:** Rust workspace only. Python SDK rename is a separate, later SP.
-**Anchor:** `docs/architecture.md` §8.4 target-state crate graph
+**Anchor:** `docs/atd-architecture.md` §8.4 target-state crate graph
 
 ## 1. Context
 
@@ -304,7 +304,7 @@ One-time run after C7:
 | Rewriting historical `plans/` and `specs/` | Q6b=x: historical records should remain a faithful snapshot | Never |
 | Actual `cargo publish` execution | SP-9 established this as manual hand-off | User runs manually |
 | CI configuration changes | Workspace tests are the refactor's green-light authority; CI YAML is a separate concern | Dedicated CI SP |
-| `atd-runtime` plugin/dylib loader | `docs/architecture.md` §9 non-goal until a future trigger | When an external plugin demand appears |
+| `atd-runtime` plugin/dylib loader | `docs/atd-architecture.md` §9 non-goal until a future trigger | When an external plugin demand appears |
 
 ## 8. Live docs to update in C7
 
@@ -314,7 +314,7 @@ Files touched in C7. Historical `docs/superpowers/plans/` and
 | File | What changes |
 |---|---|
 | `README.md` | Installation/usage snippets referring to crate names; dependency table in "Related crates" sections |
-| `docs/architecture.md` | §8.2 status column flips from ⚠️ lumped → ✅; §8.3 current diagram replaced with §8.4 target diagram (and §8.3 kept as "historical — pre-refactor" note, or deleted); status flip elsewhere in the doc |
+| `docs/atd-architecture.md` | §8.2 status column flips from ⚠️ lumped → ✅; §8.3 current diagram replaced with §8.4 target diagram (and §8.3 kept as "historical — pre-refactor" note, or deleted); status flip elsewhere in the doc |
 | `docs/design.md` | Adjust the supersede pointer header to note the refactor landed; update any crate-name references |
 | `docs/protocol/wire-format.md` | References to `atd-client::wire` or `atd-ref-server::wire` → `atd-protocol::wire` |
 | `docs/protocol/error-codes.md` | `atd-types::AtdError` → `atd-protocol::AtdError`; `ToolCallError` crate path update |
@@ -338,7 +338,7 @@ The SP is complete when all of the following hold simultaneously:
 3. `cargo publish --dry-run` succeeds for `atd-protocol`, `atd-sdk`, and
    `atd-mcp-bridge`.
 4. End-of-SP manual smoke (six steps in §6.2) all pass.
-5. `docs/architecture.md` §8.2 status cells for Protocol / Runtime / Tools
+5. `docs/atd-architecture.md` §8.2 status cells for Protocol / Runtime / Tools
    rows flip from ⚠️ to ✅; §8.3/§8.4 are reconciled with observed reality.
 6. Live docs in §8 above carry no stale crate-name or `use`-path references.
 7. `atd`, `atd-ref-server`, `atd-mcp-bridge` binary names unchanged;
@@ -359,7 +359,7 @@ The SP is complete when all of the following hold simultaneously:
   without forking `atd-ref-server`.
 
 Improvements this SP does **not** deliver but enables downstream
-(`docs/architecture.md` §10 roadmap ❌ items that become easier):
+(`docs/atd-architecture.md` §10 roadmap ❌ items that become easier):
 
 - Audit-logging middleware → can ship as a dedicated crate once
   `atd-runtime` exists as a library.

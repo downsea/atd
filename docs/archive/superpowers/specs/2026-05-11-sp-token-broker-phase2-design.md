@@ -756,7 +756,7 @@ No protocol-wire changes. No `atd-protocol` crate touches. No new ATD error code
 | Tool-level secret-access gates (`ToolDefinition::secrets_required`) | Phase-1 §11 already deferred; same concern | SP-tool-secrets-gate |
 | Broker-driven secret rotation (`SecretBundle` refresh mid-call) | Adopter concern; broker can refresh internally between `resolve()` calls | Not currently planned |
 
-## 10. `architecture.md` §10 row
+## 10. `atd-architecture.md` §10 row
 
 Add after the phase-1 row:
 

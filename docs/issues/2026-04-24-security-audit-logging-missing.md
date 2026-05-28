@@ -18,7 +18,7 @@ Every dispatched call emits a `CallEvent` with timestamp, `call_id`,
 `secrets_resolved`, and `cursor_page`; the `drops` counter is exposed via
 `Server::metrics_snapshot()`. See the `[0.3.0]` entry in
 [`CHANGELOG.md`](../../CHANGELOG.md) ("Bounded mpsc audit sink") and
-[`docs/architecture.md`](../architecture.md) §6.4. The body below is the
+[`docs/atd-architecture.md`](../atd-architecture.md) §6.4. The body below is the
 original gap report, kept as a record.
 
 ## Summary

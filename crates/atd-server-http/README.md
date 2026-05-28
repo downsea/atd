@@ -67,7 +67,7 @@ server.serve(router).await?;
 
 This crate is part of
 [ATD — Agent Tool Dispatch](https://github.com/downsea/atd). See
-[`docs/architecture.md`](https://github.com/downsea/atd/blob/master/docs/architecture.md)
+[`docs/atd-architecture.md`](https://github.com/downsea/atd/blob/master/docs/atd-architecture.md)
 for the full layer model and
 [`docs/integrations/`](https://github.com/downsea/atd/tree/master/docs/integrations)
 for adopter-side tutorials.

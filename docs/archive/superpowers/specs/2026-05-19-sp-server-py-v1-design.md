@@ -33,7 +33,7 @@ After this SP, a Python adopter can register tools as `async def handler(args, c
 - **G7: explicit error envelope.** Handlers return `ToolSuccess | ToolFailure` (already in `atd_client.types`) or raise `atd_server.ToolError(code, message, ...)`. Unhandled exceptions become generic `1099 internal_error` with the exception class name (no traceback leaked to the wire).
 - **G8: optional UCAN-lite passthrough seam.** `Hello.ucan_tokens` (already in `atd_client.protocol`) is parsed and stashed on the connection context as raw strings; an optional `UcanVerifier` Protocol lets adopters plug in a verifier. Full parse + revocation-store parity with `atd-runtime::ucan` is **out of scope for v1** — see Non-goals.
 - **G9: tests + a representative conformance subset.** `python/tests/test_server_*` covers handshake, list/schema, dispatch, capability denial, tier deadline, dry-run, middleware ordering, error envelope, graceful shutdown. A new `python/tests/test_server_conformance.py` exercises ~10 of the 36 `atd-conformance` JSON fixtures against `AtdServer` (chosen by protocol surface, not by tool semantics; full Python conformance runner is `SP-conformance-py-v1`).
-- **G10: documentation.** New `docs/integrations/python-server.md` (cbrain-style hello-world + tier + capability + middleware example). `docs/architecture.md` §8 crate table grows a Python-package row. `python/README.md` gains a "Server runtime" section linking to the integrations page.
+- **G10: documentation.** New `docs/integrations/python-server.md` (cbrain-style hello-world + tier + capability + middleware example). `docs/atd-architecture.md` §8 crate table grows a Python-package row. `python/README.md` gains a "Server runtime" section linking to the integrations page.
 
 ## 3. Non-goals
 
@@ -506,6 +506,6 @@ Detailed task list lives in `docs/superpowers/plans/2026-05-19-sp-server-py-v1.m
 - **Phase E**: dispatch + tier deadline + `dry_run` + capability gate + error envelope. Tag: `sp-server-py-v1-phase-e`.
 - **Phase F**: middleware (`pre_call` / `post_call` / `on_error`). Tag: `sp-server-py-v1-phase-f`.
 - **Phase G**: tests + Python conformance subset. `pytest python/tests/test_server_*` green; ≥80% coverage. Tag: `sp-server-py-v1-phase-g`.
-- **Phase H**: docs (`docs/integrations/python-server.md` + `docs/architecture.md` §8 row + `python/README.md` server section) + umbrella tag `sp-server-py-v1`.
+- **Phase H**: docs (`docs/integrations/python-server.md` + `docs/atd-architecture.md` §8 row + `python/README.md` server section) + umbrella tag `sp-server-py-v1`.
 
 Expected effort: 5-7 person-days for one Python-comfortable developer (~1 day per non-trivial phase + 0.5 for the spec land + tests). cbrain unblocks at Phase E (B-E ship a usable alpha; F-H polish).

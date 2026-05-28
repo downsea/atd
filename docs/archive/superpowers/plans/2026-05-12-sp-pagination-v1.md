@@ -663,7 +663,7 @@ test(atd-conformance): paginated_dispatch scenario (SP-pagination-v1 §G10)
 
 **Files:**
 - Modify: `docs/protocol/wire-format.md` (already touched in Phase B; expand the cursor lifecycle section)
-- Modify: `docs/architecture.md` (add §11.5 "Large results & pagination" — depends on SP-concurrency-baseline landing §11 first)
+- Modify: `docs/atd-architecture.md` (add §11.5 "Large results & pagination" — depends on SP-concurrency-baseline landing §11 first)
 - Modify: `docs/integrations/hermes.md` (document `ATD_MCP_PASSTHROUGH_CURSOR` env)
 - Create: `docs/adr/0003-pagination-v1.md` (one-page summary)
 
@@ -732,7 +732,7 @@ docs(architecture): SP-pagination-v1 shipped — §11.5 large results
 - [ ] `cargo nextest run --workspace` passes (no regression in 487+ existing tests, plus ~30 new tests from this SP).
 - [ ] `cargo nextest run --test paginated_dispatch -p atd-conformance` passes: 11-page round-trip, expired cursor returns 1020, audit events = 11.
 - [ ] Wire-format docs (`docs/protocol/wire-format.md`) document `run_tool_continue`, `next_cursor`, 1020/1021.
-- [ ] `docs/architecture.md` §11.5 is published.
+- [ ] `docs/atd-architecture.md` §11.5 is published.
 - [ ] healthkit_cli + celia_phr can rebuild against `path = atd-mvp` and pass all existing tests (no migration required; only opt-in tools change).
 - [ ] git tag `sp-pagination-v1` exists and is pushed.
 

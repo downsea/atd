@@ -13,7 +13,7 @@ checklist (§4) is the gate to publish.
 **Authority chain.** [`CHANGELOG.md`](../CHANGELOG.md) is the truth for
 *what changed*. This file is **Policy** tier (see [`index.md`](index.md))
 — the truth for *how to ship it* and *what 1.0 promises*. The
-normative behaviour itself is in [`architecture.md`](architecture.md)
+normative behaviour itself is in [`atd-architecture.md`](atd-architecture.md)
 and [`protocol/`](protocol/).
 
 ---
@@ -58,13 +58,13 @@ keeps its shape across all 1.x releases. A 1.0 client deserializes every
 | Removing or repurposing an enum variant | **no** | 2.0 |
 
 Code generated from `atd-protocol-schema.json` at 1.0 keeps
-deserializing every 1.x message. See [`architecture.md`](architecture.md)
+deserializing every 1.x message. See [`atd-architecture.md`](atd-architecture.md)
 §2.5.
 
 ### 1.3 The extension traits are stable
 
 The `pub` traits that third-party code attaches to —
-[`architecture.md`](architecture.md) §9.3 — keep their signatures
+[`atd-architecture.md`](atd-architecture.md) §9.3 — keep their signatures
 across 1.x:
 
 | Trait | Crate | Extension guide |
@@ -197,7 +197,7 @@ pre-ticked box as a substitute for re-running the gate.
 ### 4.4 Docs + metadata
 
 - [ ] [`CHANGELOG.md`](../CHANGELOG.md) has a `[1.0.0]` section describing every change since 0.3.0
-- [ ] [`architecture.md`](architecture.md), [`roadmap.md`](roadmap.md), [`index.md`](index.md) cross-links resolve
+- [ ] [`atd-architecture.md`](atd-architecture.md), [`roadmap.md`](roadmap.md), [`index.md`](index.md) cross-links resolve
 - [ ] Each publishable `crates/*/Cargo.toml` has `description`, `license` (inherited Apache-2.0), `repository` (`https://github.com/downsea/atd`), `readme`, `keywords`, `categories`
 - [ ] Each publishable crate has a `README.md` in its own directory
 - [ ] `cargo doc --workspace --no-deps` with `RUSTDOCFLAGS="-D warnings"` → no broken intra-doc links
@@ -390,7 +390,7 @@ the 1.x contract.
 ## See also
 
 - [`../CHANGELOG.md`](../CHANGELOG.md) — the truth for what changed.
-- [`architecture.md`](architecture.md) — normative architecture; §2.5
+- [`atd-architecture.md`](atd-architecture.md) — normative architecture; §2.5
   (schema stability), §9 (crate map + versioning).
 - [`roadmap.md`](roadmap.md) — evolution scope; §4 is the wire-freeze
   rule this contract enforces.

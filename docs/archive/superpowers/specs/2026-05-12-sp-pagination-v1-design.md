@@ -34,7 +34,7 @@
 - **G8: HTTP transport — cursor as query parameter.** `atd-server-http`'s MCP `tools/call` translator surfaces pagination as `POST /mcp tools/call` returning a result envelope with `nextCursor: string | null`. Continuation is `POST /mcp tools/call` with `{ name, arguments: { __cursor: "..." } }` per MCP draft extension proposal. The HTTP layer does not break the existing `/atd/v1/run_tool` route either; both routes get the same paginated semantics.
 - **G9: MCP bridge — degrade to "single page only" by default, opt-in cursor passthrough.** The MCP spec (2025-11-25) does not define cursors for `tools/call`. The bridge default exposes the FIRST page only and appends a structured `[...truncated; this server supports continuation but Hermes/your MCP client does not]` notice to the text content when `next_cursor.is_some()`. An opt-in mode (`ATD_MCP_PASSTHROUGH_CURSOR=1`) extends the response with a non-standard `nextCursor` field for MCP clients that have been patched to handle it (Hermes is one target).
 - **G10: conformance — `paginated_dispatch` scenario.** `atd-conformance` adds a scenario registering a synthetic "100-row generator" tool that returns 10 rows per page; the test asserts (a) initial call returns 10 rows + a cursor; (b) 10 continues fetch all 100 rows with cursors; (c) 11th continue returns no cursor (terminal); (d) cursor expiration returns code 1020; (e) audit emits 11 events with `cursor_page` 1-11.
-- **G11: documentation.** `docs/protocol/wire-format.md` documents the new variants and the cursor opacity contract. `docs/architecture.md` §11 (added in SP-concurrency-baseline) gains a §11.5 "Large results & pagination" subsection. `docs/integrations/hermes.md` documents the bridge's degrade-or-passthrough modes.
+- **G11: documentation.** `docs/protocol/wire-format.md` documents the new variants and the cursor opacity contract. `docs/atd-architecture.md` §11 (added in SP-concurrency-baseline) gains a §11.5 "Large results & pagination" subsection. `docs/integrations/hermes.md` documents the bridge's degrade-or-passthrough modes.
 
 ## 3. Non-goals
 
@@ -440,6 +440,6 @@ Detailed task lists live in the companion plan (`docs/superpowers/plans/2026-05-
 - **Phase F**: HTTP transport translator updates + tests. Tag: `sp-pagination-v1-phase-f`.
 - **Phase G**: MCP bridge degrade + opt-in passthrough + tests. Tag: `sp-pagination-v1-phase-g`.
 - **Phase H**: conformance `paginated_dispatch` scenario. Tag: `sp-pagination-v1-phase-h`.
-- **Phase I**: docs (wire-format.md, architecture.md §11.5, integrations/hermes.md). Tag: `sp-pagination-v1` (umbrella).
+- **Phase I**: docs (wire-format.md, atd-architecture.md §11.5, integrations/hermes.md). Tag: `sp-pagination-v1` (umbrella).
 
 Phases B-E can be developed serially or in parallel by one engineer; F-G require the prior phases. Expected effort: 4-6 working days for one developer; longer (8-10) if adopter migration is bundled into the same SP iteration.

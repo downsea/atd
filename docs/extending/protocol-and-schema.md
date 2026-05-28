@@ -107,7 +107,7 @@ Rust edit. The full SOP is in [`../../AGENTS.md`](../../AGENTS.md) §4.
 ## The 1.0 stability rule
 
 As of **1.0 the schema is frozen for the entire 1.x line** (see
-[`../architecture.md`](../architecture.md) §2.5 and
+[`../atd-architecture.md`](../atd-architecture.md) §2.5 and
 [`../release-plan-v1.0.md`](../release-plan-v1.0.md)):
 
 | Change | Classification | Allowed in 1.x? |
@@ -163,7 +163,7 @@ a 2.0 change and goes through a deprecation cycle, not a minor release.
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) §2 (the unified schema), §4 (wire
+- [`../atd-architecture.md`](../atd-architecture.md) §2 (the unified schema), §4 (wire
   & types), §9.3 (the extension-point table — note "change the wire format" and
   "add a `ToolTier` variant" are marked *requires fork*).
 - [`../protocol/wire-format.md`](../protocol/wire-format.md) ·

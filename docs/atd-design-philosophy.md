@@ -14,7 +14,7 @@ ATD (Agent Tool Dispatch) is a protocol for connecting AI agents to tools. The p
 
 This document codifies the patterns. Each is illustrated by what the existing reference adopters (`healthkit_cli`, `celia_phr`, `cbrain`) do, with concrete file paths. Anti-patterns are called out by adopter incident where they apply.
 
-The companion doc to read first is [`docs/architecture.md`](architecture.md) (the system view). This doc is the *why*; that one is the *what*.
+The companion doc to read first is [`docs/atd-architecture.md`](atd-architecture.md) (the system view). This doc is the *why*; that one is the *what*.
 
 ---
 
@@ -560,8 +560,8 @@ The way conventions don't degrade is by being **written down, illustrated with a
 
 ### Related reading order (for a new adopter)
 
-1. [`docs/atd-introduction.md`](atd-introduction.md) — what ATD is and why (5 min).
-2. [`docs/architecture.md`](architecture.md) — system view (20 min).
+1. [`docs/atd-positioning.md`](atd-positioning.md) — what ATD is and why (5 min).
+2. [`docs/atd-architecture.md`](atd-architecture.md) — system view (20 min).
 3. **This doc** — adopter principles (15 min).
 4. [`docs/integrations/overview.md`](integrations/overview.md) — bridge / adoption paths.
 5. [`docs/integrations/python-server.md`](integrations/python-server.md) **or** the Rust `crates/atd-server/README.md` — server runtime hello-world.

@@ -1,9 +1,9 @@
-# ATD Architecture v1 — Design Spec (for `docs/architecture.md`)
+# ATD Architecture v1 — Design Spec (for `docs/atd-architecture.md`)
 
 **Date:** 2026-04-24
 **Status:** Design approved through brainstorming; plan pending.
 **Scope:** Produce a single canonical architecture document at
-`docs/architecture.md` that (a) aligns with the ATD v3 whitepaper's
+`docs/atd-architecture.md` that (a) aligns with the ATD v3 whitepaper's
 layer model, (b) honestly reconciles v3 aspirations with the current
 atd-mvp implementation (including SP-12 canonical-dispatch work), and
 (c) serves as the north-star reference for a subsequent refactor
@@ -72,7 +72,7 @@ architecture doc is its own project.
 ### 2.1 In scope for this spec
 
 - Structure, sectioning, length budget, and section-level content brief
-  for `docs/architecture.md`
+  for `docs/atd-architecture.md`
 - Convention for status tables (vocabulary, column layout, per-layer
   placement)
 - Resolved architectural decisions that the document asserts
@@ -130,7 +130,7 @@ each class navigates to.
 ### 4.1 File location and format
 
 ```
-/home/nan/proj/atd-mvp/docs/architecture.md
+/home/nan/proj/atd-mvp/docs/atd-architecture.md
 ```
 
 Single Markdown file. H1 title; 10 top-level sections (H2); H3 inside
@@ -387,7 +387,7 @@ status tables).
 
 ### 9.1 Primary artifact
 
-- `docs/architecture.md` — the architecture document, per §4-§8 of
+- `docs/atd-architecture.md` — the architecture document, per §4-§8 of
   this spec
 - Length: 1300-1800 lines
 - Status vocabulary: exactly the 6 values in §5 of this spec
@@ -395,17 +395,17 @@ status tables).
 ### 9.2 Ancillary changes
 
 - **Update** `README.md`'s Documentation section: add a "Architecture"
-  link pointing to `docs/architecture.md`, placed ABOVE Quick start
+  link pointing to `docs/atd-architecture.md`, placed ABOVE Quick start
   guides since it's the entry point for readers seeking the full model.
 - **Cross-references from existing docs:**
   - `docs/design.md` — add a top-of-file note saying "this is the
-    original Phase 0 spec; `docs/architecture.md` supersedes it as the
+    original Phase 0 spec; `docs/atd-architecture.md` supersedes it as the
     normative architecture reference; this file is retained for
     historical context"
   - `docs/protocol/wire-format.md` — add a link in §1 Overview to
-    `docs/architecture.md` as the higher-level reference
+    `docs/atd-architecture.md` as the higher-level reference
   - `docs/integrations/overview.md` — add in the introduction "see
-    `docs/architecture.md` for the layer model underlying these
+    `docs/atd-architecture.md` for the layer model underlying these
     integration paths"
 
 ### 9.3 No code changes
@@ -417,7 +417,7 @@ feature work) is a separate project in a separate brainstorm.
 
 ## 10. Acceptance criteria
 
-- Architecture doc exists at `docs/architecture.md`
+- Architecture doc exists at `docs/atd-architecture.md`
 - Length in the 1300-1800 line band
 - All 10 sections present, ordered per §4.2, with the per-section
   length guidance honored ±20%

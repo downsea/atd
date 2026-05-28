@@ -3,7 +3,7 @@
 **Date:** 2026-04-27
 **Status:** Approved — ready for implementation plan
 **Parent:** Closes [atd-mvp#3](https://github.com/downsea/atd-mvp/issues/3). Replaces the `--expose-raw-tools` workaround introduced in healthkit_cli v1.2.0 (see [`docs/integrations/healthkit.md`](../../integrations/healthkit.md) §5).
-**Anchor:** SP-8 §7.2 (gated-tool family pattern, mirrored here for the conformance fixture); architecture.md §10 row "Extract socket listener … (healthkit_cli)" is the upstream signal that surfaced this need.
+**Anchor:** SP-8 §7.2 (gated-tool family pattern, mirrored here for the conformance fixture); atd-architecture.md §10 row "Extract socket listener … (healthkit_cli)" is the upstream signal that surfaced this need.
 
 ## 1. Context
 
@@ -38,7 +38,7 @@ One commit. Nine code/doc locations.
 | 6 | `crates/atd-conformance/src/runner.rs` (or `wire.rs` — wherever behavior cases assert) | After the existing `expect_response_matches` check in the behavior-case path, additionally assert that any tool ids listed in `expect_tools_exclude` are absent from the response's `tools` array. ~15 lines. |
 | 7 | `crates/atd-conformance/fixtures/behavior/` | Three new fixtures (described in §6.3). |
 | 8 | Workspace `Cargo.toml` files: `atd-protocol`, `atd-sdk`, `atd-runtime`, `atd-server`, `atd-conformance`, `atd-ref-server-bin` | Bump 0.2.x → 0.3.0 (path-deps cascade). |
-| 9 | `docs/architecture.md` | Add row to §10 status table (state: ✅ on land); add note to §3 (Layer 1 / Wire format) explaining Hidden semantics. Also update `crates/atd-conformance/README.md` documenting the new `expect_tools_exclude` primitive. |
+| 9 | `docs/atd-architecture.md` | Add row to §10 status table (state: ✅ on land); add note to §3 (Layer 1 / Wire format) explaining Hidden semantics. Also update `crates/atd-conformance/README.md` documenting the new `expect_tools_exclude` primitive. |
 
 **Not touched:**
 
