@@ -307,7 +307,24 @@ pub fn verify_jwt(
     }
 
     // (7) Effective caps = leaf's caps (already attenuation-validated).
-    Ok(CapabilitySet::from_iter(leaf.payload.args.caps.clone()))
+    // SP-observability-completeness-v1 Axis C: attribute each effective cap
+    // to this chain's leaf issuer + depth (root = 0). Return type unchanged
+    // (CapabilitySet) — the provenance rides inside it, so no caller/test
+    // signature changes.
+    let caps = leaf.payload.args.caps.clone();
+    let issuer_did = leaf.payload.iss.clone();
+    let chain_depth = chain.len().saturating_sub(1) as u8;
+    let provenance = caps
+        .iter()
+        .map(|c| crate::audit::CapProvenance {
+            cap: c.clone(),
+            source: crate::audit::ProvSource::UcanChain {
+                issuer_did: issuer_did.clone(),
+                chain_depth,
+            },
+        })
+        .collect();
+    Ok(CapabilitySet::with_provenance(caps, provenance))
 }
 
 /// Verify multiple independent UCAN chains and union their capability

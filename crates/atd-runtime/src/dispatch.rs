@@ -205,7 +205,17 @@ async fn dispatch_request_inner(
             *caller_id = client_id.clone();
             let allow = CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
             let (granted_strings_vec, _denied) = allow.intersect(&requested_capabilities);
-            let granted_strings = CapabilitySet::from_iter(granted_strings_vec);
+            // SP-observability-completeness-v1 Axis C: attribute each
+            // string-allow-list grant to its source for the audit sink.
+            let string_provenance = granted_strings_vec
+                .iter()
+                .map(|c| crate::audit::CapProvenance {
+                    cap: c.clone(),
+                    source: crate::audit::ProvSource::StringAllowList,
+                })
+                .collect();
+            let granted_strings =
+                CapabilitySet::with_provenance(granted_strings_vec, string_provenance);
 
             // SP-capability-v2 Phase C: verify any presented UCAN-lite
             // tokens and union the resulting caps with the SP-12 string
@@ -491,23 +501,39 @@ pub async fn run_tool_continue(
             code,
             message,
             retryable,
-        }) => Response::ToolResultResponse {
-            tool_id: tool_id.clone(),
-            result: serde_json::json!({
+        }) => {
+            // SP-observability-completeness-v1 Axis A — continuation failure
+            // result is a Value reaching the LLM; redact via on_result.
+            let mut value = serde_json::json!({
                 "code": code,
                 "message": message,
                 "retryable": retryable,
-            }),
-            success: false,
-            dry_run: false,
-            next_cursor: None,
-        },
-        Err(e) => Response::Error {
-            message: format!("tool {tool_id} continuation failed: {e:?}"),
-            code: None,
-            retryable: Some(false),
-            details: None,
-        },
+            });
+            for mw in &state.middleware {
+                mw.on_result(&tool_id, entry.definition(), &mut value);
+            }
+            Response::ToolResultResponse {
+                tool_id: tool_id.clone(),
+                result: value,
+                success: false,
+                dry_run: false,
+                next_cursor: None,
+            }
+        }
+        Err(e) => {
+            // Axis A — `{e:?}` can embed PHI via a Debug impl; redact.
+            let mut message = format!("tool {tool_id} continuation failed: {e:?}");
+            let mut details = None;
+            for mw in &state.middleware {
+                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
+            }
+            Response::Error {
+                message,
+                code: None,
+                retryable: Some(false),
+                details,
+            }
+        }
     };
 
     // Audit emission with cursor_page tag (the v2 schema field).
@@ -536,6 +562,7 @@ pub async fn run_tool_continue(
             schema_version: crate::audit::SCHEMA_VERSION,
             secrets_resolved: false,
             cursor_page: Some(page_index),
+            capability_provenance: prov_for(caps),
         });
     }
 
@@ -558,6 +585,15 @@ pub async fn run_tool_continue(
 /// dispatch, middleware step, and error map is preserved. The existing
 /// `atd-server::connection::tests` suite covers all branches and is
 /// re-routed through this fn unchanged after refactor.
+/// SP-observability-completeness-v1 Axis C — lift a connection's capability
+/// provenance into the optional `CallEvent.capability_provenance` field.
+/// `None` when nothing was recorded, so the field stays omitted on the wire
+/// for the common (no-provenance) path.
+fn prov_for(caps: &CapabilitySet) -> Option<Vec<crate::audit::CapProvenance>> {
+    let p = caps.provenance();
+    if p.is_empty() { None } else { Some(p.to_vec()) }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn run_tool(
     state: &Arc<ServerState>,
@@ -598,6 +634,7 @@ pub async fn run_tool(
                 schema_version: crate::audit::SCHEMA_VERSION,
                 secrets_resolved,
                 cursor_page,
+                capability_provenance: prov_for(caps),
             });
         }
     };
@@ -782,11 +819,18 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
+            // SP-observability-completeness-v1 Axis A — run egress redaction
+            // on the failure reply; the tool-authored `msg` may carry PHI.
+            let mut message = format!("invalid args for {tool_id}: {msg}");
+            let mut details = None;
+            for mw in &state.middleware {
+                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
+            }
             Response::Error {
-                message: format!("invalid args for {tool_id}: {msg}"),
+                message,
                 code: None,
                 retryable: Some(false),
-                details: None,
+                details,
             }
         }
         Err(ToolCallError::ExecutionFailed {
@@ -802,13 +846,21 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
+            // SP-observability-completeness-v1 Axis A — the failure result
+            // is a Value that reaches the LLM; run the egress middleware on
+            // it exactly like a success result, so PHI in `message` is
+            // redacted (the pre-SP gap: ExecutionFailed bypassed middleware).
+            let mut result = serde_json::json!({
+                "code": code,
+                "message": message,
+                "retryable": retryable,
+            });
+            for mw in &state.middleware {
+                mw.on_result(&tool_id, entry.definition(), &mut result);
+            }
             Response::ToolResultResponse {
                 tool_id,
-                result: serde_json::json!({
-                    "code": code,
-                    "message": message,
-                    "retryable": retryable,
-                }),
+                result,
                 success: false,
                 dry_run: false,
                 next_cursor: None,
@@ -823,11 +875,17 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
+            // Axis A — panic/internal text can name a patient; redact.
+            let mut message = format!("internal error in {tool_id}: {msg}");
+            let mut details = None;
+            for mw in &state.middleware {
+                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
+            }
             Response::Error {
-                message: format!("internal error in {tool_id}: {msg}"),
+                message,
                 code: None,
                 retryable: Some(false),
-                details: None,
+                details,
             }
         }
         Err(other) => {
@@ -839,11 +897,17 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
+            // Axis A — defence in depth on the catch-all error text.
+            let mut message = format!("unhandled tool error in {tool_id}: {other}");
+            let mut details = None;
+            for mw in &state.middleware {
+                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
+            }
             Response::Error {
-                message: format!("unhandled tool error in {tool_id}: {other}"),
+                message,
                 code: Some(1999),
                 retryable: Some(false),
-                details: None,
+                details,
             }
         }
     }

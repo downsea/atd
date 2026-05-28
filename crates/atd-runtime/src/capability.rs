@@ -9,17 +9,38 @@
 
 use std::collections::BTreeSet;
 
+use crate::audit::CapProvenance;
+
 /// Set of capabilities currently granted to a connection. Deterministically
 /// ordered (BTreeSet) so `granted()` returns a stable sequence — important for
 /// wire-level reproducibility and test assertions.
+///
+/// SP-observability-completeness-v1 Axis C: carries optional per-capability
+/// provenance alongside the granted set. The granted set is the *result*;
+/// provenance records the *source* of each grant (operator allow-list vs a
+/// UCAN chain link). Provenance is best-effort metadata for the audit sink —
+/// it never affects gating (which reads `contains` / `granted` only).
 #[derive(Debug, Clone, Default)]
 pub struct CapabilitySet {
     granted: BTreeSet<String>,
+    provenance: Vec<CapProvenance>,
 }
 
 impl CapabilitySet {
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    /// Construct a set from a granted iterable plus its provenance records.
+    /// Used at `Hello` time so the audit sink can attribute each capability.
+    pub fn with_provenance<I>(granted: I, provenance: Vec<CapProvenance>) -> Self
+    where
+        I: IntoIterator<Item = String>,
+    {
+        Self {
+            granted: granted.into_iter().collect(),
+            provenance,
+        }
     }
 
     pub fn contains(&self, cap: &str) -> bool {
@@ -29,6 +50,14 @@ impl CapabilitySet {
     /// Sorted, deterministic view of the granted set.
     pub fn granted(&self) -> Vec<String> {
         self.granted.iter().cloned().collect()
+    }
+
+    /// Per-capability source attribution (SP-observability-completeness-v1
+    /// Axis C). Empty when provenance wasn't recorded. A capability granted
+    /// by both the string allow-list and a UCAN chain appears twice (once
+    /// per source) — that's the honest record.
+    pub fn provenance(&self) -> &[CapProvenance] {
+        &self.provenance
     }
 
     /// Intersect `requested` with the server's allow-list. Returns
@@ -53,8 +82,11 @@ impl CapabilitySet {
     /// (spec §4.2: `granted = granted_strings ∪ granted_ucan`). Returns
     /// a new set; neither input is mutated.
     pub fn union(&self, other: &Self) -> Self {
+        let mut provenance = self.provenance.clone();
+        provenance.extend(other.provenance.iter().cloned());
         Self {
             granted: self.granted.union(&other.granted).cloned().collect(),
+            provenance,
         }
     }
 }
@@ -63,6 +95,7 @@ impl FromIterator<String> for CapabilitySet {
     fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
         Self {
             granted: iter.into_iter().collect(),
+            provenance: Vec::new(),
         }
     }
 }

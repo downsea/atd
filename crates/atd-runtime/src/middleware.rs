@@ -1,22 +1,52 @@
 //! Result-middleware pipeline.
 //!
-//! A `Middleware` is invoked **on success** after a tool returns, with a
-//! mutable reference to the result value. SP-12 ships one built-in
-//! (`RedactPathsMiddleware`) to demonstrate the shape; the v3 brief's full
-//! suite (pii_redact, source_device_tag, compress, audit_log, rate_shape)
-//! is deferred.
+//! A `Middleware` is invoked after a tool returns, with a mutable reference
+//! to the egress value. SP-12 shipped one built-in (`RedactPathsMiddleware`)
+//! to demonstrate the shape; the v3 brief's full suite (pii_redact,
+//! source_device_tag, compress, audit_log, rate_shape) is deferred.
 //!
-//! Error paths bypass middleware in SP-12 — spec §8 Q4. A future SP can
-//! add an `on_error` hook once a real consumer exists.
+//! Two hooks (SP-observability-completeness-v1 Axis A):
+//! - `on_result` — the SUCCESS path, and the `ExecutionFailed` exit (whose
+//!   wire shape is a `ToolResultResponse { success: false, result }`, i.e.
+//!   a result Value).
+//! - `on_error` — the `Response::Error` path (`InvalidArgs` /
+//!   `InternalError`), whose wire shape is a bare `message: String` +
+//!   optional `details`. Default no-op; security-sensitive middleware
+//!   override it. Before this SP, error paths bypassed middleware entirely
+//!   (SP-12 §8 Q4) — that let a tool's failure text (an arg echo, a panic
+//!   message naming a patient) reach the LLM unredacted, a real PHI leak.
 
 use atd_protocol::ToolDefinition;
 
 /// A result-rewriting hook. Must be deterministic and side-effect-free
-/// beyond the `result` mutation + any internal audit sinks the impl owns.
+/// beyond the `result` / error mutation + any internal audit sinks the impl
+/// owns.
 pub trait Middleware: Send + Sync {
     fn name(&self) -> &'static str;
 
     fn on_result(&self, tool_id: &str, tool_def: &ToolDefinition, result: &mut serde_json::Value);
+
+    /// SP-observability-completeness-v1 Axis A. Egress redaction for the
+    /// FAILURE wire shape `Response::Error { message, details }` — the
+    /// `InvalidArgs` / `InternalError` dispatch exits. Default is a no-op,
+    /// preserving pre-SP behaviour for middleware that only rewrite success
+    /// results. **Security-sensitive middleware (PHI / PII redaction) MUST
+    /// override this** — a tool's failure text reaches the LLM verbatim and
+    /// may carry PHI (an arg echo, a panic message naming a patient).
+    /// `details` is the optional structured error payload; redact both.
+    ///
+    /// Note: the `ExecutionFailed` exit returns a `ToolResultResponse`
+    /// whose `result` is a Value and so runs through `on_result`, not this
+    /// hook. This hook is only for the bare-`message` `Response::Error`.
+    fn on_error(
+        &self,
+        tool_id: &str,
+        tool_def: &ToolDefinition,
+        message: &mut String,
+        details: &mut Option<serde_json::Value>,
+    ) {
+        let _ = (tool_id, tool_def, message, details);
+    }
 }
 
 /// Walk a JSON value, applying `f` to every string leaf (including strings
@@ -91,6 +121,33 @@ impl Middleware for RedactPathsMiddleware {
                 *s = re.replace_all(s, rep.as_str()).into_owned();
             }
         });
+    }
+
+    /// SP-observability-completeness-v1 Axis A — the `$HOME`/path scrub is
+    /// as relevant to error text as to success results (a failure message
+    /// can echo an absolute path). Apply the same patterns to the bare
+    /// `message` string and walk the optional `details` value.
+    fn on_error(
+        &self,
+        _tool_id: &str,
+        _tool_def: &ToolDefinition,
+        message: &mut String,
+        details: &mut Option<serde_json::Value>,
+    ) {
+        if self.patterns.is_empty() {
+            return;
+        }
+        for (re, rep) in &self.patterns {
+            *message = re.replace_all(message, rep.as_str()).into_owned();
+        }
+        if let Some(d) = details {
+            let patterns = &self.patterns;
+            walk_strings(d, &mut |s| {
+                for (re, rep) in patterns {
+                    *s = re.replace_all(s, rep.as_str()).into_owned();
+                }
+            });
+        }
     }
 }
 
@@ -216,6 +273,49 @@ mod tests {
     fn name_is_stable() {
         let mw = RedactPathsMiddleware::new(vec![]);
         assert_eq!(mw.name(), "redact_paths");
+    }
+
+    // ---- SP-observability-completeness-v1 Axis A: on_error ----
+
+    #[test]
+    fn on_error_redacts_message_and_details() {
+        let mw = mw_with(r"SECRET\w*", "<redacted>");
+        let def = tool_def();
+        let mut message = "leak SECRET123 in error".to_string();
+        let mut details = Some(serde_json::json!({"ctx": "also SECRET456 here"}));
+        mw.on_error("t", &def, &mut message, &mut details);
+        assert_eq!(message, "leak <redacted> in error");
+        assert_eq!(details.unwrap()["ctx"], "also <redacted> here");
+    }
+
+    #[test]
+    fn on_error_handles_none_details() {
+        let mw = mw_with(r"SECRET", "<redacted>");
+        let def = tool_def();
+        let mut message = "SECRET leaked".to_string();
+        let mut details = None;
+        mw.on_error("t", &def, &mut message, &mut details);
+        assert_eq!(message, "<redacted> leaked");
+        assert!(details.is_none());
+    }
+
+    #[test]
+    fn default_on_error_is_noop() {
+        // A middleware that does NOT override on_error leaves error text
+        // alone — the additive default preserves pre-SP behaviour.
+        struct Noop;
+        impl Middleware for Noop {
+            fn name(&self) -> &'static str {
+                "noop"
+            }
+            fn on_result(&self, _: &str, _: &ToolDefinition, _: &mut serde_json::Value) {}
+        }
+        let def = tool_def();
+        let mut message = "untouched SECRET".to_string();
+        let mut details = Some(serde_json::json!({"k": "untouched"}));
+        Noop.on_error("t", &def, &mut message, &mut details);
+        assert_eq!(message, "untouched SECRET");
+        assert_eq!(details.unwrap()["k"], "untouched");
     }
 
     #[test]

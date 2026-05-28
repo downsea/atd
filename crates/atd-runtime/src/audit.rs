@@ -1,15 +1,20 @@
 //! Structured per-call audit events + pluggable sinks.
 //!
 //! `AuditSink` is the observation hook called at dispatch return points.
-//! It sits OUTSIDE `Middleware` (which is a result-rewriter, success-only)
-//! because audit needs to observe every outcome including failures.
+//! It sits OUTSIDE `Middleware` (a wire-reply rewriter) because audit
+//! observes *metadata* about every outcome — including failures — and never
+//! carries the result/error body (no PHI exit). `Middleware` rewrites the
+//! body the LLM sees (`on_result` for success / `ExecutionFailed`,
+//! `on_error` for `Response::Error`); `AuditSink` records who/what/when.
 //!
-//! `JsonLinesAuditSink` is the default sink shipped in v1: one JSON
-//! object per line. SP-concurrency-baseline §5.4: an internal bounded
-//! `tokio::sync::mpsc` + dedicated drain task decouple the dispatch hot
-//! path from synchronous file I/O, eliminating the §1.3 secondary cliff
-//! (mutex-blocked reactor stall at ~50 concurrent dispatches per second).
-//! Construction requires a tokio runtime context.
+//! `JsonLinesAuditSink` writes one JSON object per line via a dedicated
+//! **std thread** drain over a bounded `std::sync::mpsc::sync_channel`.
+//! SP-concurrency-baseline §5.4 introduced the queue to decouple the
+//! dispatch hot path from synchronous file I/O; SP-observability-
+//! completeness-v1 Axis B made the queue-full policy selectable
+//! ([`BackpressureStrategy`]: `Drop` default / `Block` / `FallbackSink`)
+//! and moved the drain to a std thread, so construction no longer requires
+//! a tokio runtime context.
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -27,7 +32,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///   v1 consumers tolerate v2 events; v2 consumers reading v1 events see
 ///   `cursor_page: None`. The version bump records when the field landed,
 ///   not a breaking shape change.
-pub const SCHEMA_VERSION: u32 = 2;
+/// - v3 (SP-observability-completeness-v1) — adds optional
+///   `capability_provenance`. Same additive-optional rule: v2 readers
+///   tolerate v3 events (ignore the field); v3 readers see `None` on v2
+///   events. Records per-capability source so an operator can answer
+///   "why did caller X have capability Y?" without re-deriving the chain.
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// One per-call audit event. Emitted at every `Request::RunTool`
 /// return point (success, invalid_args, execution_failed, cap_denied,
@@ -59,6 +69,36 @@ pub struct CallEvent {
     /// returned a cursor; `Some(2..)` for each `RunToolContinue`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_page: Option<u32>,
+    /// SP-observability-completeness-v1 Axis C — per-capability source
+    /// attribution. `None` when provenance wasn't tracked (back-compat,
+    /// early-return paths with no capability context); `Some(vec)` when
+    /// dispatch recorded which mechanism granted each capability. Lets an
+    /// operator trace each granted capability to the operator string
+    /// allow-list or a specific UCAN chain link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capability_provenance: Option<Vec<CapProvenance>>,
+}
+
+/// SP-observability-completeness-v1 Axis C — one capability + how it was
+/// granted. The `granted_capabilities` field on `CallEvent` records the
+/// *result* set; this records the *source* of each.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapProvenance {
+    pub cap: String,
+    pub source: ProvSource,
+}
+
+/// Where a granted capability came from (architecture §5.2 — the two
+/// composing mechanisms whose union forms `granted_capabilities`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ProvSource {
+    /// Granted by the operator string allow-list
+    /// (`--grant-capability` ∩ `Hello.requested_capabilities`).
+    StringAllowList,
+    /// Granted by a UCAN-lite chain link. `issuer_did` is the link's
+    /// `iss`; `chain_depth` is its position (0 = root).
+    UcanChain { issuer_did: String, chain_depth: u8 },
 }
 
 /// Outcome variants cover the full dispatch-return space for RunTool.
@@ -73,8 +113,41 @@ pub enum Outcome {
     ToolNotFound,
 }
 
-/// Observer hook. Non-blocking: writes happen synchronously to the
-/// sink's own backpressure (no queuing here). Must not panic.
+/// SP-observability-completeness-v1 Axis B. How a sink behaves when its
+/// internal queue is full at `on_call` time.
+#[derive(Clone)]
+pub enum BackpressureStrategy {
+    /// Drop the event, increment `drops()`. The SP-concurrency-baseline
+    /// default — protects dispatch throughput; correct for the 90%
+    /// non-compliance case. "log loss >> dispatch stall."
+    Drop,
+    /// Block the dispatch path until the queue accepts the event. For
+    /// compliance adopters (HIPAA §164.528) where a dropped audit record is
+    /// unacceptable: dispatch slows under audit backpressure rather than
+    /// losing the disclosure record. Requires a multi-thread runtime (the
+    /// ref binaries use one) so a blocked worker doesn't starve accept.
+    Block,
+    /// On queue-full, write the event synchronously to a fallback sink
+    /// (e.g. stderr / a second file) instead of dropping. Bounds the hot
+    /// path (no indefinite block) with no silent loss. The fallback SHOULD
+    /// be a synchronous sink, never another queueing sink (avoid chained
+    /// blocking).
+    FallbackSink(Arc<dyn AuditSink>),
+}
+
+impl std::fmt::Debug for BackpressureStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BackpressureStrategy::Drop => f.write_str("Drop"),
+            BackpressureStrategy::Block => f.write_str("Block"),
+            BackpressureStrategy::FallbackSink(_) => f.write_str("FallbackSink(..)"),
+        }
+    }
+}
+
+/// Observer hook. `on_call` is invoked synchronously on the dispatch path;
+/// its behaviour under queue pressure is the sink's
+/// [`backpressure_strategy`](AuditSink::backpressure_strategy). Must not panic.
 pub trait AuditSink: Send + Sync {
     fn on_call(&self, event: &CallEvent);
     /// Total events dropped because the sink's queue was full. Default `0`
@@ -86,6 +159,13 @@ pub trait AuditSink: Send + Sync {
     fn drops(&self) -> u64 {
         0
     }
+    /// SP-observability-completeness-v1 Axis B — the sink's queue-full
+    /// policy. Default `Drop` (byte-compatible with pre-SP sinks); medical /
+    /// compliance adopters override (or construct `JsonLinesAuditSink` via
+    /// `with_strategy`) to get `Block` / `FallbackSink`.
+    fn backpressure_strategy(&self) -> BackpressureStrategy {
+        BackpressureStrategy::Drop
+    }
 }
 
 /// Default channel capacity. 1024 events × ~500 bytes ≈ 512 KB peak buffer;
@@ -93,48 +173,66 @@ pub trait AuditSink: Send + Sync {
 /// rate: 10k events/s sustained, transient bursts much higher).
 pub const DEFAULT_AUDIT_QUEUE_CAPACITY: usize = 1024;
 
-/// SP-concurrency-baseline §5.4. Writes one JSON object per line to the
-/// wrapped writer via a dedicated tokio task. `on_call` is non-blocking
-/// (`try_send`); if the bounded channel is full the event is dropped and
-/// the `audit_drops` counter increments — log loss >> dispatch stall.
+/// SP-concurrency-baseline §5.4 + SP-observability-completeness-v1 Axis B.
+/// Writes one JSON object per line to the wrapped writer via a dedicated
+/// **std thread** drain. Behaviour when the bounded channel is full is
+/// selectable via [`BackpressureStrategy`]:
 ///
-/// **Construction requires a tokio runtime context** because it spawns a
-/// drain task on `new`. All shipped helpers (`stdout` / `stderr` / `file`)
-/// inherit this requirement. Adopters who construct sinks outside async
-/// scope should use `tokio::runtime::Handle::current().block_on(...)` or
-/// build their own sync sink implementing `AuditSink`.
+/// - `Drop` (default) — `try_send`; on full, drop + bump `drops()`. The
+///   SP-concurrency-baseline behaviour (log loss >> dispatch stall).
+/// - `Block` — blocking `send`; dispatch slows rather than losing an event
+///   (HIPAA §164.528 no-loss audit). The drain is a dedicated OS thread, so
+///   blocking the sync `on_call` blocks the calling thread, not an async
+///   reactor primitive — use a multi-thread runtime (ref binaries do).
+/// - `FallbackSink(fb)` — on full, synchronously write to `fb`.
+///
+/// Construction no longer requires a tokio runtime context (the drain is a
+/// plain `std::thread`), unlike the prior tokio-mpsc implementation.
 pub struct JsonLinesAuditSink {
-    tx: tokio::sync::mpsc::Sender<CallEvent>,
+    tx: std::sync::mpsc::SyncSender<CallEvent>,
     drops: Arc<AtomicU64>,
+    strategy: BackpressureStrategy,
 }
 
 impl JsonLinesAuditSink {
-    /// Construct with default capacity (`DEFAULT_AUDIT_QUEUE_CAPACITY`).
-    /// Spawns a tokio task that owns the writer and drains the channel.
+    /// Construct with default capacity (`DEFAULT_AUDIT_QUEUE_CAPACITY`) and
+    /// the `Drop` strategy (pre-SP behaviour).
     pub fn new(writer: Box<dyn Write + Send + 'static>) -> Self {
         Self::new_with_capacity(writer, DEFAULT_AUDIT_QUEUE_CAPACITY)
     }
 
-    /// Construct with an explicit channel capacity. Smaller capacities
-    /// drop sooner under burst load; larger capacities hold more bytes
-    /// in memory at peak.
+    /// Construct with an explicit channel capacity, `Drop` strategy.
     pub fn new_with_capacity(writer: Box<dyn Write + Send + 'static>, capacity: usize) -> Self {
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<CallEvent>(capacity);
+        Self::with_strategy(writer, capacity, BackpressureStrategy::Drop)
+    }
+
+    /// SP-observability-completeness-v1 Axis B — construct with an explicit
+    /// backpressure strategy. Spawns a std thread that owns the writer and
+    /// drains the channel.
+    pub fn with_strategy(
+        writer: Box<dyn Write + Send + 'static>,
+        capacity: usize,
+        strategy: BackpressureStrategy,
+    ) -> Self {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<CallEvent>(capacity);
         let drops = Arc::new(AtomicU64::new(0));
         let mut writer = writer;
-        tokio::spawn(async move {
-            while let Some(ev) = rx.recv().await {
+        std::thread::spawn(move || {
+            while let Ok(ev) = rx.recv() {
                 if let Ok(mut line) = serde_json::to_vec(&ev) {
                     line.push(b'\n');
                     let _ = writer.write_all(&line);
                     let _ = writer.flush();
                 }
             }
-            // Channel closed (sink dropped) — final flush so the last batch
-            // hits disk even if the runtime is about to shut down.
+            // All senders dropped + queue drained — final flush.
             let _ = writer.flush();
         });
-        Self { tx, drops }
+        Self {
+            tx,
+            drops,
+            strategy,
+        }
     }
 
     pub fn stdout() -> Self {
@@ -155,8 +253,7 @@ impl JsonLinesAuditSink {
     }
 
     /// Count of events dropped because the channel was full when
-    /// `on_call` was invoked. Exposed for the SP-concurrency-baseline
-    /// §G7 metrics snapshot and for adopter dashboards.
+    /// `on_call` was invoked (or the drain thread had exited).
     pub fn drops(&self) -> u64 {
         self.drops.load(Ordering::Relaxed)
     }
@@ -164,17 +261,33 @@ impl JsonLinesAuditSink {
 
 impl AuditSink for JsonLinesAuditSink {
     fn on_call(&self, event: &CallEvent) {
-        match self.tx.try_send(event.clone()) {
-            Ok(()) => {}
-            // Channel full or closed — drop the event and bump the counter.
-            // Sync dispatch path must not block; log loss >> dispatch stall.
-            Err(_) => {
-                self.drops.fetch_add(1, Ordering::Relaxed);
+        match &self.strategy {
+            BackpressureStrategy::Drop => {
+                // Non-blocking; on full, drop + count. log loss >> stall.
+                if self.tx.try_send(event.clone()).is_err() {
+                    self.drops.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            BackpressureStrategy::Block => {
+                // Blocking send — no event lost; dispatch slows under
+                // backpressure. Err only if the drain thread is gone
+                // (shutdown), in which case count a drop rather than hang.
+                if self.tx.send(event.clone()).is_err() {
+                    self.drops.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            BackpressureStrategy::FallbackSink(fb) => {
+                if self.tx.try_send(event.clone()).is_err() {
+                    fb.on_call(event);
+                }
             }
         }
     }
     fn drops(&self) -> u64 {
         self.drops.load(Ordering::Relaxed)
+    }
+    fn backpressure_strategy(&self) -> BackpressureStrategy {
+        self.strategy.clone()
     }
 }
 
@@ -204,6 +317,7 @@ mod tests {
             schema_version: SCHEMA_VERSION,
             secrets_resolved: false,
             cursor_page: None,
+            capability_provenance: None,
         }
     }
 
@@ -214,7 +328,7 @@ mod tests {
             serde_json::from_slice(&serde_json::to_vec(&e).expect("serialize")).expect("parse");
         assert_eq!(j["tool_id"], "ref:echo.say");
         assert_eq!(j["outcome"]["kind"], "success");
-        assert_eq!(j["schema_version"], 2);
+        assert_eq!(j["schema_version"], 3);
         assert_eq!(j["dry_run"], false);
     }
 
@@ -251,6 +365,56 @@ mod tests {
             serde_json::from_slice(&serde_json::to_vec(&e).unwrap()).unwrap();
         assert_eq!(j["outcome"]["kind"], "rate_limited");
         assert!(j["outcome"]["retry_after_ms"].is_null());
+    }
+
+    // ---- SP-observability-completeness-v1 Axis C: capability provenance ----
+
+    #[test]
+    fn capability_provenance_roundtrips_both_sources() {
+        let mut e = mk_event(Outcome::Success);
+        e.capability_provenance = Some(vec![
+            CapProvenance {
+                cap: "records:read".into(),
+                source: ProvSource::StringAllowList,
+            },
+            CapProvenance {
+                cap: "records:write".into(),
+                source: ProvSource::UcanChain {
+                    issuer_did: "did:key:zABC".into(),
+                    chain_depth: 1,
+                },
+            },
+        ]);
+        let j: serde_json::Value =
+            serde_json::from_slice(&serde_json::to_vec(&e).unwrap()).unwrap();
+        let prov = j["capability_provenance"].as_array().unwrap();
+        assert_eq!(prov[0]["cap"], "records:read");
+        assert_eq!(prov[0]["source"]["kind"], "string_allow_list");
+        assert_eq!(prov[1]["source"]["kind"], "ucan_chain");
+        assert_eq!(prov[1]["source"]["issuer_did"], "did:key:zABC");
+        assert_eq!(prov[1]["source"]["chain_depth"], 1);
+    }
+
+    #[test]
+    fn provenance_skipped_when_none() {
+        let e = mk_event(Outcome::Success);
+        let s = serde_json::to_string(&e).unwrap();
+        assert!(
+            !s.contains("capability_provenance"),
+            "None provenance must be omitted on the wire (back-compat), got: {s}"
+        );
+    }
+
+    #[test]
+    fn v2_event_without_provenance_deserializes_to_none() {
+        // A v2 audit line (no capability_provenance field) must read into
+        // a v3 consumer as None — adopters on old atd builds keep working.
+        let j = r#"{"ts":"2026-05-29T00:00:00+00:00","call_id":"01J","tool_id":"x",
+            "granted_capabilities":[],"duration_ms":1,"outcome":{"kind":"success"},
+            "tier":"warm","dry_run":false,"schema_version":2,"secrets_resolved":false}"#;
+        let e: CallEvent = serde_json::from_str(j).unwrap();
+        assert!(e.capability_provenance.is_none());
+        assert!(e.cursor_page.is_none());
     }
 
     #[test]
@@ -388,6 +552,112 @@ mod tests {
             .split_terminator('\n')
             .collect();
         assert_eq!(lines.len(), 5, "drop should flush the last 5 events");
+    }
+
+    // ---- SP-observability-completeness-v1 Axis B: backpressure ----
+
+    /// A `Write` that sleeps per write — simulates a slow audit disk so a
+    /// burst outruns the drain and exercises the backpressure path.
+    struct SlowBuf {
+        inner: Arc<Mutex<Vec<u8>>>,
+        delay: std::time::Duration,
+    }
+    impl Write for SlowBuf {
+        fn write(&mut self, bs: &[u8]) -> std::io::Result<usize> {
+            std::thread::sleep(self.delay);
+            self.inner.lock().unwrap().extend_from_slice(bs);
+            Ok(bs.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn bare_sink_defaults_to_drop_strategy() {
+        struct Bare;
+        impl AuditSink for Bare {
+            fn on_call(&self, _: &CallEvent) {}
+        }
+        assert!(matches!(
+            Bare.backpressure_strategy(),
+            BackpressureStrategy::Drop
+        ));
+    }
+
+    #[test]
+    fn with_strategy_block_reports_block() {
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::with_strategy(
+            Box::new(SharedBuf(buf)),
+            16,
+            BackpressureStrategy::Block,
+        );
+        assert!(matches!(
+            sink.backpressure_strategy(),
+            BackpressureStrategy::Block
+        ));
+    }
+
+    #[test]
+    fn block_strategy_loses_nothing_under_burst() {
+        // Throttled writer + tiny capacity + Block: a 200-event burst must
+        // produce 0 drops and eventually drain all 200, even though the
+        // writer is far slower than the producer.
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::with_strategy(
+            Box::new(SlowBuf {
+                inner: buf.clone(),
+                delay: std::time::Duration::from_micros(50),
+            }),
+            4,
+            BackpressureStrategy::Block,
+        );
+        let ev = mk_event(Outcome::Success);
+        for _ in 0..200 {
+            sink.on_call(&ev);
+        }
+        assert_eq!(sink.drops(), 0, "Block strategy must never drop");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let n = buf.lock().unwrap().iter().filter(|b| **b == b'\n').count();
+            if n >= 200 {
+                break;
+            }
+            if std::time::Instant::now() > deadline {
+                panic!("Block strategy lost events: only {n}/200 drained");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn fallback_strategy_routes_overflow_to_fallback() {
+        struct CountSink(Arc<AtomicU64>);
+        impl AuditSink for CountSink {
+            fn on_call(&self, _: &CallEvent) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let fb_count = Arc::new(AtomicU64::new(0));
+        let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = JsonLinesAuditSink::with_strategy(
+            Box::new(SlowBuf {
+                inner: buf,
+                delay: std::time::Duration::from_millis(5),
+            }),
+            1,
+            BackpressureStrategy::FallbackSink(Arc::new(CountSink(fb_count.clone()))),
+        );
+        let ev = mk_event(Outcome::Success);
+        for _ in 0..50 {
+            sink.on_call(&ev);
+        }
+        assert_eq!(sink.drops(), 0, "fallback caught overflow; primary drops 0");
+        assert!(
+            fb_count.load(Ordering::Relaxed) > 0,
+            "fallback sink must catch the overflow events"
+        );
     }
 
     #[test]
