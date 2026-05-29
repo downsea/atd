@@ -82,8 +82,18 @@ impl CapabilitySet {
     /// (spec §4.2: `granted = granted_strings ∪ granted_ucan`). Returns
     /// a new set; neither input is mutated.
     pub fn union(&self, other: &Self) -> Self {
+        // Dedup exact (cap, source) duplicates — e.g. two UCAN chains both
+        // granting the same cap from the same issuer+depth — so provenance
+        // doesn't accumulate identical rows. Cross-source entries (the same
+        // cap via both the string allow-list AND a UCAN chain) are KEPT: that
+        // is the honest record, and the reason provenance is NOT guaranteed
+        // 1:1 with the deduped `granted` set (see `provenance()`).
         let mut provenance = self.provenance.clone();
-        provenance.extend(other.provenance.iter().cloned());
+        for p in &other.provenance {
+            if !provenance.contains(p) {
+                provenance.push(p.clone());
+            }
+        }
         Self {
             granted: self.granted.union(&other.granted).cloned().collect(),
             provenance,

@@ -56,7 +56,11 @@ impl Middleware for PiiRedactMiddleware {
         message: &mut String,
         details: &mut Option<Value>,
     ) {
-        let mut wrapped = Value::String(std::mem::take(message));
+        // Wrap a COPY (not `mem::take`) so that if a future structured-
+        // redaction rule replaces the wrapped string with a non-string Value,
+        // the original message survives in `*message` instead of being
+        // silently emptied — failure context is scrubbed, never destroyed.
+        let mut wrapped = Value::String(message.clone());
         let _ = crate::redact::redact_value(&mut wrapped, &self.config);
         if let Value::String(s) = wrapped {
             *message = s;

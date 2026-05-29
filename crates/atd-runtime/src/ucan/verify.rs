@@ -311,6 +311,16 @@ pub fn verify_jwt(
     // to this chain's leaf issuer + depth (root = 0). Return type unchanged
     // (CapabilitySet) — the provenance rides inside it, so no caller/test
     // signature changes.
+    //
+    // Cost note (#9): provenance is built eagerly here, at verify time,
+    // regardless of whether an audit sink will read it. This is intentional —
+    // verify_jwt is the ONLY layer that still holds the chain (issuer + depth);
+    // those are discarded once we return the flat CapabilitySet, so the
+    // metadata cannot be reconstructed downstream. Gating construction on
+    // "is audit enabled" would require threading an audit flag from dispatch
+    // through the ucan layer (a cross-layer dependency) to save a per-Hello,
+    // O(caps) allocation — not worth the coupling. Per-connection, not
+    // per-call, so volume is low.
     let caps = leaf.payload.args.caps.clone();
     let issuer_did = leaf.payload.iss.clone();
     let chain_depth = chain.len().saturating_sub(1) as u8;

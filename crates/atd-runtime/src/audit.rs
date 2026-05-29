@@ -82,7 +82,7 @@ pub struct CallEvent {
 /// SP-observability-completeness-v1 Axis C — one capability + how it was
 /// granted. The `granted_capabilities` field on `CallEvent` records the
 /// *result* set; this records the *source* of each.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapProvenance {
     pub cap: String,
     pub source: ProvSource,
@@ -90,7 +90,7 @@ pub struct CapProvenance {
 
 /// Where a granted capability came from (architecture §5.2 — the two
 /// composing mechanisms whose union forms `granted_capabilities`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ProvSource {
     /// Granted by the operator string allow-list
@@ -189,7 +189,12 @@ pub const DEFAULT_AUDIT_QUEUE_CAPACITY: usize = 1024;
 /// Construction no longer requires a tokio runtime context (the drain is a
 /// plain `std::thread`), unlike the prior tokio-mpsc implementation.
 pub struct JsonLinesAuditSink {
-    tx: std::sync::mpsc::SyncSender<CallEvent>,
+    /// `Option` so `Drop` can take + drop the sender (closing the channel)
+    /// before joining the drain thread.
+    tx: Option<std::sync::mpsc::SyncSender<CallEvent>>,
+    /// Retained so `Drop` can join the drain thread and guarantee the
+    /// buffered tail flushes before the sink goes away (#4 no-loss-at-drop).
+    drain: Option<std::thread::JoinHandle<()>>,
     drops: Arc<AtomicU64>,
     strategy: BackpressureStrategy,
 }
@@ -214,10 +219,25 @@ impl JsonLinesAuditSink {
         capacity: usize,
         strategy: BackpressureStrategy,
     ) -> Self {
+        // SP-observability-completeness-v1 #3 — Block blocks the calling
+        // (sync) thread under backpressure. On a current_thread tokio runtime
+        // that thread is the sole worker, so a stall starves accept. Warn
+        // (best-effort) when we can detect that flavor at construction time.
+        if matches!(strategy, BackpressureStrategy::Block) {
+            if let Ok(h) = tokio::runtime::Handle::try_current() {
+                if h.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
+                    eprintln!(
+                        "atd: WARNING — JsonLinesAuditSink Block strategy on a \
+                         current_thread runtime; a blocked worker can stall accept \
+                         under audit backpressure. Prefer a multi-thread runtime."
+                    );
+                }
+            }
+        }
         let (tx, rx) = std::sync::mpsc::sync_channel::<CallEvent>(capacity);
         let drops = Arc::new(AtomicU64::new(0));
         let mut writer = writer;
-        std::thread::spawn(move || {
+        let drain = std::thread::spawn(move || {
             while let Ok(ev) = rx.recv() {
                 if let Ok(mut line) = serde_json::to_vec(&ev) {
                     line.push(b'\n');
@@ -229,7 +249,8 @@ impl JsonLinesAuditSink {
             let _ = writer.flush();
         });
         Self {
-            tx,
+            tx: Some(tx),
+            drain: Some(drain),
             drops,
             strategy,
         }
@@ -261,10 +282,15 @@ impl JsonLinesAuditSink {
 
 impl AuditSink for JsonLinesAuditSink {
     fn on_call(&self, event: &CallEvent) {
+        let Some(tx) = self.tx.as_ref() else {
+            // Sink is being torn down (tx taken in Drop); count as a drop.
+            self.drops.fetch_add(1, Ordering::Relaxed);
+            return;
+        };
         match &self.strategy {
             BackpressureStrategy::Drop => {
                 // Non-blocking; on full, drop + count. log loss >> stall.
-                if self.tx.try_send(event.clone()).is_err() {
+                if tx.try_send(event.clone()).is_err() {
                     self.drops.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -272,12 +298,12 @@ impl AuditSink for JsonLinesAuditSink {
                 // Blocking send — no event lost; dispatch slows under
                 // backpressure. Err only if the drain thread is gone
                 // (shutdown), in which case count a drop rather than hang.
-                if self.tx.send(event.clone()).is_err() {
+                if tx.send(event.clone()).is_err() {
                     self.drops.fetch_add(1, Ordering::Relaxed);
                 }
             }
             BackpressureStrategy::FallbackSink(fb) => {
-                if self.tx.try_send(event.clone()).is_err() {
+                if tx.try_send(event.clone()).is_err() {
                     fb.on_call(event);
                 }
             }
@@ -288,6 +314,21 @@ impl AuditSink for JsonLinesAuditSink {
     }
     fn backpressure_strategy(&self) -> BackpressureStrategy {
         self.strategy.clone()
+    }
+}
+
+impl Drop for JsonLinesAuditSink {
+    /// SP-observability-completeness-v1 #4 — close the channel, then join the
+    /// drain thread so the buffered tail flushes to the writer before the
+    /// sink goes away. Without this, a short-lived process (or a Block
+    /// "no-loss" adopter) could lose queued events at teardown. Joining can
+    /// block if the writer is wedged — that is the price of the no-loss
+    /// guarantee at shutdown.
+    fn drop(&mut self) {
+        self.tx.take(); // drop sender → drain loop ends after draining
+        if let Some(h) = self.drain.take() {
+            let _ = h.join();
+        }
     }
 }
 
@@ -501,23 +542,27 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn drops_counter_increments_when_channel_full() {
-        // Capacity 4 — the drain task can't keep up with a burst of 200
-        // events, so the channel saturates and try_send fails.
+    #[test]
+    fn drops_counter_increments_when_channel_full() {
+        // SlowBuf throttles the drain (2ms/write) so a 200-event Drop-strategy
+        // burst on a capacity-4 channel is GUARANTEED to saturate it before the
+        // drain catches up. Without the throttle the std-thread drain races the
+        // producer and could keep up on a fast/idle box → flaky `drops == 0`.
         let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
-        let sink = JsonLinesAuditSink::new_with_capacity(Box::new(SharedBuf(buf)), 4);
+        let sink = JsonLinesAuditSink::new_with_capacity(
+            Box::new(SlowBuf {
+                inner: buf,
+                delay: std::time::Duration::from_millis(2),
+            }),
+            4,
+        );
         let ev = mk_event(Outcome::Success);
         for _ in 0..200 {
             sink.on_call(&ev);
         }
-        // Some of those 200 must have been dropped (the drain task is a
-        // single task; under tight capacity it can't service 200 sends back-
-        // to-back without scheduler yields between them).
-        let dropped = sink.drops();
         assert!(
-            dropped > 0,
-            "expected some drops at capacity=4 with 200-event burst, got 0"
+            sink.drops() > 0,
+            "expected drops at capacity=4 with a 200-event burst against a slow drain, got 0"
         );
     }
 
@@ -601,9 +646,11 @@ mod tests {
 
     #[test]
     fn block_strategy_loses_nothing_under_burst() {
-        // Throttled writer + tiny capacity + Block: a 200-event burst must
-        // produce 0 drops and eventually drain all 200, even though the
-        // writer is far slower than the producer.
+        // Throttled writer + tiny capacity + Block: every event must land,
+        // zero drops. Block makes on_call wait for queue space; dropping the
+        // sink JOINS the drain thread (#4), flushing the tail — so the
+        // assertion observes the final state directly instead of racing a
+        // deadline/poll loop (the previous flaky shape).
         let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
         let sink = JsonLinesAuditSink::with_strategy(
             Box::new(SlowBuf {
@@ -614,21 +661,16 @@ mod tests {
             BackpressureStrategy::Block,
         );
         let ev = mk_event(Outcome::Success);
-        for _ in 0..200 {
+        for _ in 0..100 {
             sink.on_call(&ev);
         }
         assert_eq!(sink.drops(), 0, "Block strategy must never drop");
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            let n = buf.lock().unwrap().iter().filter(|b| **b == b'\n').count();
-            if n >= 200 {
-                break;
-            }
-            if std::time::Instant::now() > deadline {
-                panic!("Block strategy lost events: only {n}/200 drained");
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
+        drop(sink); // joins the drain thread → all buffered events flushed
+        let n = buf.lock().unwrap().iter().filter(|b| **b == b'\n').count();
+        assert_eq!(
+            n, 100,
+            "Block must flush all 100 events by the time drop returns"
+        );
     }
 
     #[test]

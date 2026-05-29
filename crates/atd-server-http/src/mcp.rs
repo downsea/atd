@@ -326,7 +326,19 @@ fn build_caps(state: &ServerState, identity: Option<&BearerIdentity>) -> Capabil
     };
     let allow = CapabilitySet::from_iter(state.config.granted_capabilities.iter().cloned());
     let (granted, _denied) = allow.intersect(&id.granted_capabilities);
-    CapabilitySet::from_iter(granted)
+    // SP-observability-completeness-v1 Axis C — attribute HTTP/bearer grants
+    // for the audit sink, at parity with the UDS Hello path. The bearer's own
+    // UCAN-vs-direct origin is resolved + flattened inside the TokenBroker, so
+    // HTTP dispatch only sees the post-allow-list set; StringAllowList is the
+    // honest source at this layer (these caps passed the operator allow-list).
+    let provenance = granted
+        .iter()
+        .map(|c| atd_runtime::audit::CapProvenance {
+            cap: c.clone(),
+            source: atd_runtime::audit::ProvSource::StringAllowList,
+        })
+        .collect();
+    CapabilitySet::with_provenance(granted, provenance)
 }
 
 /// Translate an ATD `Response` (from `run_tool`) into the MCP wire shape

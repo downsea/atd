@@ -486,9 +486,7 @@ pub async fn run_tool_continue(
             // celia adopter binds atd-middleware-fhir + atd-middleware-pii-
             // redact-medical here; missing this hook would leak unredacted
             // PHI on every continue — a real compliance defect.
-            for mw in &state.middleware {
-                mw.on_result(&tool_id, entry.definition(), &mut value);
-            }
+            run_result_middleware(state, &tool_id, entry.definition(), &mut value);
             Response::ToolResultResponse {
                 tool_id: tool_id.clone(),
                 result: value,
@@ -509,9 +507,7 @@ pub async fn run_tool_continue(
                 "message": message,
                 "retryable": retryable,
             });
-            for mw in &state.middleware {
-                mw.on_result(&tool_id, entry.definition(), &mut value);
-            }
+            run_result_middleware(state, &tool_id, entry.definition(), &mut value);
             Response::ToolResultResponse {
                 tool_id: tool_id.clone(),
                 result: value,
@@ -524,9 +520,13 @@ pub async fn run_tool_continue(
             // Axis A — `{e:?}` can embed PHI via a Debug impl; redact.
             let mut message = format!("tool {tool_id} continuation failed: {e:?}");
             let mut details = None;
-            for mw in &state.middleware {
-                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
-            }
+            run_error_middleware(
+                state,
+                &tool_id,
+                entry.definition(),
+                &mut message,
+                &mut details,
+            );
             Response::Error {
                 message,
                 code: None,
@@ -592,6 +592,44 @@ pub async fn run_tool_continue(
 fn prov_for(caps: &CapabilitySet) -> Option<Vec<crate::audit::CapProvenance>> {
     let p = caps.provenance();
     if p.is_empty() { None } else { Some(p.to_vec()) }
+}
+
+/// SP-observability-completeness-v1 Axis A — run the egress `on_error`
+/// middleware chain over a tool-scoped failure reply (`Response::Error`).
+/// Called at EVERY tool-scoped error exit (invalid-args / internal /
+/// unhandled / capability-denied / rate-limited / broker-failed) so PHI in
+/// failure text or details can't bypass redaction.
+///
+/// **Out of scope by design:** `ToolNotFound` and Hello-handshake errors
+/// (UCAN verify, missing client_id). They carry framework *control* text — a
+/// client-supplied `tool_id`, a UCAN verify reason — with no tool/data body,
+/// and have no `ToolDefinition` to drive per-tool middleware. PHI lives in
+/// tool results/args, not in "tool not found"-class control strings.
+fn run_error_middleware(
+    state: &ServerState,
+    tool_id: &str,
+    def: &atd_protocol::ToolDefinition,
+    message: &mut String,
+    details: &mut Option<serde_json::Value>,
+) {
+    for mw in &state.middleware {
+        mw.on_error(tool_id, def, message, details);
+    }
+}
+
+/// SP-observability-completeness-v1 Axis A — run the egress `on_result`
+/// middleware chain over a result Value: the success result, and the
+/// `ExecutionFailed` failure envelope (a result-shaped Value that reaches the
+/// LLM). One chokepoint so success and failure results redact identically.
+fn run_result_middleware(
+    state: &ServerState,
+    tool_id: &str,
+    def: &atd_protocol::ToolDefinition,
+    value: &mut serde_json::Value,
+) {
+    for mw in &state.middleware {
+        mw.on_result(tool_id, def, value);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -687,15 +725,24 @@ pub async fn run_tool(
             tier,
             false,
         );
+        let mut message = format!("capability denied for {tool_id}: missing {missing_sorted:?}");
+        let mut details = Some(serde_json::json!({
+            "required": required_sorted,
+            "granted": caps.granted(),
+            "missing": missing_sorted,
+        }));
+        run_error_middleware(
+            state,
+            &tool_id,
+            entry.definition(),
+            &mut message,
+            &mut details,
+        );
         return Response::Error {
-            message: format!("capability denied for {tool_id}: missing {missing_sorted:?}"),
+            message,
             code: Some(atd_protocol::ERR_CAPABILITY_DENIED),
             retryable: Some(false),
-            details: Some(serde_json::json!({
-                "required": required_sorted,
-                "granted": caps.granted(),
-                "missing": missing_sorted,
-            })),
+            details,
         };
     }
     // SP-operability-v1 C2: rate-limit enforcement.
@@ -710,14 +757,24 @@ pub async fn run_tool(
                 tier,
                 false,
             );
+            let mut message =
+                format!("rate limited for {tool_id}: max_concurrent={max_conc} in-flight");
+            let mut details = Some(serde_json::json!({
+                "tool_id": tool_id,
+                "limit": max_conc,
+            }));
+            run_error_middleware(
+                state,
+                &tool_id,
+                entry.definition(),
+                &mut message,
+                &mut details,
+            );
             return Response::Error {
-                message: format!("rate limited for {tool_id}: max_concurrent={max_conc} in-flight"),
+                message,
                 code: Some(atd_protocol::ERR_RATE_LIMITED),
                 retryable: Some(true),
-                details: Some(serde_json::json!({
-                    "tool_id": tool_id,
-                    "limit": max_conc,
-                })),
+                details,
             };
         }
     };
@@ -736,11 +793,20 @@ pub async fn run_tool(
                     tier,
                     false,
                 );
+                let mut message = format!("token broker error for {tool_id}: {e}");
+                let mut details = None;
+                run_error_middleware(
+                    state,
+                    &tool_id,
+                    entry.definition(),
+                    &mut message,
+                    &mut details,
+                );
                 return Response::Error {
-                    message: format!("token broker error for {tool_id}: {e}"),
+                    message,
                     code: Some(atd_protocol::ERR_BROKER_FAILED),
                     retryable: Some(true),
-                    details: None,
+                    details,
                 };
             }
         },
@@ -799,9 +865,7 @@ pub async fn run_tool(
         };
     match call_result {
         Ok((mut data, next_cursor)) => {
-            for mw in &state.middleware {
-                mw.on_result(&tool_id, entry.definition(), &mut data);
-            }
+            run_result_middleware(state, &tool_id, entry.definition(), &mut data);
             emit(crate::audit::Outcome::Success, tier, secrets_resolved);
             Response::ToolResultResponse {
                 tool_id,
@@ -819,13 +883,15 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
-            // SP-observability-completeness-v1 Axis A — run egress redaction
-            // on the failure reply; the tool-authored `msg` may carry PHI.
             let mut message = format!("invalid args for {tool_id}: {msg}");
             let mut details = None;
-            for mw in &state.middleware {
-                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
-            }
+            run_error_middleware(
+                state,
+                &tool_id,
+                entry.definition(),
+                &mut message,
+                &mut details,
+            );
             Response::Error {
                 message,
                 code: None,
@@ -846,18 +912,14 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
-            // SP-observability-completeness-v1 Axis A — the failure result
-            // is a Value that reaches the LLM; run the egress middleware on
-            // it exactly like a success result, so PHI in `message` is
-            // redacted (the pre-SP gap: ExecutionFailed bypassed middleware).
+            // The failure result is a Value reaching the LLM; redact via the
+            // same on_result pass as a success result.
             let mut result = serde_json::json!({
                 "code": code,
                 "message": message,
                 "retryable": retryable,
             });
-            for mw in &state.middleware {
-                mw.on_result(&tool_id, entry.definition(), &mut result);
-            }
+            run_result_middleware(state, &tool_id, entry.definition(), &mut result);
             Response::ToolResultResponse {
                 tool_id,
                 result,
@@ -875,12 +937,15 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
-            // Axis A — panic/internal text can name a patient; redact.
             let mut message = format!("internal error in {tool_id}: {msg}");
             let mut details = None;
-            for mw in &state.middleware {
-                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
-            }
+            run_error_middleware(
+                state,
+                &tool_id,
+                entry.definition(),
+                &mut message,
+                &mut details,
+            );
             Response::Error {
                 message,
                 code: None,
@@ -897,12 +962,15 @@ pub async fn run_tool(
                 tier,
                 secrets_resolved,
             );
-            // Axis A — defence in depth on the catch-all error text.
             let mut message = format!("unhandled tool error in {tool_id}: {other}");
             let mut details = None;
-            for mw in &state.middleware {
-                mw.on_error(&tool_id, entry.definition(), &mut message, &mut details);
-            }
+            run_error_middleware(
+                state,
+                &tool_id,
+                entry.definition(),
+                &mut message,
+                &mut details,
+            );
             Response::Error {
                 message,
                 code: Some(1999),
