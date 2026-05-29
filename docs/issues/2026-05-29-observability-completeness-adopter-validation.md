@@ -87,6 +87,45 @@ This issue closes when:
 - Per-tool rate-limiter enforcement (Axis D only *documents* `rate_limit_per_min` is advisory; does not enforce it).
 - Cursor HMAC key rotation (Phase 0 doc note only; awaits a federation adopter feeling the re-fetch cost).
 
+## 验证结果 (2026-05-29, 1.2.0 → 1.2.1)
+
+API-surface 验证三个 adopter against 1.2.0(真编译被各 repo 的 `Cargo.lock` 锁 1.0.0 + rsproxy 镜像未同步挡住;但破坏点是 Rust 铁律确定的,additive drop-in 由 647 atd-mvp test + back-compat 保证):
+
+| Adopter | 结论 | 依据 |
+|---|---|---|
+| **healthkit_cli** | ✅ drop-in | 只用 `Tool`/`Registry`/`Server`/`CapabilitySet`(from_iter)/`TokenBroker` 稳定 API;无 `CallEvent` 构造、无 `impl Middleware/AuditSink`。1.2.0 全 additive。 |
+| **oh-cli** | ✅ drop-in | 仅 `Tool`/`Registry`/`Server`(feature `atd`);无破坏点。 |
+| **celia_phr** | ⚠️ **breaking** | `celia-connectors/src/orchestrator.rs:421` 手动 struct-literal 构造 `CallEvent`(federation sync 自 emit audit)。1.2.0 新增 `capability_provenance` 字段 → 缺字段编译失败。(1.1 的 `cursor_page` 当时同样要求 celia 改过。) |
+
+### 根因 + atd 1.2.1 修复
+
+`CallEvent` 是 `pub struct` 无 `#[non_exhaustive]` → 加字段对**外部构造者**(celia 这类自 emit audit 的 adopter)是 breaking。**atd-runtime 1.2.1** (已 publish) 修复:`CallEvent` 加 `#[non_exhaustive]` + `CallEvent::new(ts, call_id, tool_id, duration_ms, outcome, tier)` builder + `with_*` setter。之后给 `CallEvent` 加字段对外部构造者**非破坏**。
+
+### celia 升级任务(celia 仓,与 atd 升级原子化)
+
+celia 当前锁 atd-runtime 1.0.0(struct literal 匹配 1.0 shape,编译 OK)。**升级到 atd-runtime 1.2.1 时**(`cargo update`,需镜像同步 1.2.1 或绕镜像走官方 index),`orchestrator.rs:421` 迁移:
+
+```rust
+// before (struct literal — breaks on every CallEvent field addition):
+let event = CallEvent { ts: now_rfc3339(), call_id: ..., tool_id: ...,
+    caller_id: Some(caller_id.to_string()), granted_capabilities: Vec::new(),
+    duration_ms, outcome, tier: "background".into(), dry_run: false,
+    schema_version: SCHEMA_VERSION, secrets_resolved: false /* + 未来字段… */ };
+
+// after (builder — future-proof):
+let event = CallEvent::new(
+        now_rfc3339(),
+        format!("sync-{endpoint_id}-{tool_id}-{}", now_unix_ms()),
+        format!("celia-sync:{endpoint_id}:{tool_id}"),
+        duration_ms, outcome, "background",
+    )
+    .with_caller_id(Some(caller_id.to_string()));
+// granted_capabilities=[] / dry_run=false / secrets_resolved=false /
+// cursor_page=None / capability_provenance=None 均为 builder default。
+```
+
+**不在 celia 当前 lock(1.0.0)下半改** —— builder 在 1.2.1 才有,半改会破 celia 当前 build。迁移必须与 celia 的 atd 升级一起 land。
+
 ## References
 
 - ATD spec: `docs/superpowers/specs/2026-05-29-sp-observability-completeness-v1-design.md`
