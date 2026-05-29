@@ -560,6 +560,19 @@ generator over 10 pages, asserts cross-tool and expired-cursor
 rejection, and verifies the SDK's `call_all` concatenation walks the
 full chain.
 
+**Operational note — HMAC key rotation (v1 gap).** The signing key is
+per-process: random at startup, or pinned via `ATD_CURSOR_SIGNING_KEY`.
+A server restart therefore invalidates every outstanding cursor (the
+`server_session` nonce changes) → the next `RunToolContinue` gets
+`1020 ERR_CURSOR_EXPIRED`, and the client must re-issue the original
+`RunTool` to get a fresh cursor. For long federation syncs (a Phase-L
+adopter walking months of FHIR over many pages) one restart forces a
+full re-fetch — real bandwidth / API-quota cost. **Cross-restart cursor
+continuity (key persistence to disk, or a `kid`-tagged rotation window
+that retains the last N keys) is adopter-side in v1; no spec.** A
+federation adopter that feels the re-fetch cost is the trigger for an
+SP-cursor-key-rotation; until then the gap is documented, not closed.
+
 ### 5.7 Sessions and cancellation
 
 Not in v1. The design surface (state scope, wire mechanism,
@@ -637,17 +650,36 @@ pub struct CallEvent {
     pub outcome: Outcome,            // Success / ExecutionFailed / InvalidArgs / ...
     pub tier: String,
     pub dry_run: bool,
-    pub schema_version: u32,         // currently 2
+    pub schema_version: u32,         // currently 3
     pub secrets_resolved: bool,      // never the key names or values
     pub cursor_page: Option<u32>,    // 1-based page index; None when not paginated
+    pub capability_provenance: Option<Vec<CapProvenance>>, // SP-observability-completeness-v1 Axis C
 }
 ```
 
+`schema_version` is `3` since SP-observability-completeness-v1, which
+added the optional `capability_provenance` field: per-capability source
+attribution (`StringAllowList` or `UcanChain { issuer_did, chain_depth }`)
+so an operator can answer "why did caller X have capability Y?" without
+re-deriving the UCAN chain. Additive optional — v2 readers ignore it, v3
+readers see `None` on v2 events.
+
 The reference sink `JsonLinesAuditSink` writes JSONL to a configured
-path; reads happen via a bounded `tokio::sync::mpsc` channel + a
-dedicated writer task, so `on_call` is non-blocking and a slow disk
-backs up the writer queue rather than the dispatch loop. The
-`drops` counter is exposed via `Server::metrics_snapshot()`.
+path via a dedicated **std-thread** drain over a bounded
+`std::sync::mpsc::sync_channel`. The queue-full behaviour is selectable
+(SP-observability-completeness-v1 Axis B) via `BackpressureStrategy`:
+
+| Strategy | Behaviour | Use |
+|---|---|---|
+| `Drop` (default) | `try_send`; on full, drop + bump `drops()` | throughput-first; the 90% non-compliance case |
+| `Block` | blocking `send`; dispatch slows, no event lost | HIPAA §164.528 no-loss audit (requires multi-thread runtime) |
+| `FallbackSink(fb)` | on full, write to `fb` synchronously | bounded hot path with no silent loss |
+
+`JsonLinesAuditSink::with_strategy` selects it; `AuditSink::
+backpressure_strategy()` defaults to `Drop` (byte-compatible with
+pre-SP sinks). The `drops` counter is exposed via
+`Server::metrics_snapshot()`. Construction no longer requires a tokio
+runtime context (the drain is a plain `std::thread`).
 
 Adopters needing different sinks (Kafka, OpenTelemetry, ...) implement
 `AuditSink` against their own pipeline. The trait is `pub` and stable.
@@ -681,11 +713,24 @@ to that path is a follow-up. v1 is pure server-side short-circuit.
 ## 7. Middleware
 
 The middleware pipeline is the egress-side hook between a tool's
-successful return and the wire reply. The trait
-(`atd_runtime::Middleware`) takes `(tool_id, &ToolDefinition, &mut
-serde_json::Value)`; implementations can rewrite the value, strip
-sensitive sub-trees, or reject by mutating to an error envelope.
-Errors flow past untouched.
+return and the wire reply. The `Middleware` trait
+(`atd_runtime::Middleware`) has two hooks:
+
+- `on_result(tool_id, &ToolDefinition, &mut serde_json::Value)` — the
+  **success** path, and the `ExecutionFailed` exit (whose wire shape is a
+  `ToolResultResponse { success: false, result }`, i.e. a result Value).
+  Implementations rewrite the value, strip sensitive sub-trees, or reject
+  by mutating to an error envelope.
+- `on_error(tool_id, &ToolDefinition, &mut String, &mut Option<Value>)` —
+  the `Response::Error` path (`InvalidArgs` / `InternalError`), whose wire
+  shape is a bare `message` + optional `details`. Default no-op;
+  security-sensitive middleware (PHI/PII redaction) override it.
+
+Both hooks were unified in SP-observability-completeness-v1 Axis A: before
+it, error paths bypassed middleware entirely, leaking a tool's failure
+text (an arg echo, a panic message naming a patient) to the LLM
+unredacted — a real PHI defect. Now every wire reply, success or failure,
+runs egress redaction.
 
 Pipelines are composed at `Server::new` time:
 
@@ -876,13 +921,24 @@ Where third-party code attaches without forking the reference server:
 | Change the wire format | — | Yes (not an extension point) |
 | Add a new `ToolTier` variant | — | Yes |
 
-### 9.4 Workspace versioning
+### 9.4 Versioning
 
-All publishable crates share `workspace.package.version` (currently
-`1.0.0`). Adopters pinning one crate get a consistent set across the
-whole stack — the workspace ships as one coordinated version. The
-post-1.0 versioning policy (workspace-lockstep through the 1.x line) is
-defined in [`docs/release-plan-v1.0.md`](release-plan-v1.0.md).
+**Per-crate independent SemVer** ([ADR 0004](adr/0004-per-crate-versioning.md),
+2026-05-27, superseding the 1.0/1.1-era workspace-lockstep policy).
+
+- **`atd-protocol`'s version IS the ATD wire/protocol version.** When it
+  bumps, the workspace cuts an ATD release with the matching number; the
+  annotated tag `v<atd-protocol-version>` and the GitHub release anchor
+  here. The 1.x stability contract in
+  [`docs/release-plan-v1.0.md`](release-plan-v1.0.md) was always about the
+  wire, not the workspace as a whole.
+- **Every other crate bumps on its own source change.** A crate can ship a
+  patch the same week `atd-protocol` is quiescent, and can lag on weeks it
+  bumps. Sibling pins (`atd-protocol = { path = "...", version = "X.Y.Z" }`)
+  record the *minimum required* version, not necessarily the latest;
+  caret-compatible resolution handles routine bumps.
+- The `[workspace.package].version` field is removed; each crate carries an
+  explicit `version` in its own `Cargo.toml`.
 
 `atd-mock-weather-server` is the only `publish = false` crate — it's a
 demo-only bin.
@@ -946,6 +1002,30 @@ tool-specific previews is a future axis, not currently on the roadmap.
 adding a token-bucket rate limiter (via the `governor` crate) is
 straightforward when an adopter needs it, but the v1 line stops at
 semaphores.
+
+### 10.8 Cross-vendor capability federation
+
+ATD supports cross-vendor *composition* — one agent connects to N ATD
+servers and sees a merged catalog (§5, the cross-vendor pattern). It does
+**not** support cross-vendor *capability federation*: every authority
+mechanism is scoped to a single server. The string allow-list, the
+`caller_id`, the `TokenBroker`, the audit log, and — critically — a
+UCAN-lite token's `did:key` audience pin are all per-server. An agent
+holding a UCAN delegated for server A's audience cannot present it to
+server B; the user would have to mint a second token for B's audience,
+and no component knows B's `did:key`.
+
+Consequence: a multi-agent flow where a parent delegates "read patient X"
+to a child that then spans *two* vendors' ATD servers does not work out of
+the box — it needs either two separately-minted delegations or a
+federation registry that brokers audiences across servers. The registry
+is out of scope (it implies cross-vendor trust roots, audience discovery,
+and a revocation fabric the protocol does not specify). Single-vendor
+multi-agent delegation ships fully (SP-capability-v2); cross-vendor
+multi-agent collaboration is adopter-built. The keystone delegation
+scenario (share-with-Dr-Wang) lives inside one vendor's server, so this
+boundary doesn't block it — but a "pull my heart-rate from vendor A AND my
+labs from vendor B, both under one delegated child" flow does cross it.
 
 ---
 

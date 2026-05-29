@@ -223,6 +223,22 @@ MCP 是 client-server 协议，没有：
 
 ATD 在协议层 ship 这些，并通过 [`atd-mcp-bridge`](../crates/atd-mcp-bridge/) 兼容现有 MCP 客户端 — Hermes、Claude Code、Cursor 不用改一行代码就能接 ATD server。
 
+#### MCP 桥是 lossy 降级 —— 走 MCP 的 agent 只拿到 ATD 一半价值
+
+诚实标注：`atd-mcp-bridge` 让 MCP client 能调 ATD 工具，但 MCP wire 本身没有承载 ATD 元数据的字段，所以以下信息在桥上被丢弃或降级：
+
+| ATD 提供 | 经 MCP 桥后 |
+|---|---|
+| `tier`（Hot/Warm/Cold） | 丢失 —— client 不知道该等多久 |
+| `safety.level`（6 档） | 丢失 —— LLM 不知道工具是 Read 还是 Destructive，无法触发二次确认 |
+| `output_schema` | 丢失 —— 不能预 validate / 不能提示 LLM 返回 shape |
+| `dry_run` flag | 丢失 —— MCP 无此字段，危险操作没 preview |
+| `required_capabilities` | 丢失 —— 桥不发 `Hello` 握手，所有调用走空 capability 集（需 cap 的工具被 1001 拒） |
+| cursor 分页 | 默认截断 + 注释，除非 `ATD_MCP_PASSTHROUGH_CURSOR=1` |
+| `caller_id`（多租户） | 丢失 —— MCP 单 stdio session，broker 区分不了 caller |
+
+**结论**：MCP 桥适合「工具本来就不需要 ATD 全能力」的 consumer（如 oh-cli 手机端）。需要 tier-sensitivity / capability gate / 多租户 / safety 二次确认的 agent，应直接用 **native ATD client**（Rust `atd-sdk` 或 Python `atd_client`，两者都暴露 `hello()` + 完整 `ToolDefinition`）。详见 [`crates/atd-mcp-bridge/README.md`](../crates/atd-mcp-bridge/README.md) §Limitations。
+
 ### 5.3 vs per-vendor 自研 adapter
 
 每个 vendor 自己写一套 server？写过的人都知道：每写一次都要重新设计 capability、audit、rate limit、token 管理、stop logic。ATD `atd-runtime` + `atd-server` 是 ~2000 行 Rust，vendor 写自己的 server 只需要：

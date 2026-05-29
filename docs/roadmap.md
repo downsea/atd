@@ -170,9 +170,11 @@ the shape it would take if adopter pressure justified it:
 - **Distributed sessions** — if §1's session work lands, a session
   identity on the wire is a structural addition large enough to
   reconsider the envelope.
-- **Per-crate independent versioning** — 1.x ships workspace-lockstep
-  (every crate at one version); 2.0 is the natural point to revisit
-  whether stable crates can version independently. See
+- ~~**Per-crate independent versioning**~~ — **DONE in 1.x, not deferred
+  to 2.0.** Adopted 2026-05-27 via [ADR 0004](adr/0004-per-crate-versioning.md):
+  `atd-protocol`'s version is the ATD wire/release identity, other crates
+  bump on own-source change. It was never wire-breaking (a release-process
+  change), so it didn't need a major bump. See
   [`release-plan-v1.0.md`](release-plan-v1.0.md) §8.
 - **Schema reshape** — any field rename or removal in
   `atd-protocol-schema.json` that 1.x's additive-only rule forbade.

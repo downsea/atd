@@ -59,19 +59,36 @@ atd-ref-server --sock /tmp/my-atd.sock
 
 ## Limitations
 
-### Capability-gated tools
+The MCP bridge is a **lossy down-mapping**. MCP's wire format has no fields
+for most of ATD's tool metadata, so the bridge drops or degrades it. Use the
+bridge when your consumer doesn't need ATD's full surface (e.g. a phone-side
+MCP-only client); use a **native ATD client** (Rust [`atd-sdk`] / Python
+[`atd_client`], both expose `hello()` + the full `ToolDefinition`) when you do.
 
-The reference server enforces a connection-scoped capability gate: tools can
-declare `required_capabilities` which the server checks before dispatch. The
-MCP bridge does **not** issue an ATD `Hello` handshake, so every call it
-proxies runs with an empty capability set. This is fine for the default ATD
-reference tools (all declare `required_capabilities: []`), but any tool you
-install that requires capabilities is refused with code `1001`
-(`CAPABILITY_DENIED`) when called through the bridge.
+### What MCP clients lose
 
-To call capability-gated tools, use the Rust or Python ATD client directly
-(both expose `hello()` on the client surface). Propagating capabilities through
-the MCP bridge is tracked as a future enhancement.
+| ATD provides | Over the MCP bridge |
+|---|---|
+| `tier` (Hot/Warm/Cold) | dropped — client can't size its timeout |
+| `safety.level` (Read/Write/Financial/Privacy/Physical/Destructive) | dropped — the LLM can't tell a read from a destructive op, so no risk-gated confirmation |
+| `output_schema` | dropped — no pre-validation, no "you'll get shape X" hint |
+| `dry_run` flag | dropped — MCP has no such field, so no preview for dangerous ops |
+| `required_capabilities` | dropped — the bridge issues no ATD `Hello`, so every proxied call runs with an empty capability set |
+| cursor pagination | truncated + annotated by default, unless `ATD_MCP_PASSTHROUGH_CURSOR=1` |
+| `caller_id` (multi-tenant) | dropped — one stdio session, so the `TokenBroker` can't route per-caller secrets |
+
+### Capability-gated tools (consequence of the above)
+
+Because the bridge issues no `Hello`, every call runs with an empty capability
+set. This is fine for the default ATD reference tools (all declare
+`required_capabilities: []`), but any tool that requires capabilities is
+refused with code `1001` (`CAPABILITY_DENIED`) through the bridge. Call such
+tools via the native Rust/Python client (`hello()` negotiates capabilities).
+Propagating capabilities / safety / tier through the MCP bridge is tracked as a
+future enhancement.
+
+[`atd-sdk`]: https://crates.io/crates/atd-sdk
+[`atd_client`]: https://github.com/downsea/atd/tree/master/python
 
 ## See also
 

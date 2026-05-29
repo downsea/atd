@@ -358,6 +358,14 @@ ship `1.0.1` with the fix.
 
 ## 8. Post-1.0 versioning policy
 
+> **SUPERSEDED 2026-05-27 by [ADR 0004](adr/0004-per-crate-versioning.md).**
+> The workspace-lockstep policy described below was the 1.0/1.1 cadence;
+> it was re-evaluated one release into 1.x (per its own "1.0 时复评"
+> trigger) and replaced with **per-crate independent SemVer** —
+> `atd-protocol`'s version is the ATD wire/release identity, every other
+> crate bumps on its own source change. The section is retained for
+> historical context; ADR 0004 is authoritative.
+
 **Through the 1.x line: workspace-lockstep.** Every publishable crate
 stays at one shared `workspace.package.version`. A `1.1.0` means *every*
 crate goes to `1.1.0`, whether or not that crate changed. The rationale
