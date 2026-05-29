@@ -44,6 +44,7 @@ pub const SCHEMA_VERSION: u32 = 3;
 /// rate_limited, tool_not_found). Ping / Hello / ToolList / ToolSchema
 /// do NOT emit events in v1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CallEvent {
     pub ts: String,
     pub call_id: String,
@@ -77,6 +78,68 @@ pub struct CallEvent {
     /// allow-list or a specific UCAN chain link.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capability_provenance: Option<Vec<CapProvenance>>,
+}
+
+impl CallEvent {
+    /// Stable constructor. `CallEvent` is `#[non_exhaustive]`: external crates
+    /// — adopters that emit their own audit events through an `AuditSink`
+    /// (e.g. celia's federation orchestrator) — MUST build it via `new` + the
+    /// `with_*` setters rather than a struct literal, so that adding an audit
+    /// field in a future minor is **not** a breaking change for them (the
+    /// `capability_provenance`/`cursor_page` additions that broke struct-literal
+    /// constructors are the motivation). Required fields are constructor args;
+    /// everything else defaults — `caller_id=None`, `granted_capabilities=[]`,
+    /// `dry_run=false`, `secrets_resolved=false`, `cursor_page=None`,
+    /// `capability_provenance=None`, `schema_version=SCHEMA_VERSION`.
+    pub fn new(
+        ts: impl Into<String>,
+        call_id: impl Into<String>,
+        tool_id: impl Into<String>,
+        duration_ms: u64,
+        outcome: Outcome,
+        tier: impl Into<String>,
+    ) -> Self {
+        Self {
+            ts: ts.into(),
+            call_id: call_id.into(),
+            tool_id: tool_id.into(),
+            caller_id: None,
+            granted_capabilities: Vec::new(),
+            duration_ms,
+            outcome,
+            tier: tier.into(),
+            dry_run: false,
+            schema_version: SCHEMA_VERSION,
+            secrets_resolved: false,
+            cursor_page: None,
+            capability_provenance: None,
+        }
+    }
+
+    pub fn with_caller_id(mut self, caller_id: Option<String>) -> Self {
+        self.caller_id = caller_id;
+        self
+    }
+    pub fn with_granted_capabilities(mut self, caps: Vec<String>) -> Self {
+        self.granted_capabilities = caps;
+        self
+    }
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
+    }
+    pub fn with_secrets_resolved(mut self, resolved: bool) -> Self {
+        self.secrets_resolved = resolved;
+        self
+    }
+    pub fn with_cursor_page(mut self, page: Option<u32>) -> Self {
+        self.cursor_page = page;
+        self
+    }
+    pub fn with_capability_provenance(mut self, provenance: Option<Vec<CapProvenance>>) -> Self {
+        self.capability_provenance = provenance;
+        self
+    }
 }
 
 /// SP-observability-completeness-v1 Axis C — one capability + how it was
@@ -345,21 +408,37 @@ mod tests {
     use std::sync::Mutex;
 
     fn mk_event(outcome: Outcome) -> CallEvent {
-        CallEvent {
-            ts: now_rfc3339(),
-            call_id: "01J000000000000000000000TEST".into(),
-            tool_id: "ref:echo.say".into(),
-            caller_id: Some("test-client".into()),
-            granted_capabilities: vec!["read".into(), "write".into()],
-            duration_ms: 17,
+        CallEvent::new(
+            now_rfc3339(),
+            "01J000000000000000000000TEST",
+            "ref:echo.say",
+            17,
             outcome,
-            tier: "warm".into(),
-            dry_run: false,
-            schema_version: SCHEMA_VERSION,
-            secrets_resolved: false,
-            cursor_page: None,
-            capability_provenance: None,
-        }
+            "warm",
+        )
+        .with_caller_id(Some("test-client".into()))
+        .with_granted_capabilities(vec!["read".into(), "write".into()])
+    }
+
+    #[test]
+    fn callevent_builder_defaults_then_setters() {
+        let e = CallEvent::new(now_rfc3339(), "cid", "tool:x", 5, Outcome::Success, "warm");
+        assert_eq!(e.tool_id, "tool:x");
+        assert_eq!(e.duration_ms, 5);
+        assert_eq!(e.schema_version, SCHEMA_VERSION);
+        assert!(e.caller_id.is_none());
+        assert!(e.granted_capabilities.is_empty());
+        assert!(!e.dry_run);
+        assert!(!e.secrets_resolved);
+        assert!(e.cursor_page.is_none());
+        assert!(e.capability_provenance.is_none());
+        let e2 = e
+            .with_caller_id(Some("agent-A".into()))
+            .with_cursor_page(Some(2))
+            .with_secrets_resolved(true);
+        assert_eq!(e2.caller_id.as_deref(), Some("agent-A"));
+        assert_eq!(e2.cursor_page, Some(2));
+        assert!(e2.secrets_resolved);
     }
 
     #[test]

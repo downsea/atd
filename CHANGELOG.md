@@ -18,6 +18,28 @@ lives at `docs/adr/` and (for pre-1.0 history) `docs/archive/superpowers/specs/`
 
 ---
 
+## [1.2.1] — 2026-05-29
+
+Patch on **`atd-runtime` only** — an adopter-compatibility fix surfaced by the
+1.2.0 adopter validation across celia_phr / healthkit_cli / oh-cli. `atd-protocol`
+and the other crates stay at their current versions.
+
+### Fixed
+
+- **`CallEvent` is now `#[non_exhaustive]` and has a `CallEvent::new()` builder**
+  (+ `with_caller_id` / `with_granted_capabilities` / `with_dry_run` /
+  `with_secrets_resolved` / `with_cursor_page` / `with_capability_provenance`).
+  Adopters that emit their own audit events through an `AuditSink` (e.g. celia's
+  federation orchestrator) construct `CallEvent` directly — and the additive
+  field additions (`capability_provenance` in 1.2.0, `cursor_page` in 1.1) broke
+  their struct literals each time. The builder + `non_exhaustive` make future
+  audit-field additions **non-breaking** for external constructors. Migration:
+  `CallEvent { ts, call_id, .. }` → `CallEvent::new(ts, call_id, tool_id,
+  duration_ms, outcome, tier).with_*(..)`. (healthkit_cli / oh-cli were already
+  drop-in — they don't construct `CallEvent`.)
+
+---
+
 ## [1.2.0] — 2026-05-29
 
 Second minor bump on the 1.x line — **SP-observability-completeness-v1**.
