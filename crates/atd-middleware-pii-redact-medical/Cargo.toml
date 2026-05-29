@@ -1,6 +1,6 @@
 [package]
 name = "atd-middleware-pii-redact-medical"
-version = "1.1.0"
+version = "1.2.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -12,7 +12,7 @@ keywords = ["atd", "fhir", "pii", "phi", "hipaa"]
 categories = ["api-bindings"]
 
 [dependencies]
-atd-runtime = { path = "../atd-runtime", version = "1.1.0" }
+atd-runtime = { path = "../atd-runtime", version = "1.2.0" }
 atd-protocol = { path = "../atd-protocol", version = "1.1.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }

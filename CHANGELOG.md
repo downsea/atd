@@ -6,13 +6,58 @@ documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Workspace crates share a single version cadence (`workspace.package.version`),
-so a `1.0.0` line below means **every** crate in `crates/` ships at
-`1.0.0` — adopters pinning one crate get a consistent set across the
-whole stack.
+Through 1.1 the workspace shipped a single version cadence; since
+[ADR 0004](docs/adr/0004-per-crate-versioning.md) (2026-05-27) crates carry
+**per-crate independent SemVer** anchored on `atd-protocol`'s version as the
+ATD release identity. A `1.x.0` line below lists which crates actually shipped
+at that version; the rest stay at their prior version and pick up the new
+runtime via caret (`= "1"`) resolution.
 
 Each entry cites the tag where the change landed; full design rationale
 lives at `docs/adr/` and (for pre-1.0 history) `docs/archive/superpowers/specs/`.
+
+---
+
+## [1.2.0] — 2026-05-29
+
+Second minor bump on the 1.x line — **SP-observability-completeness-v1**.
+Additive: the wire is unchanged; the audit-log `schema_version` bumps 2→3 with
+a new optional field. Per ADR 0004 the crates shipping at 1.2.0 are
+`atd-protocol`, `atd-runtime`, `atd-middleware-pii-redact-medical`, and
+`atd-server-http`; the rest stay at 1.1.x and pick up the new runtime via
+caret resolution. Tag: `sp-observability-completeness-v1`.
+
+### Added
+
+- **`Middleware::on_error`** (default no-op) — egress redaction for the failure
+  wire shape. Every tool-scoped error exit (InvalidArgs / InternalError /
+  capability-denied / rate-limited / broker-failed / ExecutionFailed) now runs
+  egress middleware, closing a PHI leak where tool failure text reached the LLM
+  unredacted. `PiiRedactMiddleware` overrides it.
+- **`AuditSink::backpressure_strategy`** (default `Drop`) +
+  `BackpressureStrategy::{Drop, Block, FallbackSink}` +
+  `JsonLinesAuditSink::with_strategy` — selectable queue-full policy; `Block`
+  gives HIPAA §164.528 no-loss audit. The sink joins its drain thread on `Drop`
+  so the buffered tail flushes at teardown.
+- **`CallEvent.capability_provenance`** (audit `schema_version` 2→3) +
+  `CapProvenance` / `ProvSource::{StringAllowList, UcanChain{issuer_did,
+  chain_depth}}` — per-capability source attribution for the audit sink, on
+  both UDS and HTTP transports.
+- Advisory schema doc-comments on `ToolResources::rate_limit_per_min` and
+  `ToolTrust::trust_level` (now surfaced in `/atd-protocol-schema.json`).
+
+### Changed
+
+- `JsonLinesAuditSink`'s internal queue moved from tokio mpsc to a std
+  `sync_channel` + std-thread drain — construction no longer requires a tokio
+  runtime context.
+
+### Docs
+
+- ADR 0005 (UCAN-lite shipped-dormant sunset timeline), ADR 0006 (observability
+  completeness; amends SP-medical-middleware §4.2 — error paths now redacted).
+- Phase-0 alignment: per-crate SemVer (ADR 0004), MCP-bridge lossy-mapping
+  table, cross-vendor capability federation non-goal, cursor key-rotation gap.
 
 ---
 
